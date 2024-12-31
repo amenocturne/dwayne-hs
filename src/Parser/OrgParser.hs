@@ -68,11 +68,11 @@ makeForest list getLevel = foldl append (Right $ Forest []) list
 
 -------------------------------- ORG MODE -------------------------------------
 
--- data TaskFile = TaskFile
---   { path :: String
---   , name :: String
---   , content :: Forest Task
---   }
+data TaskFile = TaskFile
+  { name :: Maybe T.Text
+  , content :: Forest Task
+  }
+  deriving (Show)
 
 taskLevelParser :: Parser Int
 taskLevelParser = failOnConditionParser parser (<= 0) errorMsg
@@ -301,3 +301,9 @@ allTasksParser =
             Right forest -> succeedingParser forest
         )
       . (`makeForest` (\t -> level t - 1))
+
+orgFileParser :: Parser TaskFile
+orgFileParser = fmap (uncurry TaskFile) parser
+ where
+  fileTitleParser = maybeParser $ stringParser "#+TITLE: " *> tillTheEndOfStringParser <* skipBlanksParser
+  parser = (,) <$> fileTitleParser <*> allTasksParser

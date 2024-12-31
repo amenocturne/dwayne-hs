@@ -1,3 +1,5 @@
+#+TITLE: Phone
+
 * TODO [#A] Some task :tag1:tag2:
 :PROPERTIES:
 :CREATED: [2024-10-06 Sun 11:51]
