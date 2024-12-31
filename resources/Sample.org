@@ -4,7 +4,7 @@
 :CREATEDTWO: [2024-10-06 Sun 11:51]
 :END:
 
-* INBOX [#A] Another task :tag1:tag2:
+** INBOX [#A] Another task :tag1:tag2:
 SCHEDULED: <2024-10-12 Sat> DEADLINE: <2024-10-19 Sat>
 :PROPERTIES:
 :CREATED: [2024-10-06 Sun 11:51]

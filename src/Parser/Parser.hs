@@ -41,6 +41,9 @@ newtype Parser a = Parser (ParserInput -> (ParserInput, ParserResult a)) derivin
 failingParser :: ParserError -> Parser a
 failingParser err = Parser $ \i -> (i, ParserFailure err)
 
+succeedingParser :: a -> Parser a
+succeedingParser a = Parser $ \i -> (i, ParserSuccess a)
+
 runParser :: Parser a -> T.Text -> (Location, T.Text, ParserResult a)
 runParser (Parser run) i =
   let ((loc, leftOver), res) = run (id, i)

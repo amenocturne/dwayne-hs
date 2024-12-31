@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# HLINT ignore "Use tuple-section" #-}
 {-# LANGUAGE QuantifiedConstraints #-}
@@ -13,19 +15,63 @@ import Data.List (find)
 import Data.Maybe (catMaybes)
 import qualified Data.Text as T
 import Data.Time
-import GHC.Base
+import GHC.Base hiding (foldr)
 import Parser.Parser
 import Parser.StandardParsers
 import TextUtils
 
--------------------------------- ORG MODE -------------------------------------
+---------------------------------- TREE ---------------------------------------
 
--- data Tree a = Node [Tree a] | Leaf a deriving (Show)
+maybeLastAndRest :: [a] -> ([a], Maybe a)
+maybeLastAndRest [] = ([], Nothing)
+maybeLastAndRest [x] = ([], Just x)
+maybeLastAndRest (x : xs) = (x : rest, last)
+ where
+  (rest, last) = maybeLastAndRest xs
+
+maybeToEither :: Maybe a -> b -> Either b a
+maybeToEither Nothing e = Left e
+maybeToEither (Just a) _ = Right a
+
+-- Forest is represented as a "root" empty node and children of it are root
+-- nodes of trees in that forest
+data Forest a = Forest [Forest a] | Node a [Forest a] deriving (Show, Functor)
+
+leaf :: a -> Forest a
+leaf a = Node a []
+
+-- Appends new tree to a node
+-- Level 0 means under root node
+appendToAtLevel :: Forest a -> Forest a -> Int -> Either String (Forest a)
+appendToAtLevel tree node level
+  | level == 0 = case tree of
+      Forest nodes -> Right $ Forest (nodes ++ [node])
+      Node a nodes -> Right $ Node a (nodes ++ [node])
+  | level > 0 = case tree of
+      Forest nodes -> do
+        let (rest, maybeLast) = maybeLastAndRest nodes
+        last <- maybeToEither maybeLast "Can only add nodes to level 0 in empty forest"
+        appendedLast <- appendToAtLevel last node (level - 1)
+        Right $ Forest (rest ++ [appendedLast])
+      Node a nodes -> do
+        let (rest, maybeLast) = maybeLastAndRest nodes
+        last <- maybeToEither maybeLast "Can only add nodes to level 0 in empty node"
+        appendedLast <- appendToAtLevel last node (level - 1)
+        Right $ Node a (rest ++ [appendedLast])
+  | otherwise = Left "Cannot insert at negative level"
+
+makeForest :: (Show a) => [a] -> (a -> Int) -> Either String (Forest a)
+makeForest list getLevel = foldl append (Right $ Forest []) list
+ where
+  append (Left e) _ = Left e
+  append (Right acc) value = appendToAtLevel acc (leaf value) (getLevel value)
+
+-------------------------------- ORG MODE -------------------------------------
 
 -- data TaskFile = TaskFile
 --   { path :: String
 --   , name :: String
---   , content :: Tree Task
+--   , content :: Forest Task
 --   }
 
 taskLevelParser :: Parser Int
@@ -52,7 +98,7 @@ titleAndTagsParser :: Parser (T.Text, [T.Text])
 titleAndTagsParser = fmap splitToTitleAndTags tillTheEndOfStringParser
 
 splitToTitleAndTags :: T.Text -> (T.Text, [T.Text])
-splitToTitleAndTags input = (actualTitle, actualTags)
+splitToTitleAndTags input = (T.strip actualTitle, actualTags)
  where
   parts = split ':' input
   (titleParts, tagParts) = break isTag parts
@@ -241,11 +287,17 @@ brokenPropertiesTaskParser =
     <*> (skipBlanksExceptNewLinesParser *> scheduledOrDeadLineParser)
     <*> (skipBlanksParser *> descriptionParser)
 
-allTasksParser :: Parser Task
-allTasksParser =
+anyTaskparser :: Parser Task
+anyTaskparser =
   properTaskParser
     <|> brokenDescriptionTaskParser
     <|> brokenPropertiesTaskParser
 
--- TODO: make parser of the whole org file into a file with properties + tree of
--- tasks
+allTasksParser :: Parser (Forest Task)
+allTasksParser =
+  many anyTaskparser
+    >>= ( \case
+            Left err -> failingParser $ "Forest Construction Failed: " ++ err
+            Right forest -> succeedingParser forest
+        )
+      . (`makeForest` (\t -> level t - 1))

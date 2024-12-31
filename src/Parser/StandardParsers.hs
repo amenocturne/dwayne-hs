@@ -64,8 +64,8 @@ skipBlanksParser = void $ takeWhileParser isSpace
 tillTheEndOfStringParser :: Parser T.Text
 tillTheEndOfStringParser =
   takeWhileParser (/= '\n') >>= \case
-    "" -> Parser $ \i -> (i, ParserFailure "Nothing to parse, line already ended")
-    l -> Parser $ \i -> (i, ParserSuccess l)
+    "" -> failingParser "Nothing to parse, line already ended"
+    l -> succeedingParser l
 
 failOnConditionParser :: Parser a -> (a -> Bool) -> ParserError -> Parser a
 failOnConditionParser p cond err = p >>= \r -> if cond r then failingParser err else pure r
