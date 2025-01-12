@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# HLINT ignore "Use tuple-section" #-}
@@ -16,63 +15,13 @@ import Data.Maybe (catMaybes)
 import qualified Data.Text as T
 import Data.Time
 import GHC.Base hiding (foldr)
+import Model.OrgMode
+import Model.Tree
 import Parser.Parser
 import Parser.StandardParsers
 import TextUtils
 
----------------------------------- TREE ---------------------------------------
-
-maybeLastAndRest :: [a] -> ([a], Maybe a)
-maybeLastAndRest [] = ([], Nothing)
-maybeLastAndRest [x] = ([], Just x)
-maybeLastAndRest (x : xs) = (x : rest, last)
- where
-  (rest, last) = maybeLastAndRest xs
-
-maybeToEither :: Maybe a -> b -> Either b a
-maybeToEither Nothing e = Left e
-maybeToEither (Just a) _ = Right a
-
--- Forest is represented as a "root" empty node and children of it are root
--- nodes of trees in that forest
-data Forest a = Forest [Forest a] | Node a [Forest a] deriving (Show, Functor)
-
-leaf :: a -> Forest a
-leaf a = Node a []
-
--- Appends new tree to a node
--- Level 0 means under root node
-appendToAtLevel :: Forest a -> Forest a -> Int -> Either String (Forest a)
-appendToAtLevel tree node level
-  | level == 0 = case tree of
-      Forest nodes -> Right $ Forest (nodes ++ [node])
-      Node a nodes -> Right $ Node a (nodes ++ [node])
-  | level > 0 = case tree of
-      Forest nodes -> do
-        let (rest, maybeLast) = maybeLastAndRest nodes
-        last <- maybeToEither maybeLast "Can only add nodes to level 0 in empty forest"
-        appendedLast <- appendToAtLevel last node (level - 1)
-        Right $ Forest (rest ++ [appendedLast])
-      Node a nodes -> do
-        let (rest, maybeLast) = maybeLastAndRest nodes
-        last <- maybeToEither maybeLast "Can only add nodes to level 0 in empty node"
-        appendedLast <- appendToAtLevel last node (level - 1)
-        Right $ Node a (rest ++ [appendedLast])
-  | otherwise = Left "Cannot insert at negative level"
-
-makeForest :: (Show a) => [a] -> (a -> Int) -> Either String (Forest a)
-makeForest list getLevel = foldl append (Right $ Forest []) list
- where
-  append (Left e) _ = Left e
-  append (Right acc) value = appendToAtLevel acc (leaf value) (getLevel value)
-
 -------------------------------- ORG MODE -------------------------------------
-
-data TaskFile = TaskFile
-  { name :: Maybe T.Text
-  , content :: Forest Task
-  }
-  deriving (Show)
 
 taskLevelParser :: Parser Int
 taskLevelParser = failOnConditionParser parser (<= 0) errorMsg
@@ -127,8 +76,6 @@ toOrgDateTime str = parseTimeM True defaultTimeLocale "%Y-%m-%d %a %H:%M" (T.unp
 toOrgDate :: T.Text -> Maybe Day
 toOrgDate str = parseTimeM True defaultTimeLocale "%Y-%m-%d %a" (T.unpack str)
 
-type OrgTime = Either Day UTCTime
-
 parseDateOrDateTime :: T.Text -> Maybe OrgTime
 parseDateOrDateTime input =
   case (toOrgDateTime input, toOrgDate input) of
@@ -167,7 +114,7 @@ propertyParser =
   charParser ':'
     *> ( (\a _ b -> (a, b))
           <$> wordParser
-          <*> charParser ':'
+          <*> stringParser ": "
           <*> tillTheEndOfStringParser
           <* charParser '\n'
        )
@@ -183,23 +130,13 @@ propertiesParser =
 descriptionParser :: Parser T.Text
 descriptionParser = takeUntilDelimParser "\n*"
 
-data Task = Task
-  { level :: Int
-  , todoKeyword :: T.Text
-  , priority :: Maybe Int
-  , title :: T.Text
-  , tags :: [T.Text]
-  , scheduled :: Maybe OrgTime
-  , deadline :: Maybe OrgTime
-  , closed :: Maybe OrgTime
-  , created :: Maybe OrgTime
-  , properties :: [(T.Text, T.Text)]
-  , description :: T.Text
-  }
-  deriving (Show)
-
 findProp :: T.Text -> [(T.Text, a)] -> Maybe a
 findProp name l = snd <$> find (\(n, _) -> n == name) l
+
+removeDelimiters :: T.Text -> Maybe T.Text
+removeDelimiters t
+  | T.length t >= 2 = Just $ T.init $ T.tail t
+  | otherwise = Nothing
 
 properTaskParser :: Parser Task
 properTaskParser =
@@ -216,7 +153,7 @@ properTaskParser =
           (findProp "SCHEDULED" propsList)
           (findProp "DEADLINE" propsList)
           (findProp "CLOSED" propsList)
-          (findProp "CREATED" properties >>= parseDateOrDateTime)
+          (findProp "CREATED" properties >>= removeDelimiters >>= parseDateOrDateTime)
           properties
           description
   )
