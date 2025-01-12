@@ -154,7 +154,7 @@ properTaskParser =
           (findProp "DEADLINE" propsList)
           (findProp "CLOSED" propsList)
           (findProp "CREATED" properties >>= removeDelimiters >>= parseDateOrDateTime)
-          properties
+          (filter (\(k, _) -> k /= "CREATED") properties)
           description
   )
     <$> (skipBlanksParser *> taskLevelParser)
