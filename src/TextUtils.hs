@@ -8,12 +8,18 @@
 {-# HLINT ignore "Use ==" #-}
 module TextUtils where
 
-import qualified Data.ByteString.Lazy.Char8 as B
 import Data.Char (isSpace)
 import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
 
 readFileExample :: FilePath -> IO T.Text
-readFileExample path = T.pack . B.unpack <$> B.readFile path
+readFileExample = TIO.readFile
+
+writeFileExample :: FilePath -> T.Text -> IO ()
+writeFileExample = TIO.writeFile
+
+printExample :: T.Text -> IO ()
+printExample = TIO.putStrLn
 
 splitBy :: Char -> T.Text -> [T.Text]
 splitBy _ "" = []
@@ -45,3 +51,6 @@ split delim str =
         Just (_, rest) -> case split delim rest of
           [] -> [":"]
           x : xs -> T.cons delim x : xs
+
+removeLeadingSpaces :: T.Text -> T.Text
+removeLeadingSpaces = T.dropWhile isSpace

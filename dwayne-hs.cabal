@@ -59,11 +59,16 @@ executable dwayne
 
     -- Modules included in this executable, other than Main.
     other-modules:
+      Model.Injection,
+      Model.OrgMode,
+      Model.Tree,
       Parser.OrgParser,
       Parser.Parser,
       Parser.StandardParsers,
       Render.OrgRender,
       Render.Render,
+      Writer.OrgWriter,
+      Writer.Writer,
       TextUtils
 
     -- LANGUAGE extensions used by modules in this package.
@@ -75,7 +80,10 @@ executable dwayne
       bytestring >= 0.11.5.3,
       text >= 2.0.0,
       time,
-      brick
+      brick,
+      vty,
+      directory,
+      process
 
     -- Directories containing source files.
     hs-source-dirs:

@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# HLINT ignore "Use tuple-section" #-}
 {-# LANGUAGE QuantifiedConstraints #-}
@@ -10,9 +11,12 @@
 
 module Parser.StandardParsers where
 
-import Data.Char (isLetter, isSpace)
+import Data.Char (digitToInt, isDigit, isLetter, isSpace)
+import Data.Foldable
 import Data.Functor (void)
 import qualified Data.Text as T
+import GHC.Base
+import Model.Injection
 import Parser.Parser
 import TextUtils
 
@@ -32,6 +36,16 @@ singleCharParser = Parser f
   f (modLoc, str) = case T.uncons str of
     Nothing -> ((modLoc, ""), ParserFailure "Input is empty, but expected a character")
     Just (x, xs) -> ((modLoc . shiftLocationByString (T.pack [x]), xs), ParserSuccess x)
+
+singleDigitParser :: Parser Int
+singleDigitParser = Parser f
+ where
+  f (modLoc, str) = case T.uncons str of
+    Nothing -> ((modLoc, ""), ParserFailure "Input is empty, but expected a digit")
+    Just (x, xs) -> (if isDigit x then ((modLoc . shiftLocationByString (T.pack [x]), xs), ParserSuccess (digitToInt x)) else ((modLoc, ""), ParserFailure $ "Expected a digit, but got " ++ [x]))
+
+positiveIntParser :: Parser Int
+positiveIntParser = sum . fmap (\(i, d) -> d * 10 ^ i) . zip [1 ..] . reverse <$> many singleDigitParser
 
 -- TODO: Make nice errors, so that it would display that it expected the whole
 -- word, not just character
@@ -76,3 +90,14 @@ maybeParser (Parser p) = Parser $ \i ->
    in case r of
         ParserSuccess s -> (i', ParserSuccess (Just s))
         ParserFailure _ -> (i, ParserSuccess Nothing)
+
+unMaybeParser :: ParserError -> Parser (Maybe a) -> Parser a
+unMaybeParser e (Parser p) = Parser $ \i ->
+  let (i', r) = p i
+   in case r of
+        ParserSuccess (Just s) -> (i', ParserSuccess s)
+        ParserSuccess Nothing -> (i, ParserFailure e)
+        ParserFailure e' -> (i, ParserFailure e')
+
+parseEnum :: (Injection b (Maybe a), Injection a b)  => (b -> Parser b) -> [a] -> Parser a
+parseEnum makeConstParser enumValues = unMaybeParser "MUST NEVER HAPPEN" $ fmap to (asum $ fmap (makeConstParser . to) enumValues)

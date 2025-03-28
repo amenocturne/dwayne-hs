@@ -1,10 +1,14 @@
 #+TITLE: Phone
 
 * TODO [#A] Some task :tag1:tag2:
+SCHEDULED: <2024-10-12 Sat> DEADLINE: <2024-10-19 Sat>
 :PROPERTIES:
 :CREATED: [2024-10-06 Sun 11:51]
 :CREATEDTWO: [2024-10-06 Sun 11:51]
+:KEY: VALUE
 :END:
+
+some description
 
 ** INBOX [#A] Another task :tag1:tag2:
 SCHEDULED: <2024-10-12 Sat> DEADLINE: <2024-10-19 Sat>

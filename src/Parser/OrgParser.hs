@@ -10,13 +10,12 @@
 module Parser.OrgParser where
 
 import Data.Char (isDigit, isLower)
-import Data.List (find)
+import Data.Foldable
 import Data.Maybe (catMaybes)
 import qualified Data.Text as T
 import Data.Time
 import GHC.Base hiding (foldr)
 import Model.OrgMode
-import Model.Tree
 import Parser.Parser
 import Parser.StandardParsers
 import TextUtils
@@ -70,68 +69,148 @@ splitToTitleAndTags input = (T.strip actualTitle, actualTags)
 
 -------------------------------------------------------------------------------
 
-toOrgDateTime :: T.Text -> Maybe UTCTime
-toOrgDateTime str = parseTimeM True defaultTimeLocale "%Y-%m-%d %a %H:%M" (T.unpack str)
+-- TODO: Generalize all those functions below
+toOrgDateTime :: T.Text -> Maybe LocalTime
+toOrgDateTime str = parseTimeM True defaultTimeLocale orgDayTimeFormat (T.unpack str)
 
 toOrgDate :: T.Text -> Maybe Day
-toOrgDate str = parseTimeM True defaultTimeLocale "%Y-%m-%d %a" (T.unpack str)
+toOrgDate str = parseTimeM True defaultTimeLocale orgDayFormat (T.unpack str)
 
-parseDateOrDateTime :: T.Text -> Maybe OrgTime
-parseDateOrDateTime input =
-  case (toOrgDateTime input, toOrgDate input) of
-    (Just dateTime, _) -> Just $ Right dateTime
-    (Nothing, Just date) -> Just $ Left date
-    _ -> Nothing
+toOrgTime :: T.Text -> Maybe TimeOfDay
+toOrgTime str = parseTimeM True defaultTimeLocale orgTimeFormat (T.unpack str)
 
-dateTimeParser :: Char -> Parser (Maybe OrgTime)
-dateTimeParser delimiterRight = fmap parseDateOrDateTime (splitParser (T.span (/= delimiterRight)))
+parseRepeatInterval :: Parser RepeatInterval
+parseRepeatInterval = RepeatInterval <$> parseEnum stringParser allRepeatTypes <*> positiveIntParser <*> parseEnum charParser allTimeUnits
+
+parseDelayInterval :: Parser DelayInterval
+parseDelayInterval = DelayInterval <$> parseEnum stringParser allDelayTypes <*> positiveIntParser <*> parseEnum charParser allTimeUnits
+
+-- parseDateOrDateTime :: T.Text -> ParserResult OrgTime
+-- parseDateOrDateTime input = do
+--   let parts = T.splitOn " " input
+--   -- TODO: parse by parts instead of parsing full date at once
+--   case parts of
+--     [] -> ParserFailure "Can't parse dateTime, no input provided"
+--     [date] -> ParserFailure "Invalid date format, should have day of the week"
+--     [_, _] -> case toOrgDate input of
+--       Just t -> ParserSuccess $ OrgTime (Left t) Nothing Nothing
+--       Nothing -> ParserFailure "Could not parse dateTime"
+--     -- [date, weekDay, something] -> case (toOrgTime something, parseDelayInterval something) of {}
+--     -- (Just time, _) -> _
+--     (_, ParserSuccess delayInterval) -> _
+
+-- Something is either a time or scheduled thing
+--   Just t -> Just $ OrgTime (Right t) Nothing Nothing
+--   Nothing -> _ -- parse something into repeat interval or delay interval
+-- _ -> Nothing
+
+-- parseDateOrDateTime :: T.Text -> Maybe OrgTime
+-- parseDateOrDateTime input =
+--   case (toOrgDateTime input, toOrgDate input) of
+--     (Just dateTime, _) -> Just $ OrgTime (Right dateTime) Nothing Nothing -- TODO:
+--     (Nothing, Just date) -> Just $ OrgTime (Left date) Nothing Nothing -- TODO:
+--     _ -> Nothing
+
+-- (parseDelim leftDelim) *>
+-- parseDateAndWeek <*>
+-- maybeParser parseTime <*>
+-- maybeParser parseRepeatInterval <*
+-- (parseDelim rightDelim)
+
+-- Example:
+-- 2005-10-01 Sat +1m -3d
+--
+
+parseDateAndWeek :: Parser Day
+parseDateAndWeek =
+  splitP
+    >>= ( \case
+            Just tt -> succeedingParser tt
+            Nothing -> failingParser $ "Could not parse date, expected format: " ++ orgDayFormat
+        )
+      . toOrgDate
+ where
+  splitP = splitParser (\t -> (T.take dateAndWeekLen t, T.drop dateAndWeekLen t))
+  -- Example: 2005-10-01 Sat
+  dateAndWeekLen = 4 + 1 + 2 + 1 + 2 + 1 + 3
+
+parseTime :: Parser TimeOfDay
+parseTime =
+  splitP
+    >>= ( \case
+            Just tt -> succeedingParser tt
+            Nothing -> failingParser $ "Could not parse time, expected format: " ++ orgTimeFormat
+        )
+      . toOrgTime
+ where
+  splitP = splitParser (\t -> (T.take dateAndWeekLen t, T.drop dateAndWeekLen t))
+  -- Example: 2005-10-01 Sat
+  dateAndWeekLen = 2 + 1 + 2
+
+dateTimeParserReimplemented :: Parser OrgTime
+dateTimeParserReimplemented =
+  ( \dateAndWeek maybeTime maybeRepeatedInterval maybeDelayInterval ->
+      OrgTime
+        { time = makeTime dateAndWeek maybeTime
+        , repeater = maybeRepeatedInterval
+        , delay = maybeDelayInterval
+        }
+  )
+    <$> parseDateAndWeek
+    <*> maybeParser parseTime
+    <*> maybeParser parseRepeatInterval
+    <*> maybeParser parseDelayInterval
+ where
+  makeTime d t = case t of
+    Just tt -> Right $ LocalTime d tt
+    Nothing -> Left d
+
+-- dateTimeParser :: Char -> Parser (Maybe OrgTime)
+-- dateTimeParser delimiterRight = fmap parseDateOrDateTime (splitParser (T.span (/= delimiterRight)))
 
 -- TODO: return error instead of nothing
-timePropertyParser :: T.Text -> (Char, Char) -> Parser (Maybe OrgTime)
+-- TODO: parse time schedules like .+1m
+timePropertyParser :: T.Text -> (Char, Char) -> Parser OrgTime
 timePropertyParser field (delimiterLeft, delimiterRight) =
   stringParser field
     *> charParser ':'
     *> skipBlanksParser
     *> charParser delimiterLeft
-    *> dateTimeParser delimiterRight
+    *> dateTimeParserReimplemented
+    -- \*> dateTimeParser delimiterRight
     <* charParser delimiterRight
 
 -- TODO: return error instead of nothing, so the last pure Nothing won't be
 -- necessary
 scheduledOrDeadLineParser :: Parser (Maybe (T.Text, OrgTime))
-scheduledOrDeadLineParser =
-  makeP "SCHEDULED" angleDelim
-    <|> makeP "DEADLINE" angleDelim
-    <|> makeP "CLOSED" bracketDelim
-    <|> pure Nothing
+scheduledOrDeadLineParser = foldr ((<|>) . makeP) (pure Nothing) orgTimeFields
  where
-  angleDelim = ('<', '>')
-  bracketDelim = ('[', ']')
-  makeP field delim = fmap (fmap (field,)) (timePropertyParser field delim)
+  makeP (TimeField field delim) = fmap (fmap (field,)) (maybeParser $ timePropertyParser field (delims delim))
 
 propertyParser :: Parser (T.Text, T.Text)
 propertyParser =
   charParser ':'
-    *> ( (\a _ b -> (a, b))
+    *> ( (\a _ _ b -> (a, b))
           <$> wordParser
-          <*> stringParser ": "
+          <*> stringParser ":"
+          <*> skipBlanksExceptNewLinesParser
           <*> tillTheEndOfStringParser
           <* charParser '\n'
        )
 
 propertiesParser :: Parser [(T.Text, T.Text)]
 propertiesParser =
-  stringParser ":PROPERTIES:"
+  stringParser orgPropertiesBegin
     *> skipBlanksParser
     *> many propertyParser
     <* skipBlanksParser
-    <* stringParser ":END:"
+    <* stringParser orgPropertiesEnd
 
 descriptionParser :: Parser T.Text
-descriptionParser = takeUntilDelimParser "\n*"
+descriptionParser = removeLeadingSpaces <$> takeUntilDelimParser "\n*"
 
-findProp :: T.Text -> [(T.Text, a)] -> Maybe a
-findProp name l = snd <$> find (\(n, _) -> n == name) l
+findProp :: TimeField -> [(T.Text, a)] -> Maybe a
+findProp field l = snd <$> find (\(n, _) -> n == timeFieldName field) l
 
 removeDelimiters :: T.Text -> Maybe T.Text
 removeDelimiters t
@@ -150,11 +229,10 @@ properTaskParser =
           priority
           title
           tags
-          (findProp "SCHEDULED" propsList)
-          (findProp "DEADLINE" propsList)
-          (findProp "CLOSED" propsList)
-          (findProp "CREATED" properties >>= removeDelimiters >>= parseDateOrDateTime)
-          (filter (\(k, _) -> k /= "CREATED") properties)
+          (findProp orgScheduledField propsList)
+          (findProp orgDeadlineField propsList)
+          (findProp orgClosedField propsList)
+          properties
           description
   )
     <$> (skipBlanksParser *> taskLevelParser)
@@ -179,10 +257,9 @@ brokenDescriptionTaskParser =
           priority
           title
           tags
-          (findProp "SCHEDULED" propsList)
-          (findProp "DEADLINE" propsList)
-          (findProp "CLOSED" propsList)
-          (findProp "CREATED" properties >>= parseDateOrDateTime)
+          (findProp orgScheduledField propsList)
+          (findProp orgDeadlineField propsList)
+          (findProp orgClosedField propsList)
           (("BROKEN_DESCRIPTION", "TRUE") : properties)
           description
   )
@@ -208,10 +285,9 @@ brokenPropertiesTaskParser =
           priority
           title
           tags
-          (findProp "SCHEDULED" propsList)
-          (findProp "DEADLINE" propsList)
-          (findProp "CLOSED" propsList)
-          Nothing
+          (findProp orgScheduledField propsList)
+          (findProp orgDeadlineField propsList)
+          (findProp orgClosedField propsList)
           [("BROKEN_PROPERTIES", "TRUE")]
           description
   )
@@ -230,14 +306,16 @@ anyTaskparser =
     <|> brokenDescriptionTaskParser
     <|> brokenPropertiesTaskParser
 
-allTasksParser :: Parser (Forest Task)
-allTasksParser =
-  many anyTaskparser
-    >>= ( \case
-            Left err -> failingParser $ "Forest Construction Failed: " ++ err
-            Right forest -> succeedingParser forest
-        )
-      . (`makeForest` (\t -> level t - 1))
+-- allTasksParser :: Parser (Forest Task)
+-- allTasksParser =
+--   many anyTaskparser
+--     >>= ( \case
+--             Left err -> failingParser $ "Forest Construction Failed: " ++ err
+--             Right forest -> succeedingParser forest
+--         )
+--       . (`makeForest` (\t -> level t - 1))
+allTasksParser :: Parser [Task]
+allTasksParser = many anyTaskparser
 
 orgFileParser :: Parser TaskFile
 orgFileParser = fmap (uncurry TaskFile) parser

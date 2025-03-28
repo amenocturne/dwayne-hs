@@ -2,3 +2,5 @@
 
 resources/Phone.org
 dist-newstyle
+.aider*
+.env
