@@ -1,3 +1,4 @@
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# HLINT ignore "Use tuple-section" #-}
 {-# LANGUAGE QuantifiedConstraints #-}
@@ -5,12 +6,14 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
-{-# HLINT ignore "Use ==" #-}
 module TextUtils where
 
 import Data.Char (isSpace)
+import Data.Kind
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+import Data.Time (ParseTime, defaultTimeLocale)
+import Data.Time.Format (parseTimeM)
 
 readFileExample :: FilePath -> IO T.Text
 readFileExample = TIO.readFile
@@ -54,3 +57,6 @@ split delim str =
 
 removeLeadingSpaces :: T.Text -> T.Text
 removeLeadingSpaces = T.dropWhile isSpace
+
+parseTimeWith :: forall (m :: Type -> Type) t. (MonadFail m, ParseTime t) => String -> T.Text -> m t
+parseTimeWith format str = parseTimeM True defaultTimeLocale format (T.unpack str)

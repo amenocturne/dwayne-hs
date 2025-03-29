@@ -1,5 +1,5 @@
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# HLINT ignore "Use tuple-section" #-}
 {-# LANGUAGE QuantifiedConstraints #-}
@@ -99,5 +99,9 @@ unMaybeParser e (Parser p) = Parser $ \i ->
         ParserSuccess Nothing -> (i, ParserFailure e)
         ParserFailure e' -> (i, ParserFailure e')
 
-parseEnum :: (Injection b (Maybe a), Injection a b)  => (b -> Parser b) -> [a] -> Parser a
+parseEnum :: (Injection b (Maybe a), Injection a b) => (b -> Parser b) -> [a] -> Parser a
 parseEnum makeConstParser enumValues = unMaybeParser "MUST NEVER HAPPEN" $ fmap to (asum $ fmap (makeConstParser . to) enumValues)
+
+-- TODO: add checking that input is less or equal to n
+takeParser :: Int -> Parser T.Text
+takeParser n = splitParser (\t -> (T.take n t, T.drop n t))

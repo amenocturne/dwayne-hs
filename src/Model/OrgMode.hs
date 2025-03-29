@@ -135,7 +135,7 @@ orgClosedField :: TimeField
 orgClosedField = TimeField "CLOSED" BracketDelim
 
 orgTimeFields :: [TimeField]
-orgTimeFields = [orgScheduledField, orgDeadlineField]
+orgTimeFields = [orgScheduledField, orgDeadlineField, orgClosedField]
 
 -- Properties
 

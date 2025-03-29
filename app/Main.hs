@@ -36,15 +36,6 @@ import TextUtils
 -- TODO: I should go through the code, collect all the errors and create widget
 -- to properly display them
 
--- TODO: First screen to make:
--- On the left display tasks on single line each (like in emacs) and on the
--- right show focused task in full
--- I think that it would allow for fast parsing of inbox
--- Also add shortcuts for changing the state of the task and so on
--- Also I can list all the subtasks indented under the given task in this
--- one-line view and show on the left as well focused task (or I can try to
--- experiment and show the project task and all of its subtasks at once)
-
 data AppState = CompactMode | FullMode
 
 data AppContext = AppContext

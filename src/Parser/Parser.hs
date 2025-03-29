@@ -62,9 +62,8 @@ instance Alternative Parser where
     let (i1, r1) = p1 i
         (i2, r2) = p2 i
      in case (r1, r2) of
-          (ParserSuccess r, _) -> (i1, ParserSuccess r)
-          (ParserFailure _, ParserSuccess r) -> (i2, ParserSuccess r)
-          (ParserFailure e, ParserFailure _) -> (i1, ParserFailure e) -- TODO: in this case it is not clear which input to provide, but actually doesn't matter because it already failed
+          (ParserFailure _, r) -> (i2, r)
+          (l, _) -> (i1, l)
 
 instance Monad Parser where
   p >>= f = flatten notFlattened

@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# HLINT ignore "Use tuple-section" #-}
@@ -15,12 +16,13 @@ import Data.Maybe (catMaybes)
 import qualified Data.Text as T
 import Data.Time
 import GHC.Base hiding (foldr)
+import Model.Injection
 import Model.OrgMode
 import Parser.Parser
 import Parser.StandardParsers
 import TextUtils
 
--------------------------------- ORG MODE -------------------------------------
+------------------------------- Title Line -------------------------------------
 
 taskLevelParser :: Parser Int
 taskLevelParser = failOnConditionParser parser (<= 0) errorMsg
@@ -28,7 +30,6 @@ taskLevelParser = failOnConditionParser parser (<= 0) errorMsg
   parser = fmap T.length (takeWhileParser (== '*'))
   errorMsg = "Task level must be specified with at least one '*'"
 
--- TODO: make it read only uppercase letters
 todoKeyWordParser :: Parser T.Text
 todoKeyWordParser = wordParser
 
@@ -39,8 +40,6 @@ priorityParser = stringParser "[#" *> letterToPriorityParser <* charParser ']'
 
 isTagChar :: Char -> Bool
 isTagChar c = isLower c || isDigit c
-
--------------------------------------------------------------------------------
 
 titleAndTagsParser :: Parser (T.Text, [T.Text])
 titleAndTagsParser = fmap splitToTitleAndTags tillTheEndOfStringParser
@@ -67,85 +66,34 @@ splitToTitleAndTags input = (T.strip actualTitle, actualTags)
     Nothing -> ""
     Just (x, xs) -> if x == ':' then xs else str
 
--------------------------------------------------------------------------------
+------------------------------- Time Fields ------------------------------------
 
--- TODO: Generalize all those functions below
-toOrgDateTime :: T.Text -> Maybe LocalTime
-toOrgDateTime str = parseTimeM True defaultTimeLocale orgDayTimeFormat (T.unpack str)
-
-toOrgDate :: T.Text -> Maybe Day
-toOrgDate str = parseTimeM True defaultTimeLocale orgDayFormat (T.unpack str)
-
-toOrgTime :: T.Text -> Maybe TimeOfDay
-toOrgTime str = parseTimeM True defaultTimeLocale orgTimeFormat (T.unpack str)
+parseInterval :: (Injection a T.Text, Injection T.Text (Maybe a)) => (a -> Int -> TimeUnit -> b) -> [a] -> Parser b
+parseInterval construct allTypes = construct <$> parseEnum stringParser allTypes <*> positiveIntParser <*> parseEnum charParser allTimeUnits
 
 parseRepeatInterval :: Parser RepeatInterval
-parseRepeatInterval = RepeatInterval <$> parseEnum stringParser allRepeatTypes <*> positiveIntParser <*> parseEnum charParser allTimeUnits
+parseRepeatInterval = parseInterval RepeatInterval allRepeatTypes
 
 parseDelayInterval :: Parser DelayInterval
-parseDelayInterval = DelayInterval <$> parseEnum stringParser allDelayTypes <*> positiveIntParser <*> parseEnum charParser allTimeUnits
-
--- parseDateOrDateTime :: T.Text -> ParserResult OrgTime
--- parseDateOrDateTime input = do
---   let parts = T.splitOn " " input
---   -- TODO: parse by parts instead of parsing full date at once
---   case parts of
---     [] -> ParserFailure "Can't parse dateTime, no input provided"
---     [date] -> ParserFailure "Invalid date format, should have day of the week"
---     [_, _] -> case toOrgDate input of
---       Just t -> ParserSuccess $ OrgTime (Left t) Nothing Nothing
---       Nothing -> ParserFailure "Could not parse dateTime"
---     -- [date, weekDay, something] -> case (toOrgTime something, parseDelayInterval something) of {}
---     -- (Just time, _) -> _
---     (_, ParserSuccess delayInterval) -> _
-
--- Something is either a time or scheduled thing
---   Just t -> Just $ OrgTime (Right t) Nothing Nothing
---   Nothing -> _ -- parse something into repeat interval or delay interval
--- _ -> Nothing
-
--- parseDateOrDateTime :: T.Text -> Maybe OrgTime
--- parseDateOrDateTime input =
---   case (toOrgDateTime input, toOrgDate input) of
---     (Just dateTime, _) -> Just $ OrgTime (Right dateTime) Nothing Nothing -- TODO:
---     (Nothing, Just date) -> Just $ OrgTime (Left date) Nothing Nothing -- TODO:
---     _ -> Nothing
-
--- (parseDelim leftDelim) *>
--- parseDateAndWeek <*>
--- maybeParser parseTime <*>
--- maybeParser parseRepeatInterval <*
--- (parseDelim rightDelim)
-
--- Example:
--- 2005-10-01 Sat +1m -3d
---
+parseDelayInterval = parseInterval DelayInterval allDelayTypes
 
 parseDateAndWeek :: Parser Day
 parseDateAndWeek =
-  splitP
+  takeParser (4 + 1 + 2 + 1 + 2 + 1 + 3) -- Example: 2005-10-01 Sat
     >>= ( \case
             Just tt -> succeedingParser tt
             Nothing -> failingParser $ "Could not parse date, expected format: " ++ orgDayFormat
         )
-      . toOrgDate
- where
-  splitP = splitParser (\t -> (T.take dateAndWeekLen t, T.drop dateAndWeekLen t))
-  -- Example: 2005-10-01 Sat
-  dateAndWeekLen = 4 + 1 + 2 + 1 + 2 + 1 + 3
+      . parseTimeWith orgDayFormat
 
 parseTime :: Parser TimeOfDay
 parseTime =
-  splitP
+  takeParser (2 + 1 + 2) -- Example: 10:30
     >>= ( \case
             Just tt -> succeedingParser tt
             Nothing -> failingParser $ "Could not parse time, expected format: " ++ orgTimeFormat
         )
-      . toOrgTime
- where
-  splitP = splitParser (\t -> (T.take dateAndWeekLen t, T.drop dateAndWeekLen t))
-  -- Example: 2005-10-01 Sat
-  dateAndWeekLen = 2 + 1 + 2
+      . parseTimeWith orgTimeFormat
 
 dateTimeParserReimplemented :: Parser OrgTime
 dateTimeParserReimplemented =
@@ -165,11 +113,6 @@ dateTimeParserReimplemented =
     Just tt -> Right $ LocalTime d tt
     Nothing -> Left d
 
--- dateTimeParser :: Char -> Parser (Maybe OrgTime)
--- dateTimeParser delimiterRight = fmap parseDateOrDateTime (splitParser (T.span (/= delimiterRight)))
-
--- TODO: return error instead of nothing
--- TODO: parse time schedules like .+1m
 timePropertyParser :: T.Text -> (Char, Char) -> Parser OrgTime
 timePropertyParser field (delimiterLeft, delimiterRight) =
   stringParser field
@@ -177,15 +120,14 @@ timePropertyParser field (delimiterLeft, delimiterRight) =
     *> skipBlanksParser
     *> charParser delimiterLeft
     *> dateTimeParserReimplemented
-    -- \*> dateTimeParser delimiterRight
     <* charParser delimiterRight
 
--- TODO: return error instead of nothing, so the last pure Nothing won't be
--- necessary
 scheduledOrDeadLineParser :: Parser (Maybe (T.Text, OrgTime))
-scheduledOrDeadLineParser = foldr ((<|>) . makeP) (pure Nothing) orgTimeFields
+scheduledOrDeadLineParser = maybeParser $ asum (fmap makeP orgTimeFields)
  where
-  makeP (TimeField field delim) = fmap (fmap (field,)) (maybeParser $ timePropertyParser field (delims delim))
+  makeP (TimeField field delim) = (field,) <$> timePropertyParser field (delims delim)
+
+------------------------------- Properties -------------------------------------
 
 propertyParser :: Parser (T.Text, T.Text)
 propertyParser =
@@ -206,16 +148,13 @@ propertiesParser =
     <* skipBlanksParser
     <* stringParser orgPropertiesEnd
 
+------------------------------- Properties -------------------------------------
+
 descriptionParser :: Parser T.Text
 descriptionParser = removeLeadingSpaces <$> takeUntilDelimParser "\n*"
 
 findProp :: TimeField -> [(T.Text, a)] -> Maybe a
 findProp field l = snd <$> find (\(n, _) -> n == timeFieldName field) l
-
-removeDelimiters :: T.Text -> Maybe T.Text
-removeDelimiters t
-  | T.length t >= 2 = Just $ T.init $ T.tail t
-  | otherwise = Nothing
 
 properTaskParser :: Parser Task
 properTaskParser =
@@ -298,7 +237,7 @@ brokenPropertiesTaskParser =
     <*> (skipBlanksParser *> scheduledOrDeadLineParser)
     <*> (skipBlanksExceptNewLinesParser *> scheduledOrDeadLineParser)
     <*> (skipBlanksExceptNewLinesParser *> scheduledOrDeadLineParser)
-    <*> (skipBlanksParser *> descriptionParser)
+    <*> descriptionParser
 
 anyTaskparser :: Parser Task
 anyTaskparser =
