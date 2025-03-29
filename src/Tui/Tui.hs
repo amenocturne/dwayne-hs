@@ -14,24 +14,18 @@ module Tui.Tui where
 import Brick
 import Brick.Widgets.Center
 import Data.Functor
-import Data.Maybe
 import qualified Data.Text as T
-import GHC.IO.Exception (ExitCode (..))
 import Graphics.Vty.Attributes
 import Graphics.Vty.Input.Events
 import Model.OrgMode (TaskFile (content))
 import Render.Render
 import qualified Render.Render as R
-import System.Directory (removeFile)
-import System.Environment (lookupEnv)
 import Writer.Writer
 
 import Brick.Widgets.Border (vBorder)
 import Brick.Widgets.Border.Style (unicodeRounded)
 import GHC.Base (when)
 import Parser.Parser
-import System.IO
-import System.Process
 import TextUtils
 
 -- TODO: I should go through the code, collect all the errors and create widget
@@ -62,16 +56,6 @@ data AppContext a = AppContext
 -- shortcuts =
 --   [ SimpleShortcut 'k' (\s -> s{currentCursor = max 0 (currentCursor s - 1)})
 --   ]
-
-app :: (RenderTask a, Writer a) => App (AppContext a) e ()
-app =
-  App
-    { appDraw = drawUI -- List in type signature because each element is a layer and thus you can put widgets on top of one another
-    , appChooseCursor = neverShowCursor
-    , appHandleEvent = handleEvent
-    , appStartEvent = return ()
-    , appAttrMap = const theAppAttrMap
-    }
 
 highlightAttr :: AttrName
 highlightAttr = attrName "highlight"
@@ -107,23 +91,6 @@ handleEvent (VtyEvent (EvKey KEnter [])) = do
             return state
 handleEvent _ = return () -- Ignore other events
 
-editWithEditor :: T.Text -> IO (Maybe String)
-editWithEditor content = do
-  editor <- fmap (fromMaybe "vim") (lookupEnv "EDITOR")
-  (tempPath, tempHandle) <- openTempFile "/tmp" "edit.txt"
-  hPutStr tempHandle (T.unpack content)
-  hFlush tempHandle
-  hClose tempHandle
-  exitCode <- system (editor ++ " " ++ tempPath)
-  case exitCode of
-    ExitSuccess -> do
-      newContent <- readFile tempPath >>= \c -> length c `seq` return c
-      removeFile tempPath
-      return (Just newContent)
-    _ -> do
-      removeFile tempPath
-      return Nothing
-
 ui :: String -> Widget ()
 ui text = vBox [hCenter $ str "Top widget", center $ txtWrap (T.pack text)]
 
@@ -142,6 +109,16 @@ drawCompactListView cursor ts = [joinBorders $ withBorderStyle unicodeRounded $ 
   withHighlight = zipWith (\i x -> if i == cursor then withAttr highlightAttr x else x) [0 ..] simplyRendered
   simplyRendered = fmap R.renderCompact ts
   focusedTask = R.renderFull (ts !! cursor)
+
+app :: (RenderTask a, Writer a) => App (AppContext a) e ()
+app =
+  App
+    { appDraw = drawUI -- List in type signature because each element is a layer and thus you can put widgets on top of one another
+    , appChooseCursor = neverShowCursor
+    , appHandleEvent = handleEvent
+    , appStartEvent = return ()
+    , appAttrMap = const theAppAttrMap
+    }
 
 instance (RenderTask a, Writer a) => Tui a where
   tui config = do

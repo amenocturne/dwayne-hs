@@ -10,10 +10,16 @@ module TextUtils where
 
 import Data.Char (isSpace)
 import Data.Kind
+import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Data.Time (ParseTime, defaultTimeLocale)
 import Data.Time.Format (parseTimeM)
+import GHC.IO.Exception (ExitCode (..))
+import System.Directory (removeFile)
+import System.Environment (lookupEnv)
+import System.IO
+import System.Process
 
 readFileExample :: FilePath -> IO T.Text
 readFileExample = TIO.readFile
@@ -60,3 +66,20 @@ removeLeadingSpaces = T.dropWhile isSpace
 
 parseTimeWith :: forall (m :: Type -> Type) t. (MonadFail m, ParseTime t) => String -> T.Text -> m t
 parseTimeWith format str = parseTimeM True defaultTimeLocale format (T.unpack str)
+
+editWithEditor :: T.Text -> IO (Maybe String)
+editWithEditor content = do
+  editor <- fmap (fromMaybe "vim") (lookupEnv "EDITOR")
+  (tempPath, tempHandle) <- openTempFile "/tmp" "edit.txt"
+  hPutStr tempHandle (T.unpack content)
+  hFlush tempHandle
+  hClose tempHandle
+  exitCode <- system (editor ++ " " ++ tempPath)
+  case exitCode of
+    ExitSuccess -> do
+      newContent <- readFile tempPath >>= \c -> length c `seq` return c
+      removeFile tempPath
+      return (Just newContent)
+    _ -> do
+      removeFile tempPath
+      return Nothing
