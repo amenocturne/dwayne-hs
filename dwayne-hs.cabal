@@ -69,6 +69,7 @@ executable dwayne
       Render.Render,
       Writer.OrgWriter,
       Writer.Writer,
+      Tui.Tui,
       TextUtils
 
     -- LANGUAGE extensions used by modules in this package.

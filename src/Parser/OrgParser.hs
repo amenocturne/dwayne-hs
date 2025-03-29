@@ -256,7 +256,7 @@ anyTaskparser =
 allTasksParser :: Parser [Task]
 allTasksParser = many anyTaskparser
 
-orgFileParser :: Parser TaskFile
+orgFileParser :: Parser (TaskFile Task)
 orgFileParser = fmap (uncurry TaskFile) parser
  where
   fileTitleParser = maybeParser $ stringParser "#+TITLE: " *> tillTheEndOfStringParser <* skipBlanksParser

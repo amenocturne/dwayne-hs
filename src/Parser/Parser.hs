@@ -30,11 +30,24 @@ type ParserInput = (Location -> Location, T.Text)
 type ParserError = String
 data ParserResult a = ParserSuccess a | ParserFailure ParserError deriving (Functor, Show)
 
+instance Foldable ParserResult where
+  foldMap _ (ParserFailure _) = mempty
+  foldMap f (ParserSuccess x) = f x
+
 instance Applicative ParserResult where
   pure = ParserSuccess
   (ParserSuccess f) <*> (ParserSuccess a) = ParserSuccess (f a)
   (ParserFailure e) <*> _ = ParserFailure e
   _ <*> (ParserFailure e) = ParserFailure e
+
+instance Traversable ParserResult where
+  traverse _ (ParserFailure err) = pure (ParserFailure err)
+  traverse f (ParserSuccess x) = ParserSuccess <$> f x
+
+instance Monad ParserResult where
+  return = pure
+  ParserFailure err >>= _ = ParserFailure err
+  ParserSuccess x >>= f = f x
 
 newtype Parser a = Parser (ParserInput -> (ParserInput, ParserResult a)) deriving (Functor)
 

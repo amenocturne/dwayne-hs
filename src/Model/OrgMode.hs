@@ -8,6 +8,7 @@ module Model.OrgMode where
 import qualified Data.Text as T
 import Data.Time
 import Model.Injection
+import Parser.Parser (ParserResult)
 
 -- Model
 
@@ -104,11 +105,13 @@ data Task = Task
   }
   deriving (Show)
 
-data TaskFile = TaskFile
+data TaskFile a = TaskFile
   { name :: Maybe T.Text
-  , content :: [Task] -- NOTE: maybe should change it to forest, but for now list is just fine
+  , content :: [a] -- NOTE: maybe should change it to forest, but for now list is just fine
   }
   deriving (Show)
+
+
 
 ---------------------- CONSTANTS ------------------------------------
 

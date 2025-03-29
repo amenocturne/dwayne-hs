@@ -11,7 +11,7 @@ import GHC.Char (chr)
 import Model.OrgMode
 import Writer.Writer
 
-instance Writer TaskFile where
+instance Writer a => Writer (TaskFile a) where
   write (TaskFile maybeName tasks) = T.intercalate "\n" $ titleText ++ tasksText
    where
     titleText = case maybeName of
@@ -19,6 +19,7 @@ instance Writer TaskFile where
       Nothing -> []
     tasksText = map write tasks
 
+-- TODO: add writing of repeater and delay
 -- TODO: refactor into smaller writers
 instance Writer Task where
   write task = T.intercalate "\n" $ filter (not . T.null) components

@@ -14,21 +14,16 @@ module Tui.Tui where
 import Brick
 import Brick.Widgets.Center
 import Data.Functor
-import Data.Kind (Constraint)
 import Data.Maybe
 import qualified Data.Text as T
 import GHC.IO.Exception (ExitCode (..))
 import Graphics.Vty.Attributes
 import Graphics.Vty.Input.Events
-import Model.OrgMode
-import Parser.OrgParser
-import Parser.Parser (ParserResult (..), runParser)
-import Render.OrgRender ()
+import Model.OrgMode (TaskFile (content))
 import Render.Render
 import qualified Render.Render as R
 import System.Directory (removeFile)
 import System.Environment (lookupEnv)
-import Writer.OrgWriter
 import Writer.Writer
 
 import Brick.Widgets.Border (vBorder)
@@ -44,7 +39,8 @@ import TextUtils
 
 data AppConfig a = AppConfig
   { files :: [String]
-  , parser :: Parser a
+  , fileParser :: Parser (TaskFile a)
+  , taskParser :: Parser a
   }
 
 class Tui a where
@@ -101,7 +97,7 @@ handleEvent (VtyEvent (EvKey KEnter [])) = do
     case editedContent of
       Nothing -> return state
       Just editedStr -> do
-        let (_, _, result) = runParser (parser $ config state) (T.pack editedStr)
+        let (_, _, result) = runParser (taskParser $ config state) (T.pack editedStr)
         case result of
           ParserSuccess t -> do
             let updatedTasks = take (currentCursor state) (tasks state) ++ [t] ++ drop (currentCursor state + 1) (tasks state)
@@ -132,7 +128,7 @@ ui :: String -> Widget ()
 ui text = vBox [hCenter $ str "Top widget", center $ txtWrap (T.pack text)]
 
 drawUI :: (RenderTask a) => AppContext a -> [Widget ()]
-drawUI (AppContext ts cursor appState config) = case appState of
+drawUI (AppContext ts cursor appState _) = case appState of
   FullMode ->
     [hCenter $ str "Top widget", hCenter $ vCenter renderedTask]
    where
@@ -149,7 +145,7 @@ drawCompactListView cursor ts = [joinBorders $ withBorderStyle unicodeRounded $ 
 
 instance (RenderTask a, Writer a) => Tui a where
   tui config = do
-    parsedFiles <- sequence <$> mapM readTasks (files config)
+    parsedFiles <- sequence <$> mapM (readTasks (fileParser config)) (files config)
     case parsedFiles of
       ParserSuccess files -> void $ defaultMain app (AppContext (concatMap content files) 0 CompactMode config)
       -- NOTE: useful code below to save file
@@ -159,20 +155,8 @@ instance (RenderTask a, Writer a) => Tui a where
       ParserFailure e -> simpleMain (ui (show e))
     return ()
    where
-    readTasks :: FilePath -> IO (ParserResult a)
-    readTasks file = do
+    readTasks :: Parser a -> FilePath -> IO (ParserResult a)
+    readTasks p file = do
       content <- readFileExample file
-      let (_, _, tasks) = runParser (parser config) content
+      let (_, _, tasks) = runParser p content
       return tasks
-
--- instance Tui OrgTaskFile where
---   tui config = do
---     parsedFiles <- sequence <$> mapM readTasks (files config)
---     case parsedFiles of
---       ParserSuccess files -> void $ defaultMain app (AppContext (concatMap content files) 0 CompactMode)
---       -- NOTE: useful code below to save file
---       -- ParserSuccess (TaskFile name tasks) -> do
---       -- let wrote = write (TaskFile name tasks)
---       -- void $ writeFileExample "./resources/parsed.org" wrote
---       ParserFailure e -> simpleMain (ui (show e))
---     return ()
