@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Render.OrgRender where
 
@@ -19,7 +21,7 @@ justList (x : xs) = case x of
   Just v -> v : justList xs
   Nothing -> justList xs
 
-instance RenderTask Task where
+instance RenderTask Task b where
   renderCompact task = titleLine
    where
     titleLine =

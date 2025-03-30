@@ -1,5 +1,6 @@
 {-# HLINT ignore "Use tuple-section" #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuantifiedConstraints #-}
@@ -28,8 +29,10 @@ import GHC.Base (when)
 import Parser.Parser
 import TextUtils
 
--- TODO: I should go through the code, collect all the errors and create widget
--- to properly display them
+-- TODO: I should go through the code, collect all the errors and create widget to properly display them
+-- TODO: make a shortcut to open in a default browser first found link in a task (useful for music/articles)
+-- TODO: make a shortcut to download music from youtube/youtube music links
+-- TODO: make a shortcut to save note contents directly to obsidian vault and open obsidian with this file to continue editing
 
 data AppConfig a = AppConfig
   { files :: [String]
@@ -67,9 +70,29 @@ theAppAttrMap =
     [ (highlightAttr, fg yellow) -- Set foreground to yellow
     ]
 
-handleEvent :: (Writer a) => BrickEvent () e -> EventM () (AppContext a) ()
-handleEvent (VtyEvent (EvKey (KChar 'k') [])) = modify (\s -> s{currentCursor = max 0 (currentCursor s - 1)}) -- Move up
-handleEvent (VtyEvent (EvKey (KChar 'j') [])) = modify (\s -> s{currentCursor = min (currentCursor s + 1) (length (tasks s) - 1)}) -- Move down
+-- TODO: temp value, move to config
+scrollingMargin :: Int
+scrollingMargin = 10
+
+handleEvent :: (Writer a) => BrickEvent Name e -> EventM Name (AppContext a) ()
+handleEvent (VtyEvent (EvKey (KChar 'k') [])) = do
+  state <- get
+  modify (\s -> s{currentCursor = max 0 (currentCursor s - 1)}) -- Move up
+  if currentCursor state < scrollingMargin
+    || currentCursor state > length (tasks state) - scrollingMargin
+    then return ()
+    else vScrollBy (viewportScroll Viewport1) (-1)
+handleEvent (VtyEvent (EvKey (KChar 'j') [])) = do
+  state <- get
+  modify (\s -> s{currentCursor = min (currentCursor s + 1) (length (tasks s) - 1)}) -- Move down
+  if currentCursor state < scrollingMargin
+    || currentCursor state > length (tasks state) - scrollingMargin
+    then return ()
+    else vScrollBy (viewportScroll Viewport1) 1
+handleEvent (VtyEvent (EvKey (KChar 'G') [])) = do
+  state <- get
+  modify (\s -> s{currentCursor = length (tasks state) - 1}) -- Move down
+  vScrollToEnd (viewportScroll Viewport1)
 handleEvent (VtyEvent (EvKey (KChar 'q') [])) = halt -- Exit application
 handleEvent (VtyEvent (EvKey KEnter [])) = do
   state <- get
@@ -91,10 +114,10 @@ handleEvent (VtyEvent (EvKey KEnter [])) = do
             return state
 handleEvent _ = return () -- Ignore other events
 
-ui :: String -> Widget ()
+ui :: String -> Widget Name
 ui text = vBox [hCenter $ str "Top widget", center $ txtWrap (T.pack text)]
 
-drawUI :: (RenderTask a) => AppContext a -> [Widget ()]
+drawUI :: (RenderTask a Name) => AppContext a -> [Widget Name]
 drawUI (AppContext ts cursor appState _) = case appState of
   FullMode ->
     [hCenter $ str "Top widget", hCenter $ vCenter renderedTask]
@@ -102,15 +125,22 @@ drawUI (AppContext ts cursor appState _) = case appState of
     renderedTask = R.renderFull $ ts !! cursor
   CompactMode -> drawCompactListView cursor ts
 
+data Name = Viewport1 deriving (Eq, Ord, Show)
+
 -- TODO: implement scrolling, currently cursor goes out of the screen when going down
-drawCompactListView :: (RenderTask a) => Int -> [a] -> [Widget ()]
-drawCompactListView cursor ts = [joinBorders $ withBorderStyle unicodeRounded $ hBox [hLimitPercent 50 $ hBox [vBox withHighlight, fill ' '], vBorder, focusedTask]]
+drawCompactListView :: (RenderTask a Name) => Int -> [a] -> [Widget Name]
+drawCompactListView cursor ts =
+  [ joinBorders $
+      withBorderStyle unicodeRounded $
+        hBox [hLimitPercent 50 $ viewport Viewport1 Vertical compactTasks, hLimit 1 $ fill ' ', vBorder, focusedTask]
+  ]
  where
+  compactTasks = vBox withHighlight
   withHighlight = zipWith (\i x -> if i == cursor then withAttr highlightAttr x else x) [0 ..] simplyRendered
   simplyRendered = fmap R.renderCompact ts
   focusedTask = R.renderFull (ts !! cursor)
 
-app :: (RenderTask a, Writer a) => App (AppContext a) e ()
+app :: (RenderTask a Name, Writer a) => App (AppContext a) e Name
 app =
   App
     { appDraw = drawUI -- List in type signature because each element is a layer and thus you can put widgets on top of one another
@@ -120,7 +150,7 @@ app =
     , appAttrMap = const theAppAttrMap
     }
 
-instance (RenderTask a, Writer a) => Tui a where
+instance (RenderTask a Name, Writer a) => Tui a where
   tui config = do
     parsedFiles <- sequence <$> mapM (readTasks (fileParser config)) (files config)
     case parsedFiles of
