@@ -13,7 +13,9 @@
 module Tui.Tui where
 
 import Brick
+import qualified Brick.Types as BT
 import Brick.Widgets.Center
+import Control.Lens
 import Data.Functor
 import qualified Data.Text as T
 import Graphics.Vty.Attributes
@@ -38,6 +40,7 @@ data AppConfig a = AppConfig
   { files :: [String]
   , fileParser :: Parser (TaskFile a)
   , taskParser :: Parser a
+  , scrollingMargin :: Int
   }
 
 class Tui a where
@@ -70,29 +73,22 @@ theAppAttrMap =
     [ (highlightAttr, fg yellow) -- Set foreground to yellow
     ]
 
--- TODO: temp value, move to config
-scrollingMargin :: Int
-scrollingMargin = 10
-
 handleEvent :: (Writer a) => BrickEvent Name e -> EventM Name (AppContext a) ()
 handleEvent (VtyEvent (EvKey (KChar 'k') [])) = do
   state <- get
-  modify (\s -> s{currentCursor = max 0 (currentCursor s - 1)}) -- Move up
-  if currentCursor state < scrollingMargin
-    || currentCursor state > length (tasks state) - scrollingMargin
-    then return ()
-    else vScrollBy (viewportScroll Viewport1) (-1)
+  let newCursor = max 0 (currentCursor state - 1)
+  modify (\s -> s{currentCursor = newCursor})
+  adjustViewport
 handleEvent (VtyEvent (EvKey (KChar 'j') [])) = do
   state <- get
-  modify (\s -> s{currentCursor = min (currentCursor s + 1) (length (tasks s) - 1)}) -- Move down
-  if currentCursor state < scrollingMargin
-    || currentCursor state > length (tasks state) - scrollingMargin
-    then return ()
-    else vScrollBy (viewportScroll Viewport1) 1
+  let newCursor = min (currentCursor state + 1) (length (tasks state) - 1)
+  modify (\s -> s{currentCursor = newCursor})
+  adjustViewport
 handleEvent (VtyEvent (EvKey (KChar 'G') [])) = do
   state <- get
-  modify (\s -> s{currentCursor = length (tasks state) - 1}) -- Move down
-  vScrollToEnd (viewportScroll Viewport1)
+  let newCursor = length (tasks state) - 1
+  modify (\s -> s{currentCursor = newCursor})
+  adjustViewport
 handleEvent (VtyEvent (EvKey (KChar 'q') [])) = halt -- Exit application
 handleEvent (VtyEvent (EvKey KEnter [])) = do
   state <- get
@@ -113,6 +109,25 @@ handleEvent (VtyEvent (EvKey KEnter [])) = do
             putStrLn $ "Parser error: " ++ show e -- TODO: show error in UI
             return state
 handleEvent _ = return () -- Ignore other events
+
+adjustViewport :: EventM Name (AppContext a) ()
+adjustViewport = do
+  ctx <- get
+  let cursor = currentCursor ctx
+      marginVal = scrollingMargin $ config ctx
+  mvp <- lookupViewport Viewport1
+  case mvp of
+    Just vp -> do
+      let currentTop = vp ^. BT.vpTop
+          visibleHeight = snd (vp ^. BT.vpSize)
+          newTop
+            | cursor >= currentTop + visibleHeight - marginVal =
+                cursor - (visibleHeight - marginVal - 1)
+            | cursor <= currentTop + marginVal =
+                max 0 (cursor - marginVal)
+            | otherwise = currentTop
+      setTop (viewportScroll Viewport1) newTop
+    Nothing -> return ()
 
 ui :: String -> Widget Name
 ui text = vBox [hCenter $ str "Top widget", center $ txtWrap (T.pack text)]

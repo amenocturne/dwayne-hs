@@ -79,6 +79,7 @@ executable dwayne
     build-depends:
       base ^>=4.17.2.1,
       bytestring >= 0.11.5.3,
+      lens >= 5.0,
       text >= 2.0.0,
       time,
       brick,

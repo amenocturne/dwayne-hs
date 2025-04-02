@@ -14,4 +14,4 @@ import Writer.OrgWriter ()
 import Render.OrgRender ()
 
 main :: IO ()
-main = tui AppConfig{taskParser = anyTaskparser, fileParser = orgFileParser, files = ["./resources/Phone.org"]}
+main = tui AppConfig{taskParser = anyTaskparser, fileParser = orgFileParser, files = ["./resources/Phone.org"], scrollingMargin = 6}
