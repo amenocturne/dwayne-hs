@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# HLINT ignore "Use tuple-section" #-}
 {-# LANGUAGE QuantifiedConstraints #-}
-{-# LANGUAGE TupleSections #-}
 {-# HLINT ignore "Use tuple-section" #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}

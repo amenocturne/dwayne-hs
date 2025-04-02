@@ -28,7 +28,7 @@ instance RenderTask Task b where
             [ Just $ replicate (level task) '*'
             , Just $ T.unpack (todoKeyword task) -- TODO: colorcode them
             , priority task >>= renderPriority
-            , Just $ T.unpack $ title task -- TODO: should fold if it is too long
+            , Just $ T.unpack $ title task
             , renderTags (tags task)
             ]
 
@@ -37,7 +37,7 @@ instance RenderTask Task b where
       | otherwise = Nothing
 
     renderTags [] = Nothing
-    renderTags ts = Just $ ":" ++ intercalate ":" (fmap T.unpack ts) ++ ":" -- TODO: fold if there are too many tags
+    renderTags ts = Just $ ":" ++ intercalate ":" (fmap T.unpack ts) ++ ":"
 
   renderFull task =
     vBox $

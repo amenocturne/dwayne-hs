@@ -8,7 +8,6 @@ module Model.OrgMode where
 import qualified Data.Text as T
 import Data.Time
 import Model.Injection
-import Parser.Parser (ParserResult)
 
 -- Model
 
@@ -107,13 +106,13 @@ data Task = Task
 
 data TaskFile a = TaskFile
   { name :: Maybe T.Text
-  , content :: [a] -- NOTE: maybe should change it to forest, but for now list is just fine
+  , content :: [a]
   }
   deriving (Show)
 
 ---------------------- CONSTANTS ------------------------------------
 
-data Delimiter = AngleDelim | BracketDelim -- TODO: create injections for that as well
+data Delimiter = AngleDelim | BracketDelim
 
 instance Injection Delimiter (Char, Char) where
   to AngleDelim = ('<', '>')
@@ -151,14 +150,8 @@ orgPropertiesEnd = ":END:"
 orgDayFormat :: String
 orgDayFormat = "%Y-%m-%d %a"
 
-orgDayFormatCount :: Int -- TODO: should probably create data type for that
-orgDayFormatCount = 4 + 1 + 2 + 1 + 2 + 1 + 3
-
 orgDayTimeFormat :: String
 orgDayTimeFormat = "%Y-%m-%d %a %H:%M"
 
 orgTimeFormat :: String
 orgTimeFormat = "%H:%M"
-
-orgDayTimeFormatCount :: Int -- TODO: should probably create data type for that
-orgDayTimeFormatCount = 4 + 1 + 2 + 1 + 2 + 1 + 3 + 1 + 2 + 1 + 2

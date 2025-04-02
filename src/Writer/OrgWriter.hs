@@ -21,7 +21,6 @@ instance (Writer a) => Writer (TaskFile a) where
       Nothing -> []
     tasksText = map write tasks
 
--- TODO: add writing of repeater and delay
 instance Writer Task where
   write task = T.intercalate "\n" $ filter (not . T.null) components
    where

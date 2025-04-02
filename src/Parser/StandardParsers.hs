@@ -47,12 +47,8 @@ singleDigitParser = Parser f
 positiveIntParser :: Parser Int
 positiveIntParser = sum . fmap (\(i, d) -> d * 10 ^ i) . zip [1 ..] . reverse <$> many singleDigitParser
 
--- TODO: Make nice errors, so that it would display that it expected the whole
--- word, not just character
--- stringParser :: Text -> Parser Text
--- stringParser t = fmap T.pack (traverse charParser (T.unpack t))
 stringParser :: T.Text -> Parser T.Text
-stringParser t = fmap T.pack (traverse charParser (T.unpack t))
+stringParser t = mapError ( \e ->  "Expected `" ++ T.unpack t  ++ "` but failed with: " ++ e) $ fmap T.pack (traverse charParser (T.unpack t))
 
 splitParser :: (T.Text -> (T.Text, T.Text)) -> Parser T.Text
 splitParser f = Parser $ \(loc, str) ->
@@ -84,6 +80,13 @@ tillTheEndOfStringParser =
 failOnConditionParser :: Parser a -> (a -> Bool) -> ParserError -> Parser a
 failOnConditionParser p cond err = p >>= \r -> if cond r then failingParser err else pure r
 
+mapError :: (ParserError -> ParserError) -> Parser a -> Parser a
+mapError f (Parser p) = Parser $ \i ->
+  let (i', r) = p i
+   in case r of
+        ParserSuccess s -> (i', ParserSuccess s)
+        ParserFailure e' -> (i, ParserFailure $ f e')
+
 maybeParser :: Parser a -> Parser (Maybe a)
 maybeParser (Parser p) = Parser $ \i ->
   let (i', r) = p i
@@ -102,6 +105,5 @@ unMaybeParser e (Parser p) = Parser $ \i ->
 parseEnum :: (Injection b (Maybe a), Injection a b) => (b -> Parser b) -> [a] -> Parser a
 parseEnum makeConstParser enumValues = unMaybeParser "MUST NEVER HAPPEN" $ fmap to (asum $ fmap (makeConstParser . to) enumValues)
 
--- TODO: add checking that input is less or equal to n
 takeParser :: Int -> Parser T.Text
 takeParser n = splitParser (\t -> (T.take n t, T.drop n t))
