@@ -76,12 +76,15 @@ instance RenderTask Task b where
       concat
         [ T.unpack n
         , " "
-        , [fst $ delims delim]
+        , [fst delims]
         , displayOrgTime t
         , maybe "" renderRepeater r
         , maybe "" renderDelay d
-        , [snd $ delims delim]
+        , [snd delims]
         ]
+     where
+      delims :: (Char, Char)
+      delims = to delim
 
     propertiesSection = vBox (fmap (\(key, value) -> str (":" ++ T.unpack key ++ ": " ++ T.unpack value)) (properties task))
 

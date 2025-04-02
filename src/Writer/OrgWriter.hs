@@ -84,13 +84,16 @@ instance Writer Task where
       T.concat
         [ n
         , ": "
-        , T.singleton (fst $ delims delim)
+        , T.singleton (fst delims)
         , T.pack (displayOrgTime t)
         , T.pack $ maybe "" renderRepeater r
         , T.pack $ maybe "" renderDelay d
-        , T.singleton (snd $ delims delim)
+        , T.singleton (snd delims)
         ]
      where
+      delims :: (Char, Char)
+      delims = to delim
+
       displayOrgTime (Left day) = formatTime defaultTimeLocale orgDayFormat day
       displayOrgTime (Right utcTime) = formatTime defaultTimeLocale orgDayTimeFormat utcTime
       renderRepeater :: RepeatInterval -> String

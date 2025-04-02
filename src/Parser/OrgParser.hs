@@ -125,7 +125,7 @@ timePropertyParser field (delimiterLeft, delimiterRight) =
 scheduledClosedDeadLineParser :: Parser (Maybe (T.Text, OrgTime))
 scheduledClosedDeadLineParser = maybeParser $ asum (fmap makeP orgTimeFields)
  where
-  makeP (TimeField field delim) = (field,) <$> timePropertyParser field (delims delim)
+  makeP (TimeField field delim) = (field,) <$> timePropertyParser field (to delim)
 
 ------------------------------- Properties -------------------------------------
 

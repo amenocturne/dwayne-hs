@@ -115,9 +115,9 @@ data TaskFile a = TaskFile
 
 data Delimiter = AngleDelim | BracketDelim -- TODO: create injections for that as well
 
-delims :: Delimiter -> (Char, Char)
-delims AngleDelim = ('<', '>')
-delims BracketDelim = ('[', ']')
+instance Injection Delimiter (Char, Char) where
+  to AngleDelim = ('<', '>')
+  to BracketDelim = ('[', ']')
 
 data TimeField = TimeField
   { timeFieldName :: T.Text
