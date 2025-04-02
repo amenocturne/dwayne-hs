@@ -142,7 +142,6 @@ drawUI (AppContext ts cursor appState _) = case appState of
 
 data Name = Viewport1 deriving (Eq, Ord, Show)
 
--- TODO: implement scrolling, currently cursor goes out of the screen when going down
 drawCompactListView :: (RenderTask a Name) => Int -> [a] -> [Widget Name]
 drawCompactListView cursor ts =
   [ joinBorders $

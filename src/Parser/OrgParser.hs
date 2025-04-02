@@ -105,9 +105,9 @@ dateTimeParserReimplemented =
         }
   )
     <$> parseDateAndWeek
-    <*> maybeParser parseTime
-    <*> maybeParser parseRepeatInterval
-    <*> maybeParser parseDelayInterval
+    <*> (skipBlanksExceptNewLinesParser *> maybeParser parseTime)
+    <*> (skipBlanksExceptNewLinesParser *> maybeParser parseRepeatInterval)
+    <*> (skipBlanksExceptNewLinesParser *> maybeParser parseDelayInterval)
  where
   makeTime d t = case t of
     Just tt -> Right $ LocalTime d tt
@@ -122,8 +122,8 @@ timePropertyParser field (delimiterLeft, delimiterRight) =
     *> dateTimeParserReimplemented
     <* charParser delimiterRight
 
-scheduledOrDeadLineParser :: Parser (Maybe (T.Text, OrgTime))
-scheduledOrDeadLineParser = maybeParser $ asum (fmap makeP orgTimeFields)
+scheduledClosedDeadLineParser :: Parser (Maybe (T.Text, OrgTime))
+scheduledClosedDeadLineParser = maybeParser $ asum (fmap makeP orgTimeFields)
  where
   makeP (TimeField field delim) = (field,) <$> timePropertyParser field (delims delim)
 
@@ -178,9 +178,9 @@ properTaskParser =
     <*> (skipBlanksExceptNewLinesParser *> todoKeyWordParser)
     <*> (skipBlanksExceptNewLinesParser *> maybeParser priorityParser)
     <*> (skipBlanksExceptNewLinesParser *> titleAndTagsParser)
-    <*> (skipBlanksParser *> scheduledOrDeadLineParser)
-    <*> (skipBlanksExceptNewLinesParser *> scheduledOrDeadLineParser)
-    <*> (skipBlanksExceptNewLinesParser *> scheduledOrDeadLineParser)
+    <*> (skipBlanksParser *> scheduledClosedDeadLineParser)
+    <*> (skipBlanksExceptNewLinesParser *> scheduledClosedDeadLineParser)
+    <*> (skipBlanksExceptNewLinesParser *> scheduledClosedDeadLineParser)
     <*> (skipBlanksParser *> propertiesParser)
     <*> descriptionParser
 
@@ -207,9 +207,9 @@ brokenDescriptionTaskParser =
     <*> (skipBlanksExceptNewLinesParser *> maybeParser priorityParser)
     <*> (skipBlanksExceptNewLinesParser *> titleAndTagsParser)
     <*> (skipBlanksParser *> descriptionParser)
-    <*> (skipBlanksParser *> scheduledOrDeadLineParser)
-    <*> (skipBlanksExceptNewLinesParser *> scheduledOrDeadLineParser)
-    <*> (skipBlanksExceptNewLinesParser *> scheduledOrDeadLineParser)
+    <*> (skipBlanksParser *> scheduledClosedDeadLineParser)
+    <*> (skipBlanksExceptNewLinesParser *> scheduledClosedDeadLineParser)
+    <*> (skipBlanksExceptNewLinesParser *> scheduledClosedDeadLineParser)
     <*> (skipBlanksParser *> propertiesParser)
 
 brokenPropertiesTaskParser :: Parser Task
@@ -234,9 +234,9 @@ brokenPropertiesTaskParser =
     <*> (skipBlanksExceptNewLinesParser *> todoKeyWordParser)
     <*> (skipBlanksExceptNewLinesParser *> maybeParser priorityParser)
     <*> (skipBlanksExceptNewLinesParser *> titleAndTagsParser)
-    <*> (skipBlanksParser *> scheduledOrDeadLineParser)
-    <*> (skipBlanksExceptNewLinesParser *> scheduledOrDeadLineParser)
-    <*> (skipBlanksExceptNewLinesParser *> scheduledOrDeadLineParser)
+    <*> (skipBlanksParser *> scheduledClosedDeadLineParser)
+    <*> (skipBlanksExceptNewLinesParser *> scheduledClosedDeadLineParser)
+    <*> (skipBlanksExceptNewLinesParser *> scheduledClosedDeadLineParser)
     <*> descriptionParser
 
 anyTaskparser :: Parser Task

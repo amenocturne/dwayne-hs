@@ -45,12 +45,12 @@ allRepeatTypes = [minBound .. maxBound]
 instance Injection RepeatType T.Text where
   to NextDate = "+"
   to NextFutureDate = "++"
-  to PlusCompletionDate = "+."
+  to PlusCompletionDate = ".+"
 
 instance Injection T.Text (Maybe RepeatType) where
   to "+" = Just NextDate
   to "++" = Just NextFutureDate
-  to "+." = Just PlusCompletionDate
+  to ".+" = Just PlusCompletionDate
   to _ = Nothing
 
 data DelayType

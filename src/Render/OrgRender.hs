@@ -1,7 +1,7 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
 
 module Render.OrgRender where
 
@@ -51,7 +51,7 @@ instance RenderTask Task b where
         , Just propertiesSection
         , Just $ txt orgPropertiesEnd
         , Just $ txt "\n"
-        , Just $ txt $ description task -- TODO: fix spacing from :END:
+        , Just $ txt $ description task
         ]
    where
     titleLine =
@@ -87,7 +87,6 @@ instance RenderTask Task b where
     renderTags [] = Nothing
     renderTags ts = Just $ ":" ++ intercalate ":" (fmap T.unpack ts) ++ ":"
 
--- Format OrgTime for display
-displayOrgTime :: OrgTime -> String
-displayOrgTime (OrgTime (Left day) _ _) = formatTime defaultTimeLocale orgDayFormat day -- TODO:
-displayOrgTime (OrgTime (Right utcTime) _ _) = formatTime defaultTimeLocale orgDayTimeFormat utcTime -- TODO:
+    displayOrgTime :: OrgTime -> String
+    displayOrgTime (OrgTime (Left day) _ _) = formatTime defaultTimeLocale orgDayFormat day -- TODO:
+    displayOrgTime (OrgTime (Right utcTime) _ _) = formatTime defaultTimeLocale orgDayTimeFormat utcTime -- TODO:

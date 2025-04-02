@@ -65,24 +65,20 @@ runParser (Parser run) i =
 instance Applicative Parser where
   pure x = Parser $ \input -> (input, ParserSuccess x)
   Parser f <*> Parser fa = Parser $ \i ->
-    let (i', r) = f i
-        (i'', r') = fa i'
-     in (i'', r <*> r')
+    case f i of
+      (i', ParserSuccess g) -> case fa i' of
+        (i'', r') -> (i'', fmap g r')
+      (i', ParserFailure e) -> (i', ParserFailure e)
 
 instance Alternative Parser where
   empty = failingParser "Empty parser always fails"
   (Parser p1) <|> (Parser p2) = Parser $ \i ->
-    let (i1, r1) = p1 i
-        (i2, r2) = p2 i
-     in case (r1, r2) of
-          (ParserFailure _, r) -> (i2, r)
-          (l, _) -> (i1, l)
+    case p1 i of
+      (i', ParserSuccess x) -> (i', ParserSuccess x)
+      (_', ParserFailure _) -> p2 i
 
 instance Monad Parser where
-  p >>= f = flatten notFlattened
-   where
-    notFlattened = fmap f p
-    flatten :: Parser (Parser b) -> Parser b
-    flatten (Parser p1) = Parser $ \i -> case p1 i of
-      (i', ParserSuccess (Parser p2)) -> p2 i'
+  Parser p >>= f = Parser $ \i ->
+    case p i of
+      (i', ParserSuccess x) -> let Parser q = f x in q i'
       (i', ParserFailure e) -> (i', ParserFailure e)
