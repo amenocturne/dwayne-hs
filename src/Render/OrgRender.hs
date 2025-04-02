@@ -8,26 +8,23 @@ module Render.OrgRender where
 import Brick
 import Data.Char (ord)
 import Data.List (intercalate)
+import Data.Maybe
 import qualified Data.Text as T
 import Data.Time (defaultTimeLocale)
 import Data.Time.Format (formatTime)
 import GHC.Char (chr)
+import Model.Injection
 import Model.OrgMode
 import Render.Render
 
-justList :: [Maybe a] -> [a]
-justList [] = []
-justList (x : xs) = case x of
-  Just v -> v : justList xs
-  Nothing -> justList xs
-
+-- TODO: factor out common functions from it and Writer
 instance RenderTask Task b where
   renderCompact task = titleLine
    where
     titleLine =
       str $
         unwords $
-          justList
+          catMaybes
             [ Just $ replicate (level task) '*'
             , Just $ T.unpack (todoKeyword task) -- TODO: colorcode them
             , priority task >>= renderPriority
@@ -44,7 +41,7 @@ instance RenderTask Task b where
 
   renderFull task =
     vBox $
-      justList
+      catMaybes
         [ Just titleLine
         , Just timeFieldsLine
         , Just $ txt orgPropertiesBegin
@@ -57,7 +54,7 @@ instance RenderTask Task b where
     titleLine =
       strWrap $
         unwords $
-          justList
+          catMaybes
             [ Just $ replicate (level task) '*'
             , Just $ T.unpack (todoKeyword task) -- TODO: colorcode them
             , priority task >>= renderPriority
@@ -67,16 +64,24 @@ instance RenderTask Task b where
     timeFieldsLine =
       str $
         unwords $
-          justList $
-            fmap
-              (\(field, getTime) -> fmap (renderTimeField field) (getTime task))
-              [ (orgScheduledField, scheduled)
-              , (orgDeadlineField, deadline)
-              , (orgClosedField, closed)
-              ]
+          mapMaybe
+            (\(field, getTime) -> fmap (renderTimeField field) (getTime task))
+            [ (orgScheduledField, scheduled)
+            , (orgDeadlineField, deadline)
+            , (orgClosedField, closed)
+            ]
 
-    renderTimeField (TimeField n d) =
-      (\s -> T.unpack n ++ " " ++ [fst $ delims d] ++ s ++ [snd $ delims d]) . displayOrgTime
+    renderTimeField :: TimeField -> OrgTime -> [Char]
+    renderTimeField (TimeField n delim) (OrgTime t r d) =
+      concat
+        [ T.unpack n
+        , " "
+        , [fst $ delims delim]
+        , displayOrgTime t
+        , maybe "" renderRepeater r
+        , maybe "" renderDelay d
+        , [snd $ delims delim]
+        ]
 
     propertiesSection = vBox (fmap (\(key, value) -> str (":" ++ T.unpack key ++ ": " ++ T.unpack value)) (properties task))
 
@@ -87,6 +92,20 @@ instance RenderTask Task b where
     renderTags [] = Nothing
     renderTags ts = Just $ ":" ++ intercalate ":" (fmap T.unpack ts) ++ ":"
 
-    displayOrgTime :: OrgTime -> String
-    displayOrgTime (OrgTime (Left day) _ _) = formatTime defaultTimeLocale orgDayFormat day -- TODO:
-    displayOrgTime (OrgTime (Right utcTime) _ _) = formatTime defaultTimeLocale orgDayTimeFormat utcTime -- TODO:
+    displayOrgTime (Left day) = formatTime defaultTimeLocale orgDayFormat day
+    displayOrgTime (Right utcTime) = formatTime defaultTimeLocale orgDayTimeFormat utcTime
+
+    renderRepeater :: RepeatInterval -> String
+    renderRepeater (RepeatInterval tt v tu) =
+      concat
+        [ T.unpack $ to tt
+        , show v
+        , [to tu]
+        ]
+    renderDelay :: DelayInterval -> String
+    renderDelay (DelayInterval tt v tu) =
+      concat
+        [ T.unpack $ to tt
+        , show v
+        , [to tu]
+        ]

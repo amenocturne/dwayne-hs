@@ -4,6 +4,7 @@
 module Writer.OrgWriter where
 
 import Data.Char (ord)
+import Data.Maybe
 import qualified Data.Text as T
 import Data.Time (defaultTimeLocale)
 import Data.Time.Format (formatTime)
@@ -54,12 +55,13 @@ instance Writer Task where
     renderTagsText ts = T.concat [":", T.intercalate ":" ts, ":"]
 
     timeFieldsLine =
-      T.intercalate " " $
-        filter
+      T.intercalate " "
+        $ filter
           (not . T.null)
-          [ renderTimeFieldText orgScheduledField (scheduled task)
-          , renderTimeFieldText orgDeadlineField (deadline task)
-          , renderTimeFieldText orgClosedField (closed task)
+        $ catMaybes
+          [ fmap (renderTimeFieldText orgScheduledField) (scheduled task)
+          , fmap (renderTimeFieldText orgDeadlineField) (deadline task)
+          , fmap (renderTimeFieldText orgClosedField) (closed task)
           ]
 
     propertiesSection
@@ -77,9 +79,8 @@ instance Writer Task where
       T.intercalate "\n" $
         map (\(key, value) -> T.concat [":", key, ": ", value]) (properties task)
 
-    renderTimeFieldText :: TimeField -> Maybe OrgTime -> T.Text
-    renderTimeFieldText _ Nothing = ""
-    renderTimeFieldText (TimeField n delim) (Just (OrgTime t r d)) =
+    renderTimeFieldText :: TimeField -> OrgTime -> T.Text
+    renderTimeFieldText (TimeField n delim) (OrgTime t r d) =
       T.concat
         [ n
         , ": "

@@ -111,8 +111,6 @@ data TaskFile a = TaskFile
   }
   deriving (Show)
 
-
-
 ---------------------- CONSTANTS ------------------------------------
 
 data Delimiter = AngleDelim | BracketDelim -- TODO: create injections for that as well
