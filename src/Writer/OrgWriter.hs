@@ -8,10 +8,11 @@ import qualified Data.Text as T
 import Data.Time (defaultTimeLocale)
 import Data.Time.Format (formatTime)
 import GHC.Char (chr)
+import Model.Injection
 import Model.OrgMode
 import Writer.Writer
 
-instance Writer a => Writer (TaskFile a) where
+instance (Writer a) => Writer (TaskFile a) where
   write (TaskFile maybeName tasks) = T.intercalate "\n" $ titleText ++ tasksText
    where
     titleText = case maybeName of
@@ -20,7 +21,6 @@ instance Writer a => Writer (TaskFile a) where
     tasksText = map write tasks
 
 -- TODO: add writing of repeater and delay
--- TODO: refactor into smaller writers
 instance Writer Task where
   write task = T.intercalate "\n" $ filter (not . T.null) components
    where
@@ -79,15 +79,30 @@ instance Writer Task where
 
     renderTimeFieldText :: TimeField -> Maybe OrgTime -> T.Text
     renderTimeFieldText _ Nothing = ""
-    renderTimeFieldText (TimeField n delim) (Just t) =
+    renderTimeFieldText (TimeField n delim) (Just (OrgTime t r d)) =
       T.concat
         [ n
         , ": "
         , T.singleton (fst $ delims delim)
         , T.pack (displayOrgTime t)
+        , T.pack $ maybe "" renderRepeater r
+        , T.pack $ maybe "" renderDelay d
         , T.singleton (snd $ delims delim)
         ]
-
-    displayOrgTime :: OrgTime -> String
-    displayOrgTime (OrgTime (Left day) _ _) = formatTime defaultTimeLocale orgDayFormat day -- TODO:
-    displayOrgTime (OrgTime (Right utcTime) _ _) = formatTime defaultTimeLocale orgDayTimeFormat utcTime -- TODO:
+     where
+      displayOrgTime (Left day) = formatTime defaultTimeLocale orgDayFormat day
+      displayOrgTime (Right utcTime) = formatTime defaultTimeLocale orgDayTimeFormat utcTime
+      renderRepeater :: RepeatInterval -> String
+      renderRepeater (RepeatInterval tt v tu) =
+        concat
+          [ T.unpack $ to tt
+          , show v
+          , [to tu]
+          ]
+      renderDelay :: DelayInterval -> String
+      renderDelay (DelayInterval tt v tu) =
+        concat
+          [ T.unpack $ to tt
+          , show v
+          , [to tu]
+          ]
