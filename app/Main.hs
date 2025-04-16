@@ -8,9 +8,7 @@
 
 module Main (main) where
 
-import Model.OrgMode
 import Parser.OrgParser (anyTaskparser, orgFileParser)
-import Parser.Parser
 import Render.OrgRender ()
 import Tui.Tui
 import Writer.OrgWriter ()
@@ -21,4 +19,5 @@ import Writer.OrgWriter ()
 --   hasBrokenProperty task = elem "BROKEN_PROPERTIES" $ fmap fst (properties task)
 --   hasBrokenDescription task = elem "BROKEN_DESCRIPTION" $ fmap fst (properties task)
 main :: IO ()
-main = tui AppConfig{taskParser = anyTaskparser, fileParser = orgFileParser, files = ["./resources/Phone.org"], scrollingMargin = 6}
+main = do
+  tui AppConfig{taskParser = anyTaskparser, fileParser = orgFileParser, files = ["./resources/Sample.org"], scrollingMargin = 6}
