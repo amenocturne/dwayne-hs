@@ -78,6 +78,8 @@ data TaskPointer = TaskPointer
   }
   deriving (Eq)
 
+--------------------------------- Optics ---------------------------------------
+
 makeLenses ''TaskPointer
 makeLenses ''AppState
 makeLenses ''AppContext
@@ -86,14 +88,7 @@ makeLenses ''AppConfig
 currentCursor :: Traversal' (AppContext a) (Maybe Int)
 currentCursor = appState . currentTask
 
-getTaskAt :: TaskPointer -> FileState a -> Maybe a
-getTaskAt ptr files =
-  files
-    ^? ix (ptr ^. file)
-      . success
-      . content
-      . element (ptr ^. taskIndex)
-
+-- TODO: rewrite as traversable
 modifyView :: ([TaskPointer] -> [TaskPointer]) -> AppState a -> AppState a
 modifyView f s@(AppState _ cv ct) = (set currentView newView . set currentTask selectedTask) s
  where
@@ -104,6 +99,7 @@ modifyView f s@(AppState _ cv ct) = (set currentView newView . set currentTask s
     found <- find (== selectedPtr) newView
     fmap fst $ find (\(_, t) -> t == found) $ zip [0 ..] newView
 
+-- TODO: rewrite as traversable
 filterView :: (TaskPointer -> Bool) -> AppState a -> AppState a
 filterView f = modifyView (filter f)
 
@@ -133,15 +129,6 @@ currentTaskPtr f appState =
       , i < length cv ->
           appState & currentView . ix i %%~ f
     _ -> pure appState
-
-getAllPointers :: FileState a -> [TaskPointer]
-getAllPointers files = concatMap f (M.toList files)
- where
-  f (file, result) =
-    maybe
-      []
-      (\taskFile -> (\(i, _) -> TaskPointer file i) <$> zip [0 ..] (_content taskFile))
-      (resultToMaybe result)
 
 ----------------------- Key bindings ------------------------------------------
 
@@ -193,25 +180,26 @@ adjustCursor f = do
   modify $ over (currentCursor . _Just) modifyCursor
   adjustViewport
 
+-- TODO: refactor
 editSelectedTaskInEditor :: (Writer a) => EventM Name (AppContext a) ()
 editSelectedTaskInEditor = do
-  state <- get
-  let currentTask = preview (appState . currentTaskLens) state
-  let maybePtr = preview (appState . currentTaskPtr) state
+  ctx <- get
+  let currentTask = preview (appState . currentTaskLens) ctx
+  let maybePtr = preview (appState . currentTaskPtr) ctx
   case (currentTask, maybePtr) of
     (Just task, Just ptr) -> suspendAndResume $ do
       editedContent <- editWithEditor (write task)
       when (null editedContent) $ return ()
       case editedContent of
-        Nothing -> return state
+        Nothing -> return ctx
         Just editedStr -> do
-          let (_, _, result) = runParser (view (config . taskParser) state) (T.pack editedStr)
+          let (_, _, result) = runParser (view (config . taskParser) ctx) (T.pack editedStr)
           case result of
             ParserSuccess t -> do
-              return $ set (appState . fileState . taskBy ptr) t state
+              return $ set (appState . fileState . taskBy ptr) t ctx
             ParserFailure e -> do
               putStrLn $ "Parser error: " ++ show e -- TODO: show error in UI
-              return state
+              return ctx
     _ -> return ()
 
 handleKeyEvent :: (Writer a) => KeyEvent -> K.KeyEventHandler KeyEvent (EventM Name (AppContext a))
@@ -224,24 +212,6 @@ handleKeyEvent EditInEditor = K.onEvent EditInEditor "Edit in editor" editSelect
 handlers :: (Writer a) => [K.KeyEventHandler KeyEvent (EventM Name (AppContext a))]
 handlers = fmap handleKeyEvent allKeyEvents
 
-getKeyDispatcher :: (Writer a) => IO (KeyDispatcher KeyEvent (EventM Name (AppContext a)))
-getKeyDispatcher = do
-  let kc = K.newKeyConfig keyEventsMapping defaultBindings [] -- Maybe I should add config files in the future
-  case K.keyDispatcher kc handlers of
-    Right d -> return d
-    Left collisions -> do
-      putStrLn "Error: some key events have the same keys bound to them."
-      forM_ collisions $ \(b, hs) -> do
-        T.putStrLn $ "Handlers with the '" <> K.ppBinding b <> "' binding:"
-        forM_ hs $ \h -> do
-          let trigger = case K.kehEventTrigger $ K.khHandler h of
-                K.ByKey k -> "triggered by the key '" <> K.ppBinding k <> "'"
-                K.ByEvent e -> "triggered by the event '" <> fromJust (K.keyEventName keyEventsMapping e) <> "'"
-              desc = K.handlerDescription $ K.kehHandler $ K.khHandler h
-
-          T.putStrLn $ "  " <> desc <> " (" <> trigger <> ")"
-      exitFailure
-
 ---------------------------- Events -------------------------------------------
 
 handleEvent :: BrickEvent Name e -> EventM Name (AppContext a) ()
@@ -249,6 +219,8 @@ handleEvent (VtyEvent (EvKey k mods)) = do
   state <- get
   void $ K.handleKey (view keyEventDispatcher state) k mods
 handleEvent _ = return ()
+
+----------------------------- UI -----------------------------------------------
 
 ui :: String -> Widget Name
 ui text = vBox [hCenter $ str "Top widget", center $ txtWrap (T.pack text)]
@@ -278,6 +250,35 @@ drawUI ctx =
   renderTask ptr = if Just ptr == selectedTaskPtr then fmap (withAttr highlightAttr) renderedTask else renderedTask
    where
     renderedTask = fmap R.renderCompact (preview (taskBy ptr) fs)
+
+------------------------ Initialization ----------------------------------------
+
+getAllPointers :: FileState a -> [TaskPointer]
+getAllPointers files = concatMap f (M.toList files)
+ where
+  f (file, result) =
+    maybe
+      []
+      (\taskFile -> (\(i, _) -> TaskPointer file i) <$> zip [0 ..] (_content taskFile))
+      (resultToMaybe result)
+
+getKeyDispatcher :: (Writer a) => IO (KeyDispatcher KeyEvent (EventM Name (AppContext a)))
+getKeyDispatcher = do
+  let kc = K.newKeyConfig keyEventsMapping defaultBindings [] -- Maybe I should add config files in the future
+  case K.keyDispatcher kc handlers of
+    Right d -> return d
+    Left collisions -> do
+      putStrLn "Error: some key events have the same keys bound to them."
+      forM_ collisions $ \(b, hs) -> do
+        T.putStrLn $ "Handlers with the '" <> K.ppBinding b <> "' binding:"
+        forM_ hs $ \h -> do
+          let trigger = case K.kehEventTrigger $ K.khHandler h of
+                K.ByKey k -> "triggered by the key '" <> K.ppBinding k <> "'"
+                K.ByEvent e -> "triggered by the event '" <> fromJust (K.keyEventName keyEventsMapping e) <> "'"
+              desc = K.handlerDescription $ K.kehHandler $ K.khHandler h
+
+          T.putStrLn $ "  " <> desc <> " (" <> trigger <> ")"
+      exitFailure
 
 app :: (RenderTask a Name, Writer a) => App (AppContext a) e Name
 app =
