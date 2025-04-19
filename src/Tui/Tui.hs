@@ -150,27 +150,24 @@ bindKey EditInEditor = [K.bind KEnter]
 defaultBindings :: [(KeyEvent, [K.Binding])]
 defaultBindings = fmap (\k -> (k, bindKey k)) allKeyEvents
 
--- TODO: refactor
 adjustViewport :: EventM Name (AppContext a) ()
 adjustViewport = do
   ctx <- get
-  case view (appState . currentTask) ctx of
-    Just cursor -> do
+  mvp <- lookupViewport Viewport1
+  let maybeCursor = view (appState . currentTask) ctx
+  case (mvp, maybeCursor) of
+    (Just vp, Just cursor) -> do
       let marginVal = view (config . scrollingMargin) ctx
-      mvp <- lookupViewport Viewport1
-      case mvp of
-        Just vp -> do
-          let currentTop = vp ^. BT.vpTop
-              visibleHeight = snd (vp ^. BT.vpSize)
-              newTop
-                | cursor >= currentTop + visibleHeight - marginVal =
-                    cursor - (visibleHeight - marginVal - 1)
-                | cursor <= currentTop + marginVal =
-                    max 0 (cursor - marginVal)
-                | otherwise = currentTop
-          setTop (viewportScroll Viewport1) newTop
-        Nothing -> return ()
-    Nothing -> return ()
+      let currentTop = vp ^. BT.vpTop
+          visibleHeight = snd (vp ^. BT.vpSize)
+          newTop
+            | cursor >= currentTop + visibleHeight - marginVal =
+                cursor - (visibleHeight - marginVal - 1)
+            | cursor <= currentTop + marginVal =
+                max 0 (cursor - marginVal)
+            | otherwise = currentTop
+      setTop (viewportScroll Viewport1) newTop
+    _ -> return ()
 
 adjustCursor :: (Int -> Int) -> EventM Name (AppContext a) ()
 adjustCursor f = do
