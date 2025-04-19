@@ -20,4 +20,10 @@ import Writer.OrgWriter ()
 --   hasBrokenDescription task = elem "BROKEN_DESCRIPTION" $ fmap fst (properties task)
 main :: IO ()
 main = do
-  tui AppConfig{taskParser = anyTaskparser, fileParser = orgFileParser, files = ["./resources/Sample.org"], scrollingMargin = 6}
+  tui
+    AppConfig
+      { _taskParser = anyTaskparser
+      , _fileParser = orgFileParser
+      , _files = ["./resources/Sample.org"]
+      , _scrollingMargin = 6
+      }

@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# HLINT ignore "Use tuple-section" #-}
 {-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
@@ -10,25 +11,20 @@
 
 module Parser.Parser where
 
+import Control.Lens (makeLenses)
 import qualified Data.Text as T
 import GHC.Base
 
 ------------------------------- PARSER ---------------------------------------
 
 data Location = Location {line :: Int, column :: Int} deriving (Show)
-zeroLocation :: Location
-zeroLocation = Location 0 0
-
-shifLocationByChar :: Location -> Char -> Location
-shifLocationByChar (Location l _) '\n' = Location (l + 1) 0
-shifLocationByChar (Location l c) _ = Location l (c + 1)
-
-shiftLocationByString :: T.Text -> Location -> Location
-shiftLocationByString input loc = T.foldl shifLocationByChar loc input
 
 type ParserInput = (Location -> Location, T.Text)
 type ParserError = String
-data ParserResult a = ParserSuccess a | ParserFailure ParserError deriving (Functor, Show)
+data ParserResult a = ParserSuccess {_success :: a} | ParserFailure {_error :: ParserError} deriving (Functor, Show)
+newtype Parser a = Parser (ParserInput -> (ParserInput, ParserResult a)) deriving (Functor)
+
+makeLenses ''ParserResult
 
 instance Foldable ParserResult where
   foldMap _ (ParserFailure _) = mempty
@@ -48,19 +44,6 @@ instance Monad ParserResult where
   return = pure
   ParserFailure err >>= _ = ParserFailure err
   ParserSuccess x >>= f = f x
-
-newtype Parser a = Parser (ParserInput -> (ParserInput, ParserResult a)) deriving (Functor)
-
-failingParser :: ParserError -> Parser a
-failingParser err = Parser $ \i -> (i, ParserFailure err)
-
-succeedingParser :: a -> Parser a
-succeedingParser a = Parser $ \i -> (i, ParserSuccess a)
-
-runParser :: Parser a -> T.Text -> (Location, T.Text, ParserResult a)
-runParser (Parser run) i =
-  let ((loc, leftOver), res) = run (id, i)
-   in (loc zeroLocation, leftOver, res)
 
 instance Applicative Parser where
   pure x = Parser $ \input -> (input, ParserSuccess x)
@@ -82,3 +65,28 @@ instance Monad Parser where
     case p i of
       (i', ParserSuccess x) -> let Parser q = f x in q i'
       (i', ParserFailure e) -> (i', ParserFailure e)
+
+zeroLocation :: Location
+zeroLocation = Location 0 0
+
+shifLocationByChar :: Location -> Char -> Location
+shifLocationByChar (Location l _) '\n' = Location (l + 1) 0
+shifLocationByChar (Location l c) _ = Location l (c + 1)
+
+shiftLocationByString :: T.Text -> Location -> Location
+shiftLocationByString input loc = T.foldl shifLocationByChar loc input
+
+resultToMaybe :: ParserResult a -> Maybe a
+resultToMaybe (ParserSuccess a) = Just a
+resultToMaybe (ParserFailure _) = Nothing
+
+failingParser :: ParserError -> Parser a
+failingParser err = Parser $ \i -> (i, ParserFailure err)
+
+succeedingParser :: a -> Parser a
+succeedingParser a = Parser $ \i -> (i, ParserSuccess a)
+
+runParser :: Parser a -> T.Text -> (Location, T.Text, ParserResult a)
+runParser (Parser run) i =
+  let ((loc, leftOver), res) = run (id, i)
+   in (loc zeroLocation, leftOver, res)

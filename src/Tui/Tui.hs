@@ -1,9 +1,11 @@
-{-# HLINT ignore "Use tuple-section" #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE RankNTypes #-}
+{-# HLINT ignore "Use tuple-section" #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# HLINT ignore "Use tuple-section" #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
@@ -12,18 +14,20 @@
 
 module Tui.Tui where
 
+import Control.Monad (forM_, when)
+
 import Brick
 import qualified Brick.Types as BT
 import Brick.Widgets.Center
 import Control.Lens
-import Control.Monad (forM_, when)
 import Data.Functor
-import Data.Maybe (fromJust)
+import qualified Data.Map.Strict as M
+import Data.Maybe (fromJust, listToMaybe, mapMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Graphics.Vty.Attributes
 import Graphics.Vty.Input.Events
-import Model.OrgMode (TaskFile (content))
+import Model.OrgMode
 import Render.Render
 import qualified Render.Render as R
 import System.Exit (exitFailure)
@@ -32,6 +36,7 @@ import Writer.Writer
 import Brick.Keybindings as K
 import Brick.Widgets.Border (vBorder)
 import Brick.Widgets.Border.Style (unicodeRounded)
+import Data.List
 import Parser.Parser
 import TextUtils
 
@@ -39,28 +44,106 @@ import TextUtils
 -- TODO: make a shortcut to open in a default browser first found link in a task (useful for music/articles)
 -- TODO: make a shortcut to download music from youtube/youtube music links
 -- TODO: make a shortcut to save note contents directly to obsidian vault and open obsidian with this file to continue editing
+-- TODO: Should handle external edits to files when the app is opened and update its state correctly
 
 data AppContext a = AppContext
-  { tasks :: [a]
-  , currentCursor :: Int
-  , appState :: AppState
-  , config :: AppConfig a
-  , keyEventDispatcher :: K.KeyDispatcher KeyEvent (EventM Name (AppContext a))
+  { _appState :: AppState a
+  , _config :: AppConfig a
+  , _keyEventDispatcher :: K.KeyDispatcher KeyEvent (EventM Name (AppContext a))
   }
-
-data AppConfig a = AppConfig
-  { files :: [String]
-  , fileParser :: Parser (TaskFile a)
-  , taskParser :: Parser a
-  , scrollingMargin :: Int
-  }
-
-data AppState = CompactMode | FullMode
-
------------------------ Key bindings ------------------------------------------
 
 data KeyEvent = MoveUp | MoveDown | JumpEnd | Quit | EditInEditor
   deriving (Eq, Show, Ord, Enum, Bounded)
+
+data Name = Viewport1 deriving (Eq, Ord, Show)
+
+type FileState a = M.Map String (ParserResult (TaskFile a))
+
+data AppConfig a = AppConfig
+  { _files :: [String]
+  , _fileParser :: Parser (TaskFile a)
+  , _taskParser :: Parser a
+  , _scrollingMargin :: Int
+  }
+
+data AppState a = AppState
+  { _fileState :: FileState a
+  , _currentView :: [TaskPointer]
+  , _currentTask :: Maybe Int -- Index of a currently focused task in a view
+  }
+
+data TaskPointer = TaskPointer
+  { _file :: FilePath
+  , _taskIndex :: Int
+  }
+  deriving (Eq)
+
+makeLenses ''TaskPointer
+makeLenses ''AppState
+makeLenses ''AppContext
+makeLenses ''AppConfig
+
+currentCursor :: Traversal' (AppContext a) (Maybe Int)
+currentCursor = appState . currentTask
+
+getTaskAt :: TaskPointer -> FileState a -> Maybe a
+getTaskAt ptr files =
+  files
+    ^? ix (ptr ^. file)
+      . success
+      . content
+      . element (ptr ^. taskIndex)
+
+modifyView :: ([TaskPointer] -> [TaskPointer]) -> AppState a -> AppState a
+modifyView f s@(AppState _ cv ct) = (set currentView newView . set currentTask selectedTask) s
+ where
+  newView = f cv
+  selectedTask = do
+    selected <- ct
+    selectedPtr <- cv ^? element selected
+    found <- find (== selectedPtr) newView
+    fmap fst $ find (\(_, t) -> t == found) $ zip [0 ..] newView
+
+filterView :: (TaskPointer -> Bool) -> AppState a -> AppState a
+filterView f = modifyView (filter f)
+
+taskBy :: TaskPointer -> Traversal' (FileState a) a
+taskBy ptr =
+  ix (ptr ^. file)
+    . success
+    . content
+    . ix (ptr ^. taskIndex)
+
+currentTaskLens :: Traversal' (AppState a) a
+currentTaskLens f appState =
+  case (appState ^. currentTask, appState ^. currentView) of
+    (Just i, cv)
+      | i >= 0
+      , i < length cv ->
+          let ptr = cv !! i
+           in (\modifiedFile -> set fileState modifiedFile appState)
+                <$> traverseOf (taskBy ptr) f (view fileState appState)
+    _ -> pure appState
+
+currentTaskPtr :: Traversal' (AppState a) TaskPointer
+currentTaskPtr f appState =
+  case (appState ^. currentTask, appState ^. currentView) of
+    (Just i, cv)
+      | i >= 0
+      , i < length cv ->
+          appState & currentView . ix i %%~ f
+    _ -> pure appState
+
+getAllPointers :: FileState a -> [TaskPointer]
+getAllPointers files = concatMap f (M.toList files)
+ where
+  f (file, result) =
+    maybe
+      []
+      (\taskFile -> (\(i, _) -> TaskPointer file i) <$> zip [0 ..] (_content taskFile))
+      (resultToMaybe result)
+
+----------------------- Key bindings ------------------------------------------
 
 allKeyEvents :: [KeyEvent]
 allKeyEvents = [minBound .. maxBound]
@@ -80,51 +163,56 @@ bindKey EditInEditor = [K.bind KEnter]
 defaultBindings :: [(KeyEvent, [K.Binding])]
 defaultBindings = fmap (\k -> (k, bindKey k)) allKeyEvents
 
+-- TODO: refactor
 adjustViewport :: EventM Name (AppContext a) ()
 adjustViewport = do
   ctx <- get
-  let cursor = currentCursor ctx
-      marginVal = scrollingMargin $ config ctx
-  mvp <- lookupViewport Viewport1
-  case mvp of
-    Just vp -> do
-      let currentTop = vp ^. BT.vpTop
-          visibleHeight = snd (vp ^. BT.vpSize)
-          newTop
-            | cursor >= currentTop + visibleHeight - marginVal =
-                cursor - (visibleHeight - marginVal - 1)
-            | cursor <= currentTop + marginVal =
-                max 0 (cursor - marginVal)
-            | otherwise = currentTop
-      setTop (viewportScroll Viewport1) newTop
+  case view (appState . currentTask) ctx of
+    Just cursor -> do
+      let marginVal = view (config . scrollingMargin) ctx
+      mvp <- lookupViewport Viewport1
+      case mvp of
+        Just vp -> do
+          let currentTop = vp ^. BT.vpTop
+              visibleHeight = snd (vp ^. BT.vpSize)
+              newTop
+                | cursor >= currentTop + visibleHeight - marginVal =
+                    cursor - (visibleHeight - marginVal - 1)
+                | cursor <= currentTop + marginVal =
+                    max 0 (cursor - marginVal)
+                | otherwise = currentTop
+          setTop (viewportScroll Viewport1) newTop
+        Nothing -> return ()
     Nothing -> return ()
 
 adjustCursor :: (Int -> Int) -> EventM Name (AppContext a) ()
 adjustCursor f = do
   state <- get
-  let newCursor = clamp 0 (length (tasks state) - 1) (f $ currentCursor state)
-  modify (\s -> s{currentCursor = newCursor})
+  let cv = view (appState . currentView) state
+  let modifyCursor c = clamp 0 (length cv - 1) (f c)
+  modify $ over (currentCursor . _Just) modifyCursor
   adjustViewport
 
 editSelectedTaskInEditor :: (Writer a) => EventM Name (AppContext a) ()
 editSelectedTaskInEditor = do
   state <- get
-  when (null (tasks state)) $ return ()
-  let currentTask = tasks state !! currentCursor state
-  suspendAndResume $ do
-    editedContent <- editWithEditor (write currentTask)
-    when (null editedContent) $ return ()
-    case editedContent of
-      Nothing -> return state
-      Just editedStr -> do
-        let (_, _, result) = runParser (taskParser $ config state) (T.pack editedStr)
-        case result of
-          ParserSuccess t -> do
-            let updatedTasks = take (currentCursor state) (tasks state) ++ [t] ++ drop (currentCursor state + 1) (tasks state)
-            return state{tasks = updatedTasks}
-          ParserFailure e -> do
-            putStrLn $ "Parser error: " ++ show e -- TODO: show error in UI
-            return state
+  let currentTask = preview (appState . currentTaskLens) state
+  let maybePtr = preview (appState . currentTaskPtr) state
+  case (currentTask, maybePtr) of
+    (Just task, Just ptr) -> suspendAndResume $ do
+      editedContent <- editWithEditor (write task)
+      when (null editedContent) $ return ()
+      case editedContent of
+        Nothing -> return state
+        Just editedStr -> do
+          let (_, _, result) = runParser (view (config . taskParser) state) (T.pack editedStr)
+          case result of
+            ParserSuccess t -> do
+              return $ set (appState . fileState . taskBy ptr) t state
+            ParserFailure e -> do
+              putStrLn $ "Parser error: " ++ show e -- TODO: show error in UI
+              return state
+    _ -> return ()
 
 handleKeyEvent :: (Writer a) => KeyEvent -> K.KeyEventHandler KeyEvent (EventM Name (AppContext a))
 handleKeyEvent MoveUp = K.onEvent MoveUp "Move up" $ adjustCursor (\i -> i - 1)
@@ -159,23 +247,11 @@ getKeyDispatcher = do
 handleEvent :: BrickEvent Name e -> EventM Name (AppContext a) ()
 handleEvent (VtyEvent (EvKey k mods)) = do
   state <- get
-  let dispatcher = keyEventDispatcher state
-  void $ K.handleKey dispatcher k mods
+  void $ K.handleKey (view keyEventDispatcher state) k mods
 handleEvent _ = return ()
-
 
 ui :: String -> Widget Name
 ui text = vBox [hCenter $ str "Top widget", center $ txtWrap (T.pack text)]
-
-drawUI :: (RenderTask a Name) => AppContext a -> [Widget Name]
-drawUI (AppContext ts cursor appState _ _) = case appState of
-  FullMode ->
-    [hCenter $ str "Top widget", hCenter $ vCenter renderedTask]
-   where
-    renderedTask = R.renderFull $ ts !! cursor
-  CompactMode -> drawCompactListView cursor ts
-
-data Name = Viewport1 deriving (Eq, Ord, Show)
 
 highlightAttr :: AttrName
 highlightAttr = attrName "highlight"
@@ -187,17 +263,21 @@ theAppAttrMap =
     [ (highlightAttr, fg yellow) -- Set foreground to yellow
     ]
 
-drawCompactListView :: (RenderTask a Name) => Int -> [a] -> [Widget Name]
-drawCompactListView cursor ts =
+drawUI :: (RenderTask a Name) => AppContext a -> [Widget Name]
+drawUI ctx =
   [ joinBorders $
       withBorderStyle unicodeRounded $
-        hBox [hLimitPercent 50 $ viewport Viewport1 Vertical compactTasks, hLimit 1 $ fill ' ', vBorder, focusedTask]
+        hBox [hLimitPercent 50 $ viewport Viewport1 Vertical compactTasks, hLimit 1 $ fill ' ', vBorder, maybeFocusedTask]
   ]
  where
-  compactTasks = vBox withHighlight
-  withHighlight = zipWith (\i x -> if i == cursor then withAttr highlightAttr x else x) [0 ..] simplyRendered
-  simplyRendered = fmap R.renderCompact ts
-  focusedTask = R.renderFull (ts !! cursor)
+  taskPointers = view (appState . currentView) ctx
+  fs = view (appState . fileState) ctx
+  compactTasks = vBox $ mapMaybe renderTask taskPointers
+  maybeFocusedTask = maybe emptyWidget R.renderFull (preview (appState . currentTaskLens) ctx)
+  selectedTaskPtr = preview (appState . currentTaskPtr) ctx
+  renderTask ptr = if Just ptr == selectedTaskPtr then fmap (withAttr highlightAttr) renderedTask else renderedTask
+   where
+    renderedTask = fmap R.renderCompact (preview (taskBy ptr) fs)
 
 app :: (RenderTask a Name, Writer a) => App (AppContext a) e Name
 app =
@@ -212,19 +292,35 @@ app =
 class Tui a where
   tui :: AppConfig a -> IO ()
 
-instance (RenderTask a Name, Writer a) => Tui a where
+instance (RenderTask a Name, Writer a, Show a) => Tui a where
   tui config = do
     keyDispatcher <- getKeyDispatcher
-    parsedFiles <- sequence <$> mapM (readTasks (fileParser config)) (files config)
-    case parsedFiles of
-      ParserSuccess files -> void $ defaultMain app (AppContext (concatMap content files) 0 CompactMode config keyDispatcher)
-      -- NOTE: useful code below to save file
-      -- ParserSuccess (TaskFile name tasks) -> do
-      -- let wrote = write (TaskFile name tasks)
-      -- void $ writeFileExample "./resources/parsed.org" wrote
-      ParserFailure e -> simpleMain (ui (show e))
-    return ()
+    parsedFiles <- mapM (\f -> fmap (\t -> (f, t)) (readTasks (view fileParser config) f)) (view files config)
+    let fState = M.fromList parsedFiles
+    let pointers = getAllPointers fState
+    let state =
+          AppState
+            { _fileState = fState
+            , _currentView = pointers
+            , _currentTask = 0 <$ listToMaybe pointers
+            }
+    let ctx =
+          AppContext
+            { _appState = state
+            , _config = config
+            , _keyEventDispatcher = keyDispatcher
+            }
+    void $ defaultMain app ctx
    where
+    -- case parsedFiles of
+    -- ParserSuccess files -> void $ defaultMain app (AppContext [] (M. parsedFiles) 0 CompactMode config keyDispatcher)
+    -- NOTE: useful code below to save file
+    -- ParserSuccess (TaskFile name tasks) -> do
+    -- let wrote = write (TaskFile name tasks)
+    -- void $ writeFileExample "./resources/parsed.org" wrote
+    -- ParserFailure e -> simpleMain (ui (show e))
+    -- return ()
+
     readTasks :: Parser a -> FilePath -> IO (ParserResult a)
     readTasks p file = do
       content <- readFileExample file

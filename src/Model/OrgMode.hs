@@ -1,10 +1,12 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Model.OrgMode where
 
+import Control.Lens
 import qualified Data.Text as T
 import Data.Time
 import Model.Injection
@@ -14,60 +16,16 @@ import Model.Injection
 data TimeUnit = Hour | Day | Week | Month | Year
   deriving (Show, Eq, Bounded, Enum)
 
-allTimeUnits :: [TimeUnit]
-allTimeUnits = [minBound .. maxBound]
-
-instance Injection TimeUnit Char where
-  to Hour = 'h'
-  to Day = 'd'
-  to Week = 'w'
-  to Month = 'm'
-  to Year = 'y'
-
-instance Injection Char (Maybe TimeUnit) where
-  to 'h' = Just Hour
-  to 'd' = Just Day
-  to 'w' = Just Week
-  to 'm' = Just Month
-  to 'y' = Just Year
-  to _ = Nothing
-
 data RepeatType
   = NextDate -- Example: "+1m" shifts by exactly one month after completion
   | NextFutureDate -- Example: "++1m" shift by at least one month (but may be several) till reaches the first future date
   | PlusCompletionDate -- Example: ".+1m" shifts by 1 month since completion day
   deriving (Show, Eq, Bounded, Enum)
 
-allRepeatTypes :: [RepeatType]
-allRepeatTypes = [minBound .. maxBound]
-
-instance Injection RepeatType T.Text where
-  to NextDate = "+"
-  to NextFutureDate = "++"
-  to PlusCompletionDate = ".+"
-
-instance Injection T.Text (Maybe RepeatType) where
-  to "+" = Just NextDate
-  to "++" = Just NextFutureDate
-  to ".+" = Just PlusCompletionDate
-  to _ = Nothing
-
 data DelayType
   = AllOccurrences -- Example: "-1d" notifies 1d before scheduled
   | FirstOccurrence -- Example: "--1d"
   deriving (Show, Eq, Bounded, Enum)
-
-allDelayTypes :: [DelayType]
-allDelayTypes = [minBound .. maxBound]
-
-instance Injection DelayType T.Text where
-  to AllOccurrences = "-"
-  to FirstOccurrence = "--"
-
-instance Injection T.Text (Maybe DelayType) where
-  to "-" = Just AllOccurrences
-  to "--" = Just FirstOccurrence
-  to _ = Nothing
 
 data RepeatInterval = RepeatInterval
   { repeatType :: RepeatType
@@ -105,14 +63,28 @@ data Task = Task
   deriving (Show)
 
 data TaskFile a = TaskFile
-  { name :: Maybe T.Text
-  , content :: [a]
+  { _name :: Maybe T.Text
+  , _content :: [a]
   }
   deriving (Show)
 
+data Delimiter = AngleDelim | BracketDelim
+
+makeLenses ''TaskFile
+
 ---------------------- CONSTANTS ------------------------------------
 
-data Delimiter = AngleDelim | BracketDelim
+allDelayTypes :: [DelayType]
+allDelayTypes = [minBound .. maxBound]
+
+instance Injection DelayType T.Text where
+  to AllOccurrences = "-"
+  to FirstOccurrence = "--"
+
+instance Injection T.Text (Maybe DelayType) where
+  to "-" = Just AllOccurrences
+  to "--" = Just FirstOccurrence
+  to _ = Nothing
 
 instance Injection Delimiter (Char, Char) where
   to AngleDelim = ('<', '>')
@@ -122,6 +94,38 @@ data TimeField = TimeField
   { timeFieldName :: T.Text
   , timeFieldDelimiter :: Delimiter
   }
+
+allTimeUnits :: [TimeUnit]
+allTimeUnits = [minBound .. maxBound]
+
+instance Injection TimeUnit Char where
+  to Hour = 'h'
+  to Day = 'd'
+  to Week = 'w'
+  to Month = 'm'
+  to Year = 'y'
+
+instance Injection Char (Maybe TimeUnit) where
+  to 'h' = Just Hour
+  to 'd' = Just Day
+  to 'w' = Just Week
+  to 'm' = Just Month
+  to 'y' = Just Year
+  to _ = Nothing
+
+allRepeatTypes :: [RepeatType]
+allRepeatTypes = [minBound .. maxBound]
+
+instance Injection RepeatType T.Text where
+  to NextDate = "+"
+  to NextFutureDate = "++"
+  to PlusCompletionDate = ".+"
+
+instance Injection T.Text (Maybe RepeatType) where
+  to "+" = Just NextDate
+  to "++" = Just NextFutureDate
+  to ".+" = Just PlusCompletionDate
+  to _ = Nothing
 
 -- Time fields
 
