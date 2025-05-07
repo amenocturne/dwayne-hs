@@ -26,6 +26,8 @@ import Data.Maybe (fromJust, listToMaybe, mapMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Graphics.Vty.Attributes
+import Graphics.Vty.Config (defaultConfig)
+import Graphics.Vty.CrossPlatform (mkVty)
 import Graphics.Vty.Input.Events
 import Model.OrgMode
 import Render.Render
@@ -33,9 +35,11 @@ import qualified Render.Render as R
 import System.Exit (exitFailure)
 import Writer.Writer
 
+import Brick.BChan
 import Brick.Keybindings as K
 import Brick.Widgets.Border (vBorder)
 import Brick.Widgets.Border.Style (unicodeRounded)
+import Brick.Widgets.Dialog (Dialog, dialog, renderDialog)
 import Data.List
 import Parser.Parser
 import TextUtils
@@ -45,6 +49,7 @@ import TextUtils
 -- TODO: make a shortcut to download music from youtube/youtube music links
 -- TODO: make a shortcut to save note contents directly to obsidian vault and open obsidian with this file to continue editing
 -- TODO: Should handle external edits to files when the app is opened and update its state correctly
+
 
 data AppContext a = AppContext
   { _appState :: AppState a
@@ -70,7 +75,14 @@ data AppState a = AppState
   { _fileState :: FileState a
   , _currentView :: [TaskPointer]
   , _currentTask :: Maybe Int -- Index of a currently focused task in a view
+  , _eventChannel :: BChan AppEvent
+  , _errorDialog :: Maybe ErrorDialog
   }
+
+data ErrorDialog = ErrorDialog {
+  _edDialog :: Dialog () Name,
+  _edMessage :: String
+}
 
 data TaskPointer = TaskPointer
   { _file :: FilePath
@@ -78,19 +90,24 @@ data TaskPointer = TaskPointer
   }
   deriving (Eq)
 
+data AppEvent = Error String deriving (Eq)
+
+data DialogResult = DialogOK deriving (Eq)
+
 --------------------------------- Optics ---------------------------------------
 
 makeLenses ''TaskPointer
 makeLenses ''AppState
 makeLenses ''AppContext
 makeLenses ''AppConfig
+makeLenses ''ErrorDialog
 
 currentCursor :: Traversal' (AppContext a) (Maybe Int)
 currentCursor = appState . currentTask
 
 -- TODO: rewrite as traversable
 modifyView :: ([TaskPointer] -> [TaskPointer]) -> AppState a -> AppState a
-modifyView f s@(AppState _ cv ct) = (set currentView newView . set currentTask selectedTask) s
+modifyView f s@(AppState _ cv ct _ _) = (set currentView newView . set currentTask selectedTask) s
  where
   newView = f cv
   selectedTask = do
@@ -190,12 +207,12 @@ editSelectedTaskInEditor = do
       case editedContent of
         Nothing -> return ctx
         Just editedStr -> do
-          let (_, _, result) = runParser (view (config . taskParser) ctx) (T.pack editedStr)
+          let (loc, _, result) = runParser (view (config . taskParser) ctx) (T.pack editedStr)
           case result of
             ParserSuccess t -> do
               return $ set (appState . fileState . taskBy ptr) t ctx
             ParserFailure e -> do
-              putStrLn $ "Parser error: " ++ show e -- TODO: show error in UI
+              _ <- writeBChan (view (appState . eventChannel) ctx) $ Error (e ++ " at " ++ show (line loc) ++ ":" ++ show (column loc))
               return ctx
     _ -> return ()
 
@@ -206,15 +223,38 @@ handleKeyEvent JumpEnd = K.onEvent JumpEnd "Jump to the end" $ adjustCursor (con
 handleKeyEvent Quit = K.onEvent Quit "Quit" halt
 handleKeyEvent EditInEditor = K.onEvent EditInEditor "Edit in editor" editSelectedTaskInEditor
 
-handlers :: (Writer a) => [K.KeyEventHandler KeyEvent (EventM Name (AppContext a))]
-handlers = fmap handleKeyEvent allKeyEvents
+keyEventHandler :: (Writer a) => [K.KeyEventHandler KeyEvent (EventM Name (AppContext a))]
+keyEventHandler = fmap handleKeyEvent allKeyEvents
 
 ---------------------------- Events -------------------------------------------
 
-handleEvent :: BrickEvent Name e -> EventM Name (AppContext a) ()
-handleEvent (VtyEvent (EvKey k mods)) = do
-  state <- get
-  void $ K.handleKey (view keyEventDispatcher state) k mods
+handleAppEvent :: AppEvent -> EventM Name (AppContext a) ()
+handleAppEvent event = case event of
+  Error msg -> do
+    let dlg = ErrorDialog{
+    _edDialog = dialog
+            (Just $ str "Error")
+            (Just (Viewport1, [("OK", Viewport1, ())]))
+            50,
+      _edMessage = msg
+    }
+    modify $ set (appState . errorDialog) (Just dlg)
+
+
+handleEvent :: BrickEvent Name AppEvent -> EventM Name (AppContext a) ()
+handleEvent (VtyEvent (EvKey key _)) = do
+  ctx <- get
+  case ctx ^. appState . errorDialog of
+    Just _ ->
+      -- Error dialog is open: handle dialog-specific keys
+      case key of
+        KEnter -> modify $ over (appState . errorDialog) (const Nothing)
+        KEsc   -> modify $ over (appState . errorDialog) (const Nothing)
+        _      -> return ()
+    Nothing ->
+      -- No dialog: dispatch as normal
+      void $ K.handleKey (view keyEventDispatcher ctx) key []
+handleEvent (AppEvent event) = handleAppEvent event
 handleEvent _ = return ()
 
 ----------------------------- UI -----------------------------------------------
@@ -234,6 +274,13 @@ theAppAttrMap =
 
 drawUI :: (RenderTask a Name) => AppContext a -> [Widget Name]
 drawUI ctx =
+  let mainLayers = drawCompactListView ctx
+   in case view (appState . errorDialog) ctx of
+        Just dlg -> renderDialog (view edDialog dlg) (strWrap $ view edMessage dlg) : mainLayers
+        Nothing -> mainLayers
+
+drawCompactListView :: (RenderTask a Name) => AppContext a -> [Widget Name]
+drawCompactListView ctx =
   [ joinBorders $
       withBorderStyle unicodeRounded $
         hBox [hLimitPercent 50 $ viewport Viewport1 Vertical compactTasks, hLimit 1 $ fill ' ', vBorder, maybeFocusedTask]
@@ -262,7 +309,7 @@ getAllPointers files = concatMap f (M.toList files)
 getKeyDispatcher :: (Writer a) => IO (KeyDispatcher KeyEvent (EventM Name (AppContext a)))
 getKeyDispatcher = do
   let kc = K.newKeyConfig keyEventsMapping defaultBindings [] -- Maybe I should add config files in the future
-  case K.keyDispatcher kc handlers of
+  case K.keyDispatcher kc keyEventHandler of
     Right d -> return d
     Left collisions -> do
       putStrLn "Error: some key events have the same keys bound to them."
@@ -277,7 +324,7 @@ getKeyDispatcher = do
           T.putStrLn $ "  " <> desc <> " (" <> trigger <> ")"
       exitFailure
 
-app :: (RenderTask a Name, Writer a) => App (AppContext a) e Name
+app :: (RenderTask a Name, Writer a) => App (AppContext a) AppEvent Name
 app =
   App
     { appDraw = drawUI -- List in type signature because each element is a layer and thus you can put widgets on top of one another
@@ -294,6 +341,7 @@ instance (RenderTask a Name, Writer a, Show a) => Tui a where
   tui config = do
     keyDispatcher <- getKeyDispatcher
     parsedFiles <- mapM (\f -> fmap (\t -> (f, t)) (readTasks (view fileParser config) f)) (view files config)
+    eventChan <- newBChan 10 -- TODO: maybe use different event channel size
     let fState = M.fromList parsedFiles
     let pointers = getAllPointers fState
     let state =
@@ -301,6 +349,8 @@ instance (RenderTask a Name, Writer a, Show a) => Tui a where
             { _fileState = fState
             , _currentView = pointers
             , _currentTask = 0 <$ listToMaybe pointers
+            , _eventChannel = eventChan
+            , _errorDialog = Nothing
             }
     let ctx =
           AppContext
@@ -308,8 +358,12 @@ instance (RenderTask a Name, Writer a, Show a) => Tui a where
             , _config = config
             , _keyEventDispatcher = keyDispatcher
             }
-    void $ defaultMain app ctx
+    let buildVty = mkVty defaultConfig
+    initialVty <- buildVty
+    void $ customMain initialVty buildVty (Just eventChan) app ctx
    where
+    -- void $ defaultMain app ctx
+
     -- case parsedFiles of
     -- ParserSuccess files -> void $ defaultMain app (AppContext [] (M. parsedFiles) 0 CompactMode config keyDispatcher)
     -- NOTE: useful code below to save file

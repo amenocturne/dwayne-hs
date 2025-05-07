@@ -85,6 +85,7 @@ executable dwayne
       time,
       brick,
       vty,
+      vty-crossplatform,
       directory,
       process
 
