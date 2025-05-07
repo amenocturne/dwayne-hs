@@ -32,14 +32,6 @@ import Brick.Keybindings as K
 import Parser.Parser
 import TextUtils
 
--- TODO: I should go through the code, collect all the errors and create widget to properly display them
--- TODO: make a shortcut to open in a default browser first found link in a task (useful for music/articles)
--- TODO: make a shortcut to download music from youtube/youtube music links
--- TODO: make a shortcut to save note contents directly to obsidian vault and open obsidian with this file to continue editing
--- TODO: Should handle external edits to files when the app is opened and update its state correctly
-
------------------------- Initialization ----------------------------------------
-
 getAllPointers :: FileState a -> [TaskPointer]
 getAllPointers fs = concatMap fun (M.toList fs)
  where
@@ -67,16 +59,6 @@ getKeyDispatcher = do
           T.putStrLn $ "  " <> desc <> " (" <> trigger <> ")"
       exitFailure
 
-app :: (RenderTask a Name, Writer a) => App (AppContext a) AppEvent Name
-app =
-  App
-    { appDraw = drawUI -- List in type signature because each element is a layer and thus you can put widgets on top of one another
-    , appChooseCursor = neverShowCursor
-    , appHandleEvent = handleEvent
-    , appStartEvent = return ()
-    , appAttrMap = const theAppAttrMap
-    }
-
 class Tui a where
   tui :: AppConfig a -> IO ()
 
@@ -100,6 +82,14 @@ instance (RenderTask a Name, Writer a, Show a) => Tui a where
             { _appState = state
             , _config = conf
             , _keyEventDispatcher = dispatcher
+            }
+    let app =
+          App
+            { appDraw = drawUI -- List in type signature because each element is a layer and thus you can put widgets on top of one another
+            , appChooseCursor = neverShowCursor
+            , appHandleEvent = handleEvent
+            , appStartEvent = return ()
+            , appAttrMap = const theAppAttrMap
             }
     let buildVty = mkVty defaultConfig
     initialVty <- buildVty

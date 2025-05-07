@@ -8,6 +8,11 @@
 
 module Main (main) where
 
+-- TODO: make a shortcut to open in a default browser first found link in a task (useful for music/articles)
+-- TODO: make a shortcut to download music from youtube/youtube music links
+-- TODO: make a shortcut to save note contents directly to obsidian vault and open obsidian with this file to continue editing
+-- TODO: Should handle external edits to files when the app is opened and update its state correctly
+
 import Parser.OrgParser (anyTaskparser, orgFileParser)
 import Render.OrgRender ()
 import Tui.Tui
