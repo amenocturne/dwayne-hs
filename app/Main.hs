@@ -11,6 +11,7 @@ module Main (main) where
 import Parser.OrgParser (anyTaskparser, orgFileParser)
 import Render.OrgRender ()
 import Tui.Tui
+import Tui.Types
 import Writer.OrgWriter ()
 
 -- filtered :: Parser (TaskFile Task)
