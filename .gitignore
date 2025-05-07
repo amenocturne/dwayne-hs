@@ -4,3 +4,4 @@ resources/Phone.org
 dist-newstyle
 .aider*
 .env
+hie.yaml
