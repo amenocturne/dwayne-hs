@@ -6,6 +6,7 @@ module Tui.Types where
 import Brick
 import Control.Lens
 import qualified Data.Map.Strict as M
+import qualified Data.Text as T
 import Model.OrgMode
 
 import Brick.BChan
@@ -17,10 +18,24 @@ import Parser.Parser
 data AppContext a = AppContext
   { _appState :: AppState a
   , _config :: AppConfig a
-  , _keyEventDispatcher :: K.KeyDispatcher KeyEvent (GlobalAppStateF a)
+  , _keyEventDispatchers :: [KeyEventDispatcher a]
   }
 
-data KeyEvent = MoveUp | MoveDown | JumpEnd | Quit | EditInEditor
+data KeyEventDispatcher a = KeyEventDispatcher
+  { _dispatcher :: K.KeyDispatcher KeyEvent (GlobalAppStateF a)
+  , _dispatcherPrecondition :: AppContext a -> Bool
+  }
+
+data KeyEvent
+  = -- Normal mode
+    MoveUp
+  | MoveDown
+  | JumpEnd
+  | Quit
+  | EditInEditor
+  | -- Error dialog
+    ErrorDialogQuit
+  | ErrorDialogAccept
   deriving (Eq, Show, Ord, Enum, Bounded)
 
 data Name = Viewport1 deriving (Eq, Ord, Show)
@@ -61,6 +76,13 @@ type GlobalAppStateF a = EventM Name (AppContext a)
 
 type GlobalAppState a = GlobalAppStateF a ()
 
+data KeyBinding a = KeyBinding
+  { _keyEvent :: KeyEvent
+  , _keyBinding :: [K.Binding]
+  , _keyDecription :: T.Text
+  , _keyAction :: GlobalAppState a
+  }
+
 --------------------------------- Optics ---------------------------------------
 
 makeLenses ''TaskPointer
@@ -68,6 +90,8 @@ makeLenses ''AppState
 makeLenses ''AppContext
 makeLenses ''AppConfig
 makeLenses ''ErrorDialog
+makeLenses ''KeyBinding
+makeLenses ''KeyEventDispatcher
 
 currentCursor :: Traversal' (AppContext a) (Maybe Int)
 currentCursor = appState . currentTask

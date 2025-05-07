@@ -1,24 +1,19 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Tui.Tui where
 
-import Control.Monad (forM_)
-
 import Brick
 import Control.Lens
 import Data.Functor
 import qualified Data.Map.Strict as M
-import Data.Maybe (fromJust, listToMaybe)
-import qualified Data.Text.IO as T
+import Data.Maybe (isJust, listToMaybe)
 import Graphics.Vty.Config (defaultConfig)
 import Graphics.Vty.CrossPlatform (mkVty)
 import Model.OrgMode
 import Render.Render
-import System.Exit (exitFailure)
 
 import Tui.Events
 import Tui.Keybindings
@@ -28,7 +23,6 @@ import Tui.Types
 import Writer.Writer
 
 import Brick.BChan
-import Brick.Keybindings as K
 import Parser.Parser
 import TextUtils
 
@@ -41,30 +35,16 @@ getAllPointers fs = concatMap fun (M.toList fs)
       (\taskFile -> (\(i, _) -> TaskPointer f i) <$> zip [0 ..] (_content taskFile))
       (resultToMaybe result)
 
-getKeyDispatcher :: (Writer a) => IO (KeyDispatcher KeyEvent (GlobalAppStateF a))
-getKeyDispatcher = do
-  let kc = K.newKeyConfig keyEventsMapping defaultBindings [] -- Maybe I should add config files in the future
-  case K.keyDispatcher kc keyEventHandler of
-    Right d -> return d
-    Left collisions -> do
-      putStrLn "Error: some key events have the same keys bound to them."
-      forM_ collisions $ \(b, hs) -> do
-        T.putStrLn $ "Handlers with the '" <> K.ppBinding b <> "' binding:"
-        forM_ hs $ \h -> do
-          let trigger = case K.kehEventTrigger $ K.khHandler h of
-                K.ByKey k -> "triggered by the key '" <> K.ppBinding k <> "'"
-                K.ByEvent e -> "triggered by the event '" <> fromJust (K.keyEventName keyEventsMapping e) <> "'"
-              desc = K.handlerDescription $ K.kehHandler $ K.khHandler h
-
-          T.putStrLn $ "  " <> desc <> " (" <> trigger <> ")"
-      exitFailure
-
 class Tui a where
   tui :: AppConfig a -> IO ()
 
 instance (RenderTask a Name, Writer a, Show a) => Tui a where
   tui conf = do
-    dispatcher <- getKeyDispatcher
+    -- Key dispatchers
+    normalModeDispatcher <- constructDispatcher normalModeBindings (const True)
+    let errorDialogPrecondition ctx = isJust (view (appState . errorDialog) ctx)
+    errorDialogDispatcher <- constructDispatcher errorDialogBindings errorDialogPrecondition
+    -- Files
     parsedFiles <- mapM (\f -> fmap (f,) (readTasks (view fileParser conf) f)) (view files conf)
     eventChan <- newBChan 10 -- TODO: maybe use different event channel size
     let fState = M.fromList parsedFiles
@@ -81,7 +61,7 @@ instance (RenderTask a Name, Writer a, Show a) => Tui a where
           AppContext
             { _appState = state
             , _config = conf
-            , _keyEventDispatcher = dispatcher
+            , _keyEventDispatchers = [errorDialogDispatcher, normalModeDispatcher] -- order defines precedence of conditions checked
             }
     let app =
           App
@@ -95,7 +75,11 @@ instance (RenderTask a Name, Writer a, Show a) => Tui a where
     initialVty <- buildVty
     void $ customMain initialVty buildVty (Just eventChan) app ctx
    where
-    -- void $ defaultMain app ctx
+    constructDispatcher bindings precondition = do
+      let maybeDispatcher = makeKeyDispatcher bindings precondition
+      case maybeDispatcher of
+        Left collisions -> displayCollisionError collisions
+        Right d -> return d
 
     -- case parsedFiles of
     -- ParserSuccess files -> void $ defaultMain app (AppContext [] (M. parsedFiles) 0 CompactMode config keyDispatcher)
