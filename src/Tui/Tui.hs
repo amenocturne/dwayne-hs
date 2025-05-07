@@ -153,6 +153,8 @@ currentTaskPtr f appState =
 
 ----------------------- Key bindings ------------------------------------------
 
+-- KeyEvent
+
 allKeyEvents :: [KeyEvent]
 allKeyEvents = [minBound .. maxBound]
 
@@ -171,61 +173,61 @@ bindKey EditInEditor = [K.bind KEnter]
 defaultBindings :: [(KeyEvent, [K.Binding])]
 defaultBindings = fmap (\k -> (k, bindKey k)) allKeyEvents
 
-adjustViewport :: GlobalAppState a
-adjustViewport = do
-  ctx <- get
-  mvp <- lookupViewport Viewport1
-  let maybeCursor = view (appState . currentTask) ctx
-  case (mvp, maybeCursor) of
-    (Just vp, Just cursor) -> do
-      let marginVal = view (config . scrollingMargin) ctx
-      let currentTop = vp ^. BT.vpTop
-          visibleHeight = snd (vp ^. BT.vpSize)
-          newTop
-            | cursor >= currentTop + visibleHeight - marginVal =
-                cursor - (visibleHeight - marginVal - 1)
-            | cursor <= currentTop + marginVal =
-                max 0 (cursor - marginVal)
-            | otherwise = currentTop
-      setTop (viewportScroll Viewport1) newTop
-    _ -> return ()
-
-adjustCursor :: (Int -> Int) -> GlobalAppState a
-adjustCursor f = do
-  state <- get
-  let cv = view (appState . currentView) state
-  let modifyCursor c = clamp 0 (length cv - 1) (f c)
-  modify $ over (currentCursor . _Just) modifyCursor
-  adjustViewport
-
--- TODO: refactor
-editSelectedTaskInEditor :: (Writer a) => GlobalAppState a
-editSelectedTaskInEditor = do
-  ctx <- get
-  let currentTask = preview (appState . currentTaskLens) ctx
-  let maybePtr = preview (appState . currentTaskPtr) ctx
-  case (currentTask, maybePtr) of
-    (Just task, Just ptr) -> suspendAndResume $ do
-      editedContent <- editWithEditor (write task)
-      when (null editedContent) $ return ()
-      case editedContent of
-        Nothing -> return ctx
-        Just editedStr -> do
-          let (loc, _, result) = runParser (view (config . taskParser) ctx) (T.pack editedStr)
-          case result of
-            ParserSuccess t -> do
-              return $ set (appState . fileState . taskBy ptr) t ctx
-            ParserFailure e -> do
-              _ <- writeBChan (view (appState . eventChannel) ctx) $ Error (e ++ " at " ++ show (line loc) ++ ":" ++ show (column loc))
-              return ctx
-    _ -> return ()
-
 handleKeyEvent :: (Writer a) => KeyEvent -> K.KeyEventHandler KeyEvent (GlobalAppStateF a)
-handleKeyEvent MoveUp = K.onEvent MoveUp "Move up" $ adjustCursor (\i -> i - 1)
-handleKeyEvent MoveDown = K.onEvent MoveDown "Move down" $ adjustCursor (+ 1)
-handleKeyEvent JumpEnd = K.onEvent JumpEnd "Jump to the end" $ adjustCursor (const maxBound)
-handleKeyEvent Quit = K.onEvent Quit "Quit" halt
-handleKeyEvent EditInEditor = K.onEvent EditInEditor "Edit in editor" editSelectedTaskInEditor
+handleKeyEvent ke = K.onEvent ke description action
+  where
+    (description, action) = case ke of
+      MoveUp -> ("Move up" , adjustCursor (\i -> i - 1))
+      MoveDown -> ("Move down" , adjustCursor (+ 1))
+      JumpEnd -> ("Jump to the end" , adjustCursor (const maxBound))
+      Quit -> ("Quit", halt)
+      EditInEditor -> ("Edit in editor", editSelectedTaskInEditor)
+    adjustCursor :: (Int -> Int) -> GlobalAppState a
+    adjustCursor f = do
+      state <- get
+      let cv = view (appState . currentView) state
+      let modifyCursor c = clamp 0 (length cv - 1) (f c)
+      modify $ over (currentCursor . _Just) modifyCursor
+      adjustViewport
+    -- TODO: refactor
+    editSelectedTaskInEditor :: (Writer a) => GlobalAppState a
+    editSelectedTaskInEditor = do
+      ctx <- get
+      let currentTask = preview (appState . currentTaskLens) ctx
+      let maybePtr = preview (appState . currentTaskPtr) ctx
+      case (currentTask, maybePtr) of
+        (Just task, Just ptr) -> suspendAndResume $ do
+          editedContent <- editWithEditor (write task)
+          when (null editedContent) $ return ()
+          case editedContent of
+            Nothing -> return ctx
+            Just editedStr -> do
+              let (loc, _, result) = runParser (view (config . taskParser) ctx) (T.pack editedStr)
+              case result of
+                ParserSuccess t -> do
+                  return $ set (appState . fileState . taskBy ptr) t ctx
+                ParserFailure e -> do
+                  _ <- writeBChan (view (appState . eventChannel) ctx) $ Error (e ++ " at " ++ show (line loc) ++ ":" ++ show (column loc))
+                  return ctx
+        _ -> return ()
+    adjustViewport :: GlobalAppState a
+    adjustViewport = do
+      ctx <- get
+      mvp <- lookupViewport Viewport1
+      let maybeCursor = view (appState . currentTask) ctx
+      case (mvp, maybeCursor) of
+        (Just vp, Just cursor) -> do
+          let marginVal = view (config . scrollingMargin) ctx
+          let currentTop = vp ^. BT.vpTop
+              visibleHeight = snd (vp ^. BT.vpSize)
+              newTop
+                | cursor >= currentTop + visibleHeight - marginVal =
+                    cursor - (visibleHeight - marginVal - 1)
+                | cursor <= currentTop + marginVal =
+                    max 0 (cursor - marginVal)
+                | otherwise = currentTop
+          setTop (viewportScroll Viewport1) newTop
+        _ -> return ()
 
 keyEventHandler :: (Writer a) => [K.KeyEventHandler KeyEvent (GlobalAppStateF a)]
 keyEventHandler = fmap handleKeyEvent allKeyEvents
