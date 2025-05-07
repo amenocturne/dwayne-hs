@@ -54,7 +54,7 @@ import TextUtils
 data AppContext a = AppContext
   { _appState :: AppState a
   , _config :: AppConfig a
-  , _keyEventDispatcher :: K.KeyDispatcher KeyEvent (EventM Name (AppContext a))
+  , _keyEventDispatcher :: K.KeyDispatcher KeyEvent (GlobalAppStateF a)
   }
 
 data KeyEvent = MoveUp | MoveDown | JumpEnd | Quit | EditInEditor
@@ -93,6 +93,10 @@ data TaskPointer = TaskPointer
 data AppEvent = Error String deriving (Eq)
 
 data DialogResult = DialogOK deriving (Eq)
+
+type GlobalAppStateF a = EventM Name (AppContext a)
+
+type GlobalAppState a = GlobalAppStateF a ()
 
 --------------------------------- Optics ---------------------------------------
 
@@ -167,7 +171,7 @@ bindKey EditInEditor = [K.bind KEnter]
 defaultBindings :: [(KeyEvent, [K.Binding])]
 defaultBindings = fmap (\k -> (k, bindKey k)) allKeyEvents
 
-adjustViewport :: EventM Name (AppContext a) ()
+adjustViewport :: GlobalAppState a
 adjustViewport = do
   ctx <- get
   mvp <- lookupViewport Viewport1
@@ -186,7 +190,7 @@ adjustViewport = do
       setTop (viewportScroll Viewport1) newTop
     _ -> return ()
 
-adjustCursor :: (Int -> Int) -> EventM Name (AppContext a) ()
+adjustCursor :: (Int -> Int) -> GlobalAppState a
 adjustCursor f = do
   state <- get
   let cv = view (appState . currentView) state
@@ -195,7 +199,7 @@ adjustCursor f = do
   adjustViewport
 
 -- TODO: refactor
-editSelectedTaskInEditor :: (Writer a) => EventM Name (AppContext a) ()
+editSelectedTaskInEditor :: (Writer a) => GlobalAppState a
 editSelectedTaskInEditor = do
   ctx <- get
   let currentTask = preview (appState . currentTaskLens) ctx
@@ -216,19 +220,19 @@ editSelectedTaskInEditor = do
               return ctx
     _ -> return ()
 
-handleKeyEvent :: (Writer a) => KeyEvent -> K.KeyEventHandler KeyEvent (EventM Name (AppContext a))
+handleKeyEvent :: (Writer a) => KeyEvent -> K.KeyEventHandler KeyEvent (GlobalAppStateF a)
 handleKeyEvent MoveUp = K.onEvent MoveUp "Move up" $ adjustCursor (\i -> i - 1)
 handleKeyEvent MoveDown = K.onEvent MoveDown "Move down" $ adjustCursor (+ 1)
 handleKeyEvent JumpEnd = K.onEvent JumpEnd "Jump to the end" $ adjustCursor (const maxBound)
 handleKeyEvent Quit = K.onEvent Quit "Quit" halt
 handleKeyEvent EditInEditor = K.onEvent EditInEditor "Edit in editor" editSelectedTaskInEditor
 
-keyEventHandler :: (Writer a) => [K.KeyEventHandler KeyEvent (EventM Name (AppContext a))]
+keyEventHandler :: (Writer a) => [K.KeyEventHandler KeyEvent (GlobalAppStateF a)]
 keyEventHandler = fmap handleKeyEvent allKeyEvents
 
 ---------------------------- Events -------------------------------------------
 
-handleAppEvent :: AppEvent -> EventM Name (AppContext a) ()
+handleAppEvent :: AppEvent -> GlobalAppState a
 handleAppEvent event = case event of
   Error msg -> do
     let dlg = ErrorDialog{
@@ -241,7 +245,7 @@ handleAppEvent event = case event of
     modify $ set (appState . errorDialog) (Just dlg)
 
 
-handleEvent :: BrickEvent Name AppEvent -> EventM Name (AppContext a) ()
+handleEvent :: BrickEvent Name AppEvent -> GlobalAppState a
 handleEvent (VtyEvent (EvKey key _)) = do
   ctx <- get
   case ctx ^. appState . errorDialog of
@@ -306,7 +310,7 @@ getAllPointers files = concatMap f (M.toList files)
       (\taskFile -> (\(i, _) -> TaskPointer file i) <$> zip [0 ..] (_content taskFile))
       (resultToMaybe result)
 
-getKeyDispatcher :: (Writer a) => IO (KeyDispatcher KeyEvent (EventM Name (AppContext a)))
+getKeyDispatcher :: (Writer a) => IO (KeyDispatcher KeyEvent (GlobalAppStateF a))
 getKeyDispatcher = do
   let kc = K.newKeyConfig keyEventsMapping defaultBindings [] -- Maybe I should add config files in the future
   case K.keyDispatcher kc keyEventHandler of
