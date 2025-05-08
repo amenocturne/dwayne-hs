@@ -10,8 +10,15 @@ import Brick.Keybindings as K
 import Brick.Widgets.Dialog (dialog)
 import Data.List
 
-handleAppEvent :: AppEvent -> GlobalAppState a
-handleAppEvent event = case event of
+handleEvent :: BrickEvent Name AppEvent -> GlobalAppState a
+handleEvent (VtyEvent (EvKey key _)) = do
+  ctx <- get
+  let dispatchers = view keyEventDispatchers ctx
+  let maybeDispatcher = find (\x -> view dispatcherPrecondition x ctx) dispatchers
+  case maybeDispatcher of
+    Nothing -> return ()
+    Just d -> void $ K.handleKey (view dispatcher d) key []
+handleEvent (AppEvent event) = case event of
   Error msg -> do
     let dlg =
           ErrorDialog
@@ -23,14 +30,4 @@ handleAppEvent event = case event of
             , _edMessage = msg
             }
     modify $ set (appState . errorDialog) (Just dlg)
-
-handleEvent :: BrickEvent Name AppEvent -> GlobalAppState a
-handleEvent (VtyEvent (EvKey key _)) = do
-  ctx <- get
-  let dispatchers = view keyEventDispatchers ctx
-  let maybeDispatcher = find (\x -> view dispatcherPrecondition x ctx) dispatchers
-  case maybeDispatcher of
-    Nothing -> return ()
-    Just d -> void $ K.handleKey (view dispatcher d) key []
-handleEvent (AppEvent event) = handleAppEvent event
 handleEvent _ = return ()
