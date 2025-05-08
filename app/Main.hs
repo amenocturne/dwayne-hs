@@ -12,6 +12,7 @@ module Main (main) where
 
 import Parser.OrgParser (anyTaskparser, orgFileParser)
 import Render.OrgRender ()
+import Tui.Keybindings (normalModeBindings)
 import Tui.Tui
 import Tui.Types
 import Writer.OrgWriter ()
@@ -29,4 +30,6 @@ main = do
       , _fileParser = orgFileParser
       , _files = ["./resources/Sample.org"]
       , _scrollingMargin = 6
+      , _keybindings = normalModeBindings
+      , _keyTimeoutMs = 200
       }

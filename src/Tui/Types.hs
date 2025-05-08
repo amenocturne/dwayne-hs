@@ -7,23 +7,19 @@ import Brick
 import Control.Lens
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
+import qualified Graphics.Vty.Input.Events as E
 import Model.OrgMode
 
 import Brick.BChan
-import Brick.Keybindings as K
 import Brick.Widgets.Dialog (Dialog)
 import Data.List
+import Data.List.NonEmpty (NonEmpty)
+import Data.Time (UTCTime)
 import Parser.Parser
 
 data AppContext a = AppContext
   { _appState :: AppState a
   , _config :: AppConfig a
-  , _keyEventDispatchers :: [KeyEventDispatcher a]
-  }
-
-data KeyEventDispatcher a = KeyEventDispatcher
-  { _dispatcher :: K.KeyDispatcher KeyEvent (GlobalAppStateF a)
-  , _dispatcherPrecondition :: AppContext a -> Bool
   }
 
 data KeyEvent
@@ -47,6 +43,8 @@ data AppConfig a = AppConfig
   , _fileParser :: Parser (TaskFile a)
   , _taskParser :: Parser a
   , _scrollingMargin :: Int
+  , _keybindings :: [KeyBinding a]
+  , _keyTimeoutMs :: Int
   }
 
 data AppState a = AppState
@@ -55,8 +53,15 @@ data AppState a = AppState
   , _currentTask :: Maybe Int -- Index of a currently focused task in a view
   , _eventChannel :: BChan AppEvent
   , _errorDialog :: Maybe ErrorDialog
+  , _keyState :: KeyState
   }
 
+data KeyState
+  = NoInput
+  | KeysPressed
+      { _keyBuffer :: NonEmpty KeyPress
+      , _lastKeyPressed :: UTCTime
+      }
 data ErrorDialog = ErrorDialog
   { _edDialog :: Dialog () Name
   , _edMessage :: String
@@ -78,10 +83,13 @@ type GlobalAppState a = GlobalAppStateF a ()
 
 data KeyBinding a = KeyBinding
   { _keyEvent :: KeyEvent
-  , _keyBinding :: [K.Binding]
+  , _keyBinding :: NonEmpty KeyPress
   , _keyDecription :: T.Text
   , _keyAction :: GlobalAppState a
+  , _keyContext :: AppContext a -> Bool -- defines when this keybinding is valid
   }
+
+data KeyPress = KeyPress {_key :: E.Key, _mods :: [E.Modifier]} deriving (Eq, Ord)
 
 --------------------------------- Optics ---------------------------------------
 
@@ -91,14 +99,14 @@ makeLenses ''AppContext
 makeLenses ''AppConfig
 makeLenses ''ErrorDialog
 makeLenses ''KeyBinding
-makeLenses ''KeyEventDispatcher
+makeLenses ''KeyPress
 
 currentCursor :: Traversal' (AppContext a) (Maybe Int)
 currentCursor = appState . currentTask
 
 -- TODO: rewrite as traversable
 modifyView :: ([TaskPointer] -> [TaskPointer]) -> AppState a -> AppState a
-modifyView f s@(AppState _ cv ct _ _) = (set currentView newView . set currentTask selectedTask) s
+modifyView f s@(AppState _ cv ct _ _ _) = (set currentView newView . set currentTask selectedTask) s
  where
   newView = f cv
   selectedTask = do

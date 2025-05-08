@@ -9,14 +9,13 @@ import Brick
 import Control.Lens
 import Data.Functor
 import qualified Data.Map.Strict as M
-import Data.Maybe (isJust, listToMaybe)
+import Data.Maybe (listToMaybe)
 import Graphics.Vty.Config (defaultConfig)
 import Graphics.Vty.CrossPlatform (mkVty)
 import Model.OrgMode
 import Render.Render
 
 import Tui.Events
-import Tui.Keybindings
 import Tui.Render
 import Tui.Types
 
@@ -40,11 +39,6 @@ class Tui a where
 
 instance (RenderTask a Name, Writer a, Show a) => Tui a where
   tui conf = do
-    -- Key dispatchers
-    normalModeDispatcher <- constructDispatcher normalModeBindings (const True)
-    let errorDialogPrecondition ctx = isJust (view (appState . errorDialog) ctx)
-    errorDialogDispatcher <- constructDispatcher errorDialogBindings errorDialogPrecondition
-    -- Files
     parsedFiles <- mapM (\f -> fmap (f,) (readTasks (view fileParser conf) f)) (view files conf)
     eventChan <- newBChan 10 -- TODO: maybe use different event channel size
     let fState = M.fromList parsedFiles
@@ -56,12 +50,12 @@ instance (RenderTask a Name, Writer a, Show a) => Tui a where
             , _currentTask = 0 <$ listToMaybe pointers
             , _eventChannel = eventChan
             , _errorDialog = Nothing
+            , _keyState = NoInput
             }
     let ctx =
           AppContext
             { _appState = state
             , _config = conf
-            , _keyEventDispatchers = [errorDialogDispatcher, normalModeDispatcher] -- order defines precedence of conditions checked
             }
     let app =
           App
@@ -75,12 +69,6 @@ instance (RenderTask a Name, Writer a, Show a) => Tui a where
     initialVty <- buildVty
     void $ customMain initialVty buildVty (Just eventChan) app ctx
    where
-    constructDispatcher bindings precondition = do
-      let maybeDispatcher = makeKeyDispatcher bindings precondition
-      case maybeDispatcher of
-        Left collisions -> displayCollisionError collisions
-        Right d -> return d
-
     -- case parsedFiles of
     -- ParserSuccess files -> void $ defaultMain app (AppContext [] (M. parsedFiles) 0 CompactMode config keyDispatcher)
     -- NOTE: useful code below to save file
