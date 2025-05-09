@@ -12,10 +12,10 @@ import Model.OrgMode
 
 import Brick.BChan
 import Brick.Widgets.Dialog (Dialog)
-import Data.List
 import Data.List.NonEmpty (NonEmpty)
 import Data.Time (UTCTime)
 import Parser.Parser
+import Data.Set (Set)
 
 data AppContext a = AppContext
   { _appState :: AppState a
@@ -29,6 +29,8 @@ data KeyEvent
   | JumpEnd
   | Quit
   | EditInEditor
+  | Undo
+  | Redo
   | -- Error dialog
     ErrorDialogQuit
   | ErrorDialogAccept
@@ -48,13 +50,23 @@ data AppConfig a = AppConfig
   }
 
 data AppState a = AppState
-  { _fileState :: FileState a
-  , _currentView :: [TaskPointer]
-  , _currentTask :: Maybe Int -- Index of a currently focused task in a view
+  { _tasksState :: TasksState a
   , _eventChannel :: BChan AppEvent
   , _errorDialog :: Maybe ErrorDialog
   , _keyState :: KeyState
+  , _undoState :: UndoState a
   }
+
+data TasksState a = TasksState
+  { _fileState :: FileState a
+  , _currentView :: [TaskPointer]
+  , _currentTask :: Maybe Int -- Index of a currently focused task in a view
+  } deriving (Show)
+
+data UndoState a = UndoState
+  { _undoStack :: [TasksState a]
+  , _redoStack :: [TasksState a]
+  } deriving (Show)
 
 data KeyState
   = NoInput
@@ -71,7 +83,7 @@ data TaskPointer = TaskPointer
   { _file :: FilePath
   , _taskIndex :: Int
   }
-  deriving (Eq)
+  deriving (Eq, Show)
 
 data AppEvent = Error String deriving (Eq)
 
@@ -89,7 +101,7 @@ data KeyBinding a = KeyBinding
   , _keyContext :: AppContext a -> Bool -- defines when this keybinding is valid
   }
 
-data KeyPress = KeyPress {_key :: E.Key, _mods :: [E.Modifier]} deriving (Eq, Ord)
+data KeyPress = KeyPress {_key :: E.Key, _mods :: Set E.Modifier} deriving (Eq, Ord, Show)
 
 --------------------------------- Optics ---------------------------------------
 
@@ -100,24 +112,26 @@ makeLenses ''AppConfig
 makeLenses ''ErrorDialog
 makeLenses ''KeyBinding
 makeLenses ''KeyPress
+makeLenses ''TasksState
+makeLenses ''UndoState
 
-currentCursor :: Traversal' (AppContext a) (Maybe Int)
-currentCursor = appState . currentTask
+tasksStateLens :: Lens' (AppContext a) (TasksState a)
+tasksStateLens = appState . tasksState
 
--- TODO: rewrite as traversable
-modifyView :: ([TaskPointer] -> [TaskPointer]) -> AppState a -> AppState a
-modifyView f s@(AppState _ cv ct _ _ _) = (set currentView newView . set currentTask selectedTask) s
- where
-  newView = f cv
-  selectedTask = do
-    selected <- ct
-    selectedPtr <- cv ^? element selected
-    found <- find (== selectedPtr) newView
-    fmap fst $ find (\(_, t) -> t == found) $ zip [0 ..] newView
+currentCursorLens :: Lens' (AppContext a) (Maybe Int)
+currentCursorLens = tasksStateLens . currentTask
 
--- TODO: rewrite as traversable
-filterView :: (TaskPointer -> Bool) -> AppState a -> AppState a
-filterView f = modifyView (filter f)
+currentViewLens :: Lens' (AppContext a) [TaskPointer]
+currentViewLens = tasksStateLens . currentView
+
+fileStateLens :: Lens' (AppContext a) (FileState a)
+fileStateLens = tasksStateLens . fileState
+
+undoStackLens :: Lens' (AppContext a) [TasksState a]
+undoStackLens = appState . undoState . undoStack
+
+redoStackLens :: Lens' (AppContext a) [TasksState a]
+redoStackLens = appState . undoState . redoStack
 
 taskBy :: TaskPointer -> Traversal' (FileState a) a
 taskBy ptr =
@@ -126,22 +140,22 @@ taskBy ptr =
     . content
     . ix (ptr ^. taskIndex)
 
-currentTaskLens :: Traversal' (AppState a) a
-currentTaskLens f state =
-  case (state ^. currentTask, state ^. currentView) of
+currentTaskLens :: Traversal' (AppContext a) a
+currentTaskLens f ctx =
+  case (view currentCursorLens ctx, view currentViewLens ctx) of
     (Just i, cv)
       | i >= 0
       , i < length cv ->
           let ptr = cv !! i
-           in (\modifiedFile -> set fileState modifiedFile state)
-                <$> traverseOf (taskBy ptr) f (view fileState state)
-    _ -> pure state
+           in (\modifiedFile -> set fileStateLens modifiedFile ctx)
+                <$> traverseOf (taskBy ptr) f (view fileStateLens ctx)
+    _ -> pure ctx
 
-currentTaskPtr :: Traversal' (AppState a) TaskPointer
-currentTaskPtr f state =
-  case (state ^. currentTask, state ^. currentView) of
+currentTaskPtr :: Traversal' (AppContext a) TaskPointer
+currentTaskPtr f ctx =
+  case (view currentCursorLens ctx, view currentViewLens ctx) of
     (Just i, cv)
       | i >= 0
       , i < length cv ->
-          state & currentView . ix i %%~ f
-    _ -> pure state
+          ctx & currentViewLens . ix i %%~ f
+    _ -> pure ctx

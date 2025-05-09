@@ -43,11 +43,11 @@ drawCompactListView ctx =
         hBox [hLimitPercent 50 $ viewport Viewport1 Vertical compactTasks, hLimit 1 $ fill ' ', vBorder, maybeFocusedTask]
   ]
  where
-  taskPointers = view (appState . currentView) ctx
-  fs = view (appState . fileState) ctx
+  taskPointers = view currentViewLens ctx
+  fs = view fileStateLens ctx
   compactTasks = vBox $ mapMaybe renderTask taskPointers
-  maybeFocusedTask = maybe emptyWidget R.renderFull (preview (appState . currentTaskLens) ctx)
-  selectedTaskPtr = preview (appState . currentTaskPtr) ctx
+  maybeFocusedTask = maybe emptyWidget R.renderFull (preview currentTaskLens ctx)
+  selectedTaskPtr = preview currentTaskPtr ctx
   renderTask ptr = if Just ptr == selectedTaskPtr then fmap (withAttr highlightAttr) renderedTask else renderedTask
    where
     renderedTask = fmap R.renderCompact (preview (taskBy ptr) fs)

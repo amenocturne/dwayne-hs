@@ -45,12 +45,20 @@ instance (RenderTask a Name, Writer a, Show a) => Tui a where
     let pointers = getAllPointers fState
     let state =
           AppState
-            { _fileState = fState
-            , _currentView = pointers
-            , _currentTask = 0 <$ listToMaybe pointers
+            { _tasksState =
+                TasksState
+                  { _fileState = fState
+                  , _currentView = pointers
+                  , _currentTask = 0 <$ listToMaybe pointers
+                  }
             , _eventChannel = eventChan
             , _errorDialog = Nothing
             , _keyState = NoInput
+            , _undoState =
+                UndoState
+                  { _undoStack = []
+                  , _redoStack = []
+                  }
             }
     let ctx =
           AppContext

@@ -9,8 +9,10 @@ import Tui.Types
 
 import Brick.Widgets.Dialog
 import Control.Monad.IO.Class (liftIO)
+import Data.Char (isUpper, toLower)
 import Data.List (find)
 import Data.List.NonEmpty (isPrefixOf, nonEmpty, toList)
+import qualified Data.Set as S
 import Data.Time (diffUTCTime, getCurrentTime)
 import Data.Time.Clock (UTCTime)
 
@@ -23,16 +25,23 @@ millisBetween t1 t2 = abs $ round $ diffUTCTime t1 t2 * 1000
 cleanKeyState :: GlobalAppState a
 cleanKeyState = modify $ set (appState . keyState) NoInput
 
-handleEvent :: BrickEvent Name AppEvent -> GlobalAppState a
+makeKeyPress :: Key -> [Modifier] -> KeyPress
+makeKeyPress (KChar c) mods = KeyPress (KChar $ toLower c) (S.fromList withShift)
+ where
+  withShift = if isUpper c then MShift : mods else mods
+makeKeyPress k mods = KeyPress k (S.fromList mods)
+
+handleEvent :: Show a => BrickEvent Name AppEvent -> GlobalAppState a
 handleEvent (VtyEvent (EvKey key mods)) = do
   ctx <- get
   now <- liftIO getCurrentTime
+  let currentKeyPress = makeKeyPress key mods
   let buffer = case view (appState . keyState) ctx of
-        NoInput -> [KeyPress key mods]
+        NoInput -> [currentKeyPress]
         KeysPressed b lastPressed ->
           if millisBetween lastPressed now > view (config . keyTimeoutMs) ctx
-            then [KeyPress key mods]
-            else toList b ++ [KeyPress key mods]
+            then [currentKeyPress]
+            else toList b ++ [currentKeyPress]
   case nonEmpty buffer of
     Nothing -> return ()
     Just l -> do
