@@ -8,13 +8,19 @@ import Graphics.Vty.Input.Events
 import Tui.Types
 
 import Brick.Widgets.Dialog
+import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import Data.Char (isUpper, toLower)
 import Data.List (find)
 import Data.List.NonEmpty (isPrefixOf, nonEmpty, toList)
+import qualified Data.Map as M
 import qualified Data.Set as S
+import qualified Data.Text.IO as TIO
 import Data.Time (diffUTCTime, getCurrentTime)
 import Data.Time.Clock (UTCTime)
+import Parser.Parser
+import Writer.OrgWriter ()
+import Writer.Writer
 
 matchesSubsequence :: [KeyPress] -> KeyBinding a -> Bool
 matchesSubsequence s = isPrefixOf s . view keyBinding
@@ -31,7 +37,7 @@ makeKeyPress (KChar c) mods = KeyPress (KChar $ toLower c) (S.fromList withShift
   withShift = if isUpper c then MShift : mods else mods
 makeKeyPress k mods = KeyPress k (S.fromList mods)
 
-handleEvent :: Show a => BrickEvent Name AppEvent -> GlobalAppState a
+handleEvent :: (Writer a, Show a) => BrickEvent Name AppEvent -> GlobalAppState a
 handleEvent (VtyEvent (EvKey key mods)) = do
   ctx <- get
   now <- liftIO getCurrentTime
@@ -64,4 +70,14 @@ handleEvent (AppEvent event) = case event of
             , _edMessage = msg
             }
     modify $ set (appState . errorDialog) (Just dlg)
+  SaveAllFiles -> do
+    ctx <- get
+    let files = M.toList $ view (appState . tasksState . fileState) ctx
+    let saveFiles = traverse (uncurry writeTaskFile) files
+    when (view (config . autoSave) ctx) $ void $ liftIO saveFiles
 handleEvent _ = return ()
+
+writeTaskFile :: (Writer a) => FilePath -> ParserResult a -> IO ()
+writeTaskFile path file = case file of
+  ParserSuccess a -> TIO.writeFile path (write a)
+  ParserFailure _ -> return ()

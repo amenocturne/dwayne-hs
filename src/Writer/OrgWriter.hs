@@ -3,8 +3,8 @@
 
 module Writer.OrgWriter where
 
-import Data.Char (ord)
 import Control.Lens (view)
+import Data.Char (ord)
 import Data.Maybe
 import qualified Data.Text as T
 import Data.Time (defaultTimeLocale)
@@ -59,9 +59,9 @@ instance Writer Task where
         $ filter
           (not . T.null)
         $ catMaybes
-          [ fmap (renderTimeFieldText orgScheduledField) (view scheduled task)
+          [ fmap (renderTimeFieldText orgClosedField) (view closed task)
+          , fmap (renderTimeFieldText orgScheduledField) (view scheduled task)
           , fmap (renderTimeFieldText orgDeadlineField) (view deadline task)
-          , fmap (renderTimeFieldText orgClosedField) (view closed task)
           ]
 
     propertiesSection
@@ -77,7 +77,7 @@ instance Writer Task where
 
     propertiesText =
       T.intercalate "\n" $
-        map (\(key, value) -> T.concat [":", key, ": ", value]) (view properties task)
+        map (\(key, value) -> T.concat [":", key, ":  ", value]) (view properties task)
 
     renderTimeFieldText :: TimeField -> OrgTime -> T.Text
     renderTimeFieldText (TimeField n delim) (OrgTime t r d) =
@@ -99,14 +99,16 @@ instance Writer Task where
       renderRepeater :: RepeatInterval -> String
       renderRepeater (RepeatInterval tt v tu) =
         concat
-          [ T.unpack $ to tt
+          [ " "
+          , T.unpack $ to tt
           , show v
           , [to tu]
           ]
       renderDelay :: DelayInterval -> String
       renderDelay (DelayInterval tt v tu) =
         concat
-          [ T.unpack $ to tt
+          [ " "
+          , T.unpack $ to tt
           , show v
           , [to tu]
           ]

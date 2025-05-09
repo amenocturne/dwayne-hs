@@ -50,6 +50,7 @@ data AppConfig a = AppConfig
   , _scrollingMargin :: Int
   , _keybindings :: [KeyBinding a]
   , _keyTimeoutMs :: Int
+  , _autoSave :: Bool
   }
 
 data AppState a = AppState
@@ -90,7 +91,7 @@ data TaskPointer = TaskPointer
   }
   deriving (Eq, Show)
 
-data AppEvent = Error String deriving (Eq)
+data AppEvent = Error String | SaveAllFiles deriving (Eq)
 
 data DialogResult = DialogOK deriving (Eq)
 

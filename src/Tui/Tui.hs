@@ -75,10 +75,9 @@ instance (RenderTask a Name, Writer a, Show a) => Tui a where
             }
     let buildVty = mkVty defaultConfig
     initialVty <- buildVty
+    _ <- writeBChan (view (appState . eventChannel) ctx) SaveAllFiles
     void $ customMain initialVty buildVty (Just eventChan) app ctx
    where
-    -- case parsedFiles of
-    -- ParserSuccess files -> void $ defaultMain app (AppContext [] (M. parsedFiles) 0 CompactMode config keyDispatcher)
     -- NOTE: useful code below to save file
     -- ParserSuccess (TaskFile name tasks) -> do
     -- let wrote = write (TaskFile name tasks)

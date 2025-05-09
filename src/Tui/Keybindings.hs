@@ -28,6 +28,7 @@ import Writer.OrgWriter ()
 -- TODO: make a shortcut to download music from youtube/youtube music links
 -- TODO: make a shortcut to save note contents directly to obsidian vault and open obsidian with this file to continue editing
 -- TODO: make a shortcut to copy task to clipboard
+-- TODO: make selection mode for bulk actions
 
 -- Helper functions
 

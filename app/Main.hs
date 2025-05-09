@@ -32,4 +32,5 @@ main = do
       , _scrollingMargin = 6
       , _keybindings = normalModeBindings
       , _keyTimeoutMs = 1000
+      , _autoSave = True
       }

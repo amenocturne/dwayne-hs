@@ -21,8 +21,18 @@ import Model.OrgMode
 import Parser.Parser
 import Parser.StandardParsers
 import TextUtils
+-- import Data.Maybe (mapMaybe)
 
 ------------------------------- Title Line -------------------------------------
+
+-- TODO: when in the description first word is bold in markdown format like:
+-- ```
+-- **word** some more text
+-- ```
+-- Then it parses it as start of the task, which is bad, should resolve that
+--
+-- TODO: Some tasks have description and then properties, should create separate
+-- script to make them follow proper format
 
 taskLevelParser :: Parser Int
 taskLevelParser = failOnConditionParser parser (<= 0) errorMsg
@@ -39,7 +49,7 @@ priorityParser = stringParser "[#" *> letterToPriorityParser <* charParser ']'
   letterToPriorityParser = failOnConditionParser (fmap (\c -> ord c - ord 'A') singleCharParser) (\i -> i < 0 || i > ord 'Z' - ord 'A') "Got invalid priority letter"
 
 isTagChar :: Char -> Bool
-isTagChar c = isLower c || isDigit c
+isTagChar c = isLower c || isDigit c || c == '_'
 
 titleAndTagsParser :: Parser (T.Text, [T.Text])
 titleAndTagsParser = fmap splitToTitleAndTags tillTheEndOfStringParser
@@ -53,8 +63,8 @@ splitToTitleAndTags input = (T.strip actualTitle, actualTags)
   tags = filter (not . T.null) $ fmap stripLeadingColumn tagParts
 
   (actualTitle, actualTags) = case reverse tagParts of
-    [] -> (title, [])
-    x : _ -> if x == ":" then (title, tags) else (input, [])
+    [] -> (input, [])
+    x : rest -> if x == ":" && length rest > 0 then (title, tags) else (input, [])
 
   isTag :: T.Text -> Bool
   isTag str = case T.uncons str of
@@ -158,9 +168,12 @@ findProp field l = snd <$> find (\(n, _) -> n == timeFieldName field) l
 
 properTaskParser :: Parser Task
 properTaskParser =
-  ( \level todoKeyword priority (title, tags) timeProp1 timeProp2 timeProp3 properties description ->
+  ( \level todoKeyword priority (title, tags) timeProp1 timeProp2 timeProp3 maybeProperties description ->
       let
         propsList = catMaybes [timeProp1, timeProp2, timeProp3]
+        properties = case maybeProperties of
+          Nothing -> []
+          Just p -> p
        in
         Task
           level
@@ -175,75 +188,18 @@ properTaskParser =
           description
   )
     <$> (skipBlanksParser *> taskLevelParser)
-    <*> (skipBlanksExceptNewLinesParser *> todoKeyWordParser)
+    <*> (skipBlanksExceptNewLinesParser *>  todoKeyWordParser)
     <*> (skipBlanksExceptNewLinesParser *> maybeParser priorityParser)
     <*> (skipBlanksExceptNewLinesParser *> titleAndTagsParser)
     <*> (skipBlanksParser *> scheduledClosedDeadLineParser)
     <*> (skipBlanksExceptNewLinesParser *> scheduledClosedDeadLineParser)
     <*> (skipBlanksExceptNewLinesParser *> scheduledClosedDeadLineParser)
-    <*> (skipBlanksParser *> propertiesParser)
-    <*> descriptionParser
-
-brokenDescriptionTaskParser :: Parser Task
-brokenDescriptionTaskParser =
-  ( \level todoKeyword priority (title, tags) description timeProp1 timeProp2 timeProp3 properties ->
-      let
-        propsList = catMaybes [timeProp1, timeProp2, timeProp3]
-       in
-        Task
-          level
-          todoKeyword
-          priority
-          title
-          tags
-          (findProp orgScheduledField propsList)
-          (findProp orgDeadlineField propsList)
-          (findProp orgClosedField propsList)
-          (("BROKEN_DESCRIPTION", "TRUE") : properties)
-          description
-  )
-    <$> (skipBlanksParser *> taskLevelParser)
-    <*> (skipBlanksExceptNewLinesParser *> todoKeyWordParser)
-    <*> (skipBlanksExceptNewLinesParser *> maybeParser priorityParser)
-    <*> (skipBlanksExceptNewLinesParser *> titleAndTagsParser)
-    <*> (skipBlanksParser *> descriptionParser)
-    <*> (skipBlanksParser *> scheduledClosedDeadLineParser)
-    <*> (skipBlanksExceptNewLinesParser *> scheduledClosedDeadLineParser)
-    <*> (skipBlanksExceptNewLinesParser *> scheduledClosedDeadLineParser)
-    <*> (skipBlanksParser *> propertiesParser)
-
-brokenPropertiesTaskParser :: Parser Task
-brokenPropertiesTaskParser =
-  ( \level todoKeyword priority (title, tags) timeProp1 timeProp2 timeProp3 description ->
-      let
-        propsList = catMaybes [timeProp1, timeProp2, timeProp3]
-       in
-        Task
-          level
-          todoKeyword
-          priority
-          title
-          tags
-          (findProp orgScheduledField propsList)
-          (findProp orgDeadlineField propsList)
-          (findProp orgClosedField propsList)
-          [("BROKEN_PROPERTIES", "TRUE")]
-          description
-  )
-    <$> (skipBlanksParser *> taskLevelParser)
-    <*> (skipBlanksExceptNewLinesParser *> todoKeyWordParser)
-    <*> (skipBlanksExceptNewLinesParser *> maybeParser priorityParser)
-    <*> (skipBlanksExceptNewLinesParser *> titleAndTagsParser)
-    <*> (skipBlanksParser *> scheduledClosedDeadLineParser)
-    <*> (skipBlanksExceptNewLinesParser *> scheduledClosedDeadLineParser)
-    <*> (skipBlanksExceptNewLinesParser *> scheduledClosedDeadLineParser)
+    <*> (skipBlanksParser *> maybeParser propertiesParser)
     <*> descriptionParser
 
 anyTaskparser :: Parser Task
 anyTaskparser =
   properTaskParser
-    <|> brokenDescriptionTaskParser
-    <|> brokenPropertiesTaskParser
 
 -- allTasksParser :: Parser (Forest Task)
 -- allTasksParser =

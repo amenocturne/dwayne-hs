@@ -45,7 +45,7 @@ singleDigitParser = Parser f
     Just (x, xs) -> (if isDigit x then ((modLoc . shiftLocationByString (T.pack [x]), xs), ParserSuccess (digitToInt x)) else ((modLoc, ""), ParserFailure $ "Expected a digit, but got " ++ [x]))
 
 positiveIntParser :: Parser Int
-positiveIntParser = sum . fmap (\(i, d) -> d * 10 ^ i) . zip [1 ..] . reverse <$> many singleDigitParser
+positiveIntParser = sum . fmap (\(i, d) -> d * 10 ^ i) . zip [0 ..] . reverse <$> many singleDigitParser
 
 stringParser :: T.Text -> Parser T.Text
 stringParser t = mapError ( \e ->  "Expected `" ++ T.unpack t  ++ "` but failed with: " ++ e) $ fmap T.pack (traverse charParser (T.unpack t))
