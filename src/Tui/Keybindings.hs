@@ -1,12 +1,12 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Tui.Keybindings where
 
 import Control.Monad (when)
 
 import Brick
-import Brick.Keybindings as K
 import qualified Brick.Types as BT
 import Control.Lens
 import Data.Maybe (isJust)
@@ -19,21 +19,15 @@ import Brick.BChan
 import Data.Char (isUpper, toLower)
 import Data.List.NonEmpty (NonEmpty (..), fromList)
 import qualified Data.Set as S
+import Model.OrgMode (Task, todoKeyword)
 import Parser.Parser
 import TextUtils
+import Writer.OrgWriter ()
 
 -- TODO: make a shortcut to open in a default browser first found link in a task (useful for music/articles)
 -- TODO: make a shortcut to download music from youtube/youtube music links
 -- TODO: make a shortcut to save note contents directly to obsidian vault and open obsidian with this file to continue editing
 -- TODO: make a shortcut to copy task to clipboard
-
-allKeyEvents :: [KeyEvent]
-allKeyEvents = [minBound .. maxBound]
-
-keyEventsMapping :: K.KeyEvents KeyEvent
-keyEventsMapping =
-  K.keyEvents $
-    fmap (\k -> (T.pack $ show k, k)) allKeyEvents
 
 -- Helper functions
 
@@ -115,6 +109,10 @@ redo s = f s
     [] -> id
     x : xs -> set redoStackLens xs . set tasksStateLens x . set undoStackLens (curSt : undoSt)
 
+-- Needs to be specific type
+changeTodoKeyword :: T.Text -> AppContext Task -> AppContext Task
+changeTodoKeyword keyword = over (currentTaskLens . todoKeyword) (const keyword)
+
 ----------------------- Bindings ----------------------------
 
 errorDialogKeyContext :: AppContext a -> Bool
@@ -142,27 +140,58 @@ instance ToBind Char where
 instance ToBind Key where
   toKey c = pure $ KeyPress c S.empty
 
-instance ToBind (NonEmpty Char) where
-  toKey s = s >>= toKey
+instance ToBind String where
+  toKey s = fromList s >>= toKey
+
+instance ToBind T.Text where
+  toKey s = toKey $ T.unpack s
 
 toKeySeq :: String -> NonEmpty KeyPress
-toKeySeq s = toKey $ fromList s
+toKeySeq s = fromList s >>= toKey
 
-normalModeBindings :: (Writer a) => [KeyBinding a]
+changeTodoKeywordBinding :: T.Text -> String -> KeyBinding Task
+changeTodoKeywordBinding keyword bind = KeyBinding (ChangeTodoKeyword keyword) (toKey bind) (T.concat ["Change todo keyword to ", keyword]) (modify saveForUndo >> modify (changeTodoKeyword keyword)) normalKeyContext
+
+class ToNormalModeBinding k where
+  normalBinding :: KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
+
+instance ToNormalModeBinding Char where
+  normalBinding event bind desc action = KeyBinding event (toKey bind) desc action normalKeyContext
+
+instance ToNormalModeBinding Key where
+  normalBinding event bind desc action = KeyBinding event (toKey bind) desc action normalKeyContext
+
+instance ToNormalModeBinding (NonEmpty KeyPress) where
+  normalBinding event bind desc action = KeyBinding event bind desc action normalKeyContext
+
+normalModeBindings :: [KeyBinding Task]
 normalModeBindings =
   [ --------------------------------- Error Dialog -----------------------------
     KeyBinding ErrorDialogQuit (toKey KEsc) "Quit error dialog" proceedInErrorDialog errorDialogKeyContext
   , KeyBinding ErrorDialogAccept (toKey KEnter) "Accept selected option" proceedInErrorDialog errorDialogKeyContext
   , --------------------------------- Normal Mode -----------------------------
     -- Movement
-    KeyBinding MoveUp (toKey 'k') "Move up" (adjustCursor (\i -> i - 1)) normalKeyContext
-  , KeyBinding MoveDown (toKey 'j') "Move down" (adjustCursor (+ 1)) normalKeyContext
-  , KeyBinding JumpEnd (toKey 'G' ) "Jump to the end" (adjustCursor (const maxBound)) normalKeyContext
-  , KeyBinding JumpEnd (toKeySeq "gg") "Jump to the end" (adjustCursor (const 0)) normalKeyContext
+    normalBinding MoveUp 'k' "Move up" $ adjustCursor (\i -> i - 1)
+  , normalBinding MoveDown 'j' "Move down" $ adjustCursor (+ 1)
+  , normalBinding JumpEnd 'G' "Jump to the end" $ adjustCursor (const maxBound)
+  , normalBinding JumpBeginning (toKeySeq "gg") "Jump to the end" $ adjustCursor (const 0)
+  , -- KeyBuffer
+    normalBinding CleanKeyState KEsc "Clean key state" $ modify $ set (appState . keyState) NoInput
   , -- History
-    KeyBinding Undo (toKey 'u') "Undo" (modify undo) normalKeyContext
-  , KeyBinding Redo (withMod 'r' MCtrl) "Redo" (modify redo) normalKeyContext
+    normalBinding Undo 'u' "Undo" $ modify undo
+  , normalBinding Redo (withMod 'r' MCtrl) "Redo" $ modify redo
+  -- Todo Keywords
+  , changeTodoKeywordBinding "INBOX" "ti"
+  , changeTodoKeywordBinding "RELEVANT" "tr"
+  , changeTodoKeywordBinding "SOMEDAY" "ts"
+  , changeTodoKeywordBinding "NOTES" "tn"
+  , changeTodoKeywordBinding "LIST" "tl"
+  , changeTodoKeywordBinding "WAITING" "tw"
+  , changeTodoKeywordBinding "PROJECTS" "tp"
+  , changeTodoKeywordBinding "TODO" "tt"
+  , changeTodoKeywordBinding "DONE" "td"
+  , changeTodoKeywordBinding "TRASH" "tx"
   , -- Other
-    KeyBinding Quit (toKey 'q') "Quit" halt normalKeyContext
-  , KeyBinding EditInEditor (toKey KEnter) "Edit in editor" (modify saveForUndo >> editSelectedTaskInEditor) normalKeyContext
+    normalBinding Quit (toKey 'q') "Quit" halt
+  , normalBinding EditInEditor (toKey KEnter) "Edit in editor" $ modify saveForUndo >> editSelectedTaskInEditor
   ]

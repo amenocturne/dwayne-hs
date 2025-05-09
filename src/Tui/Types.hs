@@ -13,9 +13,9 @@ import Model.OrgMode
 import Brick.BChan
 import Brick.Widgets.Dialog (Dialog)
 import Data.List.NonEmpty (NonEmpty)
+import Data.Set (Set)
 import Data.Time (UTCTime)
 import Parser.Parser
-import Data.Set (Set)
 
 data AppContext a = AppContext
   { _appState :: AppState a
@@ -27,14 +27,17 @@ data KeyEvent
     MoveUp
   | MoveDown
   | JumpEnd
+  | JumpBeginning
   | Quit
   | EditInEditor
+  | ChangeTodoKeyword T.Text
   | Undo
   | Redo
+  | CleanKeyState
   | -- Error dialog
     ErrorDialogQuit
   | ErrorDialogAccept
-  deriving (Eq, Show, Ord, Enum, Bounded)
+  deriving (Eq, Show, Ord)
 
 data Name = Viewport1 deriving (Eq, Ord, Show)
 
@@ -61,12 +64,14 @@ data TasksState a = TasksState
   { _fileState :: FileState a
   , _currentView :: [TaskPointer]
   , _currentTask :: Maybe Int -- Index of a currently focused task in a view
-  } deriving (Show)
+  }
+  deriving (Show)
 
 data UndoState a = UndoState
   { _undoStack :: [TasksState a]
   , _redoStack :: [TasksState a]
-  } deriving (Show)
+  }
+  deriving (Show)
 
 data KeyState
   = NoInput

@@ -4,6 +4,7 @@
 module Writer.OrgWriter where
 
 import Data.Char (ord)
+import Control.Lens (view)
 import Data.Maybe
 import qualified Data.Text as T
 import Data.Time (defaultTimeLocale)
@@ -24,7 +25,7 @@ instance (Writer a) => Writer (TaskFile a) where
 instance Writer Task where
   write task = T.intercalate "\n" $ filter (not . T.null) components
    where
-    desc = T.strip (description task)
+    desc = T.strip (view description task)
     components =
       [ headerLine
       , timeFieldsLine
@@ -36,11 +37,11 @@ instance Writer Task where
       T.intercalate " " $
         filter
           (not . T.null)
-          [ T.replicate (level task) "*"
-          , todoKeyword task
-          , renderPriorityText (priority task)
-          , title task
-          , renderTagsText (tags task)
+          [ T.replicate (view level task) "*"
+          , view todoKeyword task
+          , renderPriorityText (view priority task)
+          , view title task
+          , renderTagsText (view tags task)
           ]
 
     renderPriorityText :: Maybe Int -> T.Text
@@ -58,13 +59,13 @@ instance Writer Task where
         $ filter
           (not . T.null)
         $ catMaybes
-          [ fmap (renderTimeFieldText orgScheduledField) (scheduled task)
-          , fmap (renderTimeFieldText orgDeadlineField) (deadline task)
-          , fmap (renderTimeFieldText orgClosedField) (closed task)
+          [ fmap (renderTimeFieldText orgScheduledField) (view scheduled task)
+          , fmap (renderTimeFieldText orgDeadlineField) (view deadline task)
+          , fmap (renderTimeFieldText orgClosedField) (view closed task)
           ]
 
     propertiesSection
-      | null (properties task) = ""
+      | null (view properties task) = ""
       | otherwise =
           T.unlines $
             filter
@@ -76,7 +77,7 @@ instance Writer Task where
 
     propertiesText =
       T.intercalate "\n" $
-        map (\(key, value) -> T.concat [":", key, ": ", value]) (properties task)
+        map (\(key, value) -> T.concat [":", key, ": ", value]) (view properties task)
 
     renderTimeFieldText :: TimeField -> OrgTime -> T.Text
     renderTimeFieldText (TimeField n delim) (OrgTime t r d) =

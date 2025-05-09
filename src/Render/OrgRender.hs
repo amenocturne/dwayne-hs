@@ -16,6 +16,7 @@ import GHC.Char (chr)
 import Model.Injection
 import Model.OrgMode
 import Render.Render
+import Control.Lens (view)
 
 -- TODO: factor out common functions from it and Writer
 instance RenderTask Task b where
@@ -25,11 +26,11 @@ instance RenderTask Task b where
       str $
         unwords $
           catMaybes
-            [ Just $ replicate (level task) '*'
-            , Just $ T.unpack (todoKeyword task) -- TODO: colorcode them
-            , priority task >>= renderPriority
-            , Just $ T.unpack $ title task
-            , renderTags (tags task)
+            [ Just $ replicate (view level task) '*'
+            , Just $ T.unpack (view todoKeyword task) -- TODO: colorcode them
+            , view priority task >>= renderPriority
+            , Just $ T.unpack (view title task)
+            , renderTags (view tags task)
             ]
 
     renderPriority p
@@ -48,27 +49,27 @@ instance RenderTask Task b where
         , Just propertiesSection
         , Just $ txt orgPropertiesEnd
         , Just $ txt "\n"
-        , Just $ txt $ description task
+        , Just $ txt $ view description task
         ]
    where
     titleLine =
       strWrap $
         unwords $
           catMaybes
-            [ Just $ replicate (level task) '*'
-            , Just $ T.unpack (todoKeyword task) -- TODO: colorcode them
-            , priority task >>= renderPriority
-            , Just $ T.unpack $ title task
-            , renderTags (tags task)
+            [ Just $ replicate (view level task) '*'
+            , Just $ T.unpack (view todoKeyword task) -- TODO: colorcode them
+            , view priority task >>= renderPriority
+            , Just $ T.unpack $ view title task
+            , renderTags (view tags task)
             ]
     timeFieldsLine =
       str $
         unwords $
           mapMaybe
             (\(field, getTime) -> fmap (renderTimeField field) (getTime task))
-            [ (orgScheduledField, scheduled)
-            , (orgDeadlineField, deadline)
-            , (orgClosedField, closed)
+            [ (orgScheduledField, view scheduled)
+            , (orgDeadlineField, view deadline)
+            , (orgClosedField, view closed)
             ]
 
     renderTimeField :: TimeField -> OrgTime -> [Char]
@@ -86,7 +87,7 @@ instance RenderTask Task b where
       delims :: (Char, Char)
       delims = to delim
 
-    propertiesSection = vBox (fmap (\(key, value) -> str (":" ++ T.unpack key ++ ": " ++ T.unpack value)) (properties task))
+    propertiesSection = vBox (fmap (\(key, value) -> str (":" ++ T.unpack key ++ ": " ++ T.unpack value)) (view properties task))
 
     renderPriority p
       | p >= 0 = Just $ concat ["[#", [chr $ ord 'A' + p], "]"]

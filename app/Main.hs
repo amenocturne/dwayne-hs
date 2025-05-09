@@ -31,5 +31,5 @@ main = do
       , _files = ["./resources/Sample.org"]
       , _scrollingMargin = 6
       , _keybindings = normalModeBindings
-      , _keyTimeoutMs = 200
+      , _keyTimeoutMs = 1000
       }

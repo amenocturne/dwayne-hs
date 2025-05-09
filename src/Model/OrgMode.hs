@@ -49,16 +49,16 @@ data OrgTime = OrgTime
   deriving (Show)
 
 data Task = Task
-  { level :: Int
-  , todoKeyword :: T.Text
-  , priority :: Maybe Int
-  , title :: T.Text
-  , tags :: [T.Text]
-  , scheduled :: Maybe OrgTime
-  , deadline :: Maybe OrgTime
-  , closed :: Maybe OrgTime
-  , properties :: [(T.Text, T.Text)]
-  , description :: T.Text
+  {_level :: Int
+  ,_todoKeyword :: T.Text
+  ,_priority :: Maybe Int
+  ,_title :: T.Text
+  ,_tags :: [T.Text]
+  ,_scheduled :: Maybe OrgTime
+  ,_deadline :: Maybe OrgTime
+  ,_closed :: Maybe OrgTime
+  ,_properties :: [(T.Text, T.Text)]
+  ,_description :: T.Text
   }
   deriving (Show)
 
@@ -94,6 +94,8 @@ data TimeField = TimeField
   { timeFieldName :: T.Text
   , timeFieldDelimiter :: Delimiter
   }
+
+makeLenses ''Task
 
 allTimeUnits :: [TimeUnit]
 allTimeUnits = [minBound .. maxBound]
