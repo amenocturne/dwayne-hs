@@ -6,8 +6,8 @@
 module Render.OrgRender where
 
 import Brick
+import Control.Lens (view)
 import Data.Char (ord)
-import Data.List (intercalate)
 import Data.Maybe
 import qualified Data.Text as T
 import Data.Time (defaultTimeLocale)
@@ -16,29 +16,28 @@ import GHC.Char (chr)
 import Model.Injection
 import Model.OrgMode
 import Render.Render
-import Control.Lens (view)
 
 -- TODO: factor out common functions from it and Writer
 instance RenderTask Task b where
   renderCompact task = titleLine
    where
     titleLine =
-      str $
-        unwords $
+      txt $
+        T.unwords $
           catMaybes
-            [ Just $ replicate (view level task) '*'
-            , Just $ T.unpack (view todoKeyword task) -- TODO: colorcode them
+            [ Just $ T.replicate (view level task) "*"
+            , Just $ view todoKeyword task -- TODO: colorcode them
             , view priority task >>= renderPriority
-            , Just $ T.unpack (view title task)
+            , Just (view title task)
             , renderTags (view tags task)
             ]
 
     renderPriority p
-      | p >= 0 = Just $ concat ["[#", [chr $ ord 'A' + p], "]"]
+      | p >= 0 = Just $ T.concat ["[#", T.singleton (chr $ ord 'A' + p), "]"]
       | otherwise = Nothing
 
     renderTags [] = Nothing
-    renderTags ts = Just $ ":" ++ intercalate ":" (fmap T.unpack ts) ++ ":"
+    renderTags ts = Just $ T.concat [":", T.intercalate ":" ts, ":"]
 
   renderFull task =
     vBox $
@@ -53,18 +52,18 @@ instance RenderTask Task b where
         ]
    where
     titleLine =
-      strWrap $
-        unwords $
+      txtWrap $
+        T.unwords $
           catMaybes
-            [ Just $ replicate (view level task) '*'
-            , Just $ T.unpack (view todoKeyword task) -- TODO: colorcode them
+            [ Just $ T.replicate (view level task) "*"
+            , Just $ view todoKeyword task -- TODO: colorcode them
             , view priority task >>= renderPriority
-            , Just $ T.unpack $ view title task
+            , Just $ view title task
             , renderTags (view tags task)
             ]
     timeFieldsLine =
-      str $
-        unwords $
+      txt $
+        T.unwords $
           mapMaybe
             (\(field, getTime) -> fmap (renderTimeField field) (getTime task))
             [ (orgScheduledField, view scheduled)
@@ -72,44 +71,44 @@ instance RenderTask Task b where
             , (orgClosedField, view closed)
             ]
 
-    renderTimeField :: TimeField -> OrgTime -> [Char]
+    renderTimeField :: TimeField -> OrgTime -> T.Text
     renderTimeField (TimeField n delim) (OrgTime t r d) =
-      concat
-        [ T.unpack n
+      T.concat
+        [ n
         , " "
-        , [fst delims]
+        , T.singleton (fst delims)
         , displayOrgTime t
         , maybe "" renderRepeater r
         , maybe "" renderDelay d
-        , [snd delims]
+        , T.singleton (snd delims)
         ]
      where
       delims :: (Char, Char)
       delims = to delim
 
-    propertiesSection = vBox (fmap (\(key, value) -> str (":" ++ T.unpack key ++ ": " ++ T.unpack value)) (view properties task))
+    propertiesSection = vBox (fmap (\(key, value) -> txt $ T.concat [":", key, ": ", value]) (view properties task))
 
     renderPriority p
-      | p >= 0 = Just $ concat ["[#", [chr $ ord 'A' + p], "]"]
+      | p >= 0 = Just $ T.concat ["[#", T.singleton (chr $ ord 'A' + p), "]"]
       | otherwise = Nothing
 
     renderTags [] = Nothing
-    renderTags ts = Just $ ":" ++ intercalate ":" (fmap T.unpack ts) ++ ":"
+    renderTags ts = Just $ T.concat [":", T.intercalate ":" ts, ":"]
 
-    displayOrgTime (Left day) = formatTime defaultTimeLocale orgDayFormat day
-    displayOrgTime (Right utcTime) = formatTime defaultTimeLocale orgDayTimeFormat utcTime
+    displayOrgTime (Left day) = T.pack $ formatTime defaultTimeLocale orgDayFormat day
+    displayOrgTime (Right utcTime) = T.pack $ formatTime defaultTimeLocale orgDayTimeFormat utcTime
 
-    renderRepeater :: RepeatInterval -> String
+    renderRepeater :: RepeatInterval -> T.Text
     renderRepeater (RepeatInterval tt v tu) =
-      concat
-        [ T.unpack $ to tt
-        , show v
-        , [to tu]
+      T.concat
+        [ to tt
+        , T.pack $ show v
+        , T.singleton (to tu)
         ]
-    renderDelay :: DelayInterval -> String
+    renderDelay :: DelayInterval -> T.Text
     renderDelay (DelayInterval tt v tu) =
-      concat
-        [ T.unpack $ to tt
-        , show v
-        , [to tu]
+      T.concat
+        [ to tt
+        , T.pack $ show v
+        , T.singleton (to tu)
         ]

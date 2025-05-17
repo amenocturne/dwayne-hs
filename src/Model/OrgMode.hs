@@ -10,6 +10,7 @@ import Control.Lens
 import qualified Data.Text as T
 import Data.Time
 import Model.Injection
+import Data.Vector as V
 
 -- Model
 
@@ -64,7 +65,7 @@ data Task = Task
 
 data TaskFile a = TaskFile
   { _name :: Maybe T.Text
-  , _content :: [a]
+  , _content :: V.Vector a
   }
   deriving (Show)
 

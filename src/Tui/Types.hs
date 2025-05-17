@@ -141,10 +141,10 @@ redoStackLens = appState . undoState . redoStack
 
 taskBy :: TaskPointer -> Traversal' (FileState a) a
 taskBy ptr =
-  ix (ptr ^. file)
+  ix (view file ptr)
     . success
     . content
-    . ix (ptr ^. taskIndex)
+    . ix (view taskIndex ptr)
 
 currentTaskLens :: Traversal' (AppContext a) a
 currentTaskLens f ctx =

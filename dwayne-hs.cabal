@@ -85,6 +85,7 @@ executable dwayne
       bytestring >= 0.11.5.3,
       lens >= 5.0,
       text >= 2.0.0,
+      vector >= 0.13.2.0 ,
       containers,
       time,
       brick,

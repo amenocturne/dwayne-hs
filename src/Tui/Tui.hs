@@ -22,16 +22,17 @@ import Tui.Types
 import Writer.Writer
 
 import Brick.BChan
+import qualified Data.Vector as V
 import Parser.Parser
 import TextUtils
 
-getAllPointers :: FileState a -> [TaskPointer]
-getAllPointers fs = concatMap fun (M.toList fs)
+getAllPointers :: FileState a -> V.Vector TaskPointer
+getAllPointers fs = V.concatMap fun (V.fromList $ M.toList fs) -- TODO: optimize all this convertions
  where
   fun (f, result) =
     maybe
-      []
-      (\taskFile -> (\(i, _) -> TaskPointer f i) <$> zip [0 ..] (_content taskFile))
+      V.empty
+      (\taskFile -> (\(i, _) -> TaskPointer f i) <$> V.zip (V.fromList [0 ..]) (_content taskFile))
       (resultToMaybe result)
 
 class Tui a where
@@ -48,8 +49,8 @@ instance (RenderTask a Name, Writer a, Show a) => Tui a where
             { _tasksState =
                 TasksState
                   { _fileState = fState
-                  , _currentView = pointers
-                  , _currentTask = 0 <$ listToMaybe pointers
+                  , _currentView = V.toList pointers
+                  , _currentTask = 0 <$ listToMaybe (V.toList pointers)
                   }
             , _eventChannel = eventChan
             , _errorDialog = Nothing

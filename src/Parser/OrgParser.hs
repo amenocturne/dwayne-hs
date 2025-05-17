@@ -10,24 +10,29 @@
 
 module Parser.OrgParser where
 
+import Data.Bifunctor
 import Data.Char (isDigit, isLower)
 import Data.Foldable
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, fromMaybe)
 import qualified Data.Text as T
 import Data.Time
+import qualified Data.Vector as V
 import GHC.Base hiding (foldr)
 import Model.Injection
 import Model.OrgMode
 import Parser.Parser
 import Parser.StandardParsers
 import TextUtils
+
 -- import Data.Maybe (mapMaybe)
 
 ------------------------------- Title Line -------------------------------------
 
 -- TODO: when in the description first word is bold in markdown format like:
 -- ```
--- **word** some more text
+
+-- ** word** some more text
+
 -- ```
 -- Then it parses it as start of the task, which is bad, should resolve that
 --
@@ -64,7 +69,7 @@ splitToTitleAndTags input = (T.strip actualTitle, actualTags)
 
   (actualTitle, actualTags) = case reverse tagParts of
     [] -> (input, [])
-    x : rest -> if x == ":" && length rest > 0 then (title, tags) else (input, [])
+    x : rest -> if x == ":" && not (null rest) then (title, tags) else (input, [])
 
   isTag :: T.Text -> Bool
   isTag str = case T.uncons str of
@@ -171,9 +176,7 @@ properTaskParser =
   ( \level todoKeyword priority (title, tags) timeProp1 timeProp2 timeProp3 maybeProperties description ->
       let
         propsList = catMaybes [timeProp1, timeProp2, timeProp3]
-        properties = case maybeProperties of
-          Nothing -> []
-          Just p -> p
+        properties = fromMaybe [] maybeProperties
        in
         Task
           level
@@ -188,7 +191,7 @@ properTaskParser =
           description
   )
     <$> (skipBlanksParser *> taskLevelParser)
-    <*> (skipBlanksExceptNewLinesParser *>  todoKeyWordParser)
+    <*> (skipBlanksExceptNewLinesParser *> todoKeyWordParser)
     <*> (skipBlanksExceptNewLinesParser *> maybeParser priorityParser)
     <*> (skipBlanksExceptNewLinesParser *> titleAndTagsParser)
     <*> (skipBlanksParser *> scheduledClosedDeadLineParser)
@@ -213,7 +216,7 @@ allTasksParser :: Parser [Task]
 allTasksParser = many anyTaskparser
 
 orgFileParser :: Parser (TaskFile Task)
-orgFileParser = fmap (uncurry TaskFile) parser
+orgFileParser = fmap (uncurry TaskFile . second V.fromList) parser
  where
   fileTitleParser = maybeParser $ stringParser "#+TITLE: " *> tillTheEndOfStringParser <* skipBlanksParser
   parser = (,) <$> fileTitleParser <*> allTasksParser

@@ -13,6 +13,7 @@ import GHC.Char (chr)
 import Model.Injection
 import Model.OrgMode
 import Writer.Writer
+import qualified Data.Vector as V
 
 instance (Writer a) => Writer (TaskFile a) where
   write (TaskFile maybeName tasks) = T.intercalate "\n" $ titleText ++ tasksText
@@ -20,7 +21,7 @@ instance (Writer a) => Writer (TaskFile a) where
     titleText = case maybeName of
       Just n -> ["#+TITLE: " <> n, ""]
       Nothing -> []
-    tasksText = map write tasks
+    tasksText = map write (V.toList tasks) -- TODO: Rewrite function to accept Vector instead of list and avoid convertion
 
 instance Writer Task where
   write task = T.intercalate "\n" $ filter (not . T.null) components
