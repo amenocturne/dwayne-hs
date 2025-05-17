@@ -15,6 +15,7 @@ import Brick.Widgets.Dialog (Dialog)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Set (Set)
 import Data.Time (UTCTime)
+import qualified Data.Vector as V
 import Parser.Parser
 
 data AppContext a = AppContext
@@ -63,8 +64,15 @@ data AppState a = AppState
 
 data TasksState a = TasksState
   { _fileState :: FileState a
-  , _currentView :: [TaskPointer]
+  , _currentView :: V.Vector TaskPointer
+  , _compactView :: CompactView
   , _currentTask :: Maybe Int -- Index of a currently focused task in a view
+  }
+  deriving (Show)
+
+data CompactView = CompactView
+  { _compactViewTaskStartIndex :: Int
+  , _compactViewTasksEndIndex :: Int
   }
   deriving (Show)
 
@@ -120,6 +128,7 @@ makeLenses ''KeyBinding
 makeLenses ''KeyPress
 makeLenses ''TasksState
 makeLenses ''UndoState
+makeLenses ''CompactView
 
 tasksStateLens :: Lens' (AppContext a) (TasksState a)
 tasksStateLens = appState . tasksState
@@ -127,8 +136,11 @@ tasksStateLens = appState . tasksState
 currentCursorLens :: Lens' (AppContext a) (Maybe Int)
 currentCursorLens = tasksStateLens . currentTask
 
-currentViewLens :: Lens' (AppContext a) [TaskPointer]
+currentViewLens :: Lens' (AppContext a) (V.Vector TaskPointer)
 currentViewLens = tasksStateLens . currentView
+
+compactViewLens :: Lens' (AppContext a) CompactView
+compactViewLens = tasksStateLens . compactView
 
 fileStateLens :: Lens' (AppContext a) (FileState a)
 fileStateLens = tasksStateLens . fileState
@@ -152,9 +164,14 @@ currentTaskLens f ctx =
     (Just i, cv)
       | i >= 0
       , i < length cv ->
-          let ptr = cv !! i
-           in (\modifiedFile -> set fileStateLens modifiedFile ctx)
-                <$> traverseOf (taskBy ptr) f (view fileStateLens ctx)
+          let ptr = preview (ix i) cv
+           in maybe
+                (pure ctx)
+                ( \p ->
+                    (\modifiedFile -> set fileStateLens modifiedFile ctx)
+                      <$> traverseOf (taskBy p) f (view fileStateLens ctx)
+                )
+                ptr
     _ -> pure ctx
 
 currentTaskPtr :: Traversal' (AppContext a) TaskPointer

@@ -49,8 +49,13 @@ instance (RenderTask a Name, Writer a, Show a) => Tui a where
             { _tasksState =
                 TasksState
                   { _fileState = fState
-                  , _currentView = V.toList pointers
+                  , _currentView = pointers
                   , _currentTask = 0 <$ listToMaybe (V.toList pointers)
+                  , _compactView =
+                      CompactView
+                        { _compactViewTaskStartIndex = 0
+                        , _compactViewTasksEndIndex = min (V.length pointers - 1) 200 -- NOTE: safe bet that there will be less than 200 tasks on the screen as we don't know the size of the viewport in the beginning
+                        }
                   }
             , _eventChannel = eventChan
             , _errorDialog = Nothing

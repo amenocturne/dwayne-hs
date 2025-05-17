@@ -86,7 +86,7 @@ instance RenderTask Task b where
       delims :: (Char, Char)
       delims = to delim
 
-    propertiesSection = vBox (fmap (\(key, value) -> txt $ T.concat [":", key, ": ", value]) (view properties task))
+    propertiesSection = txt $ T.intercalate "\n" (fmap (\(key, value) -> T.concat [":", key, ": ", value]) (view properties task))
 
     renderPriority p
       | p >= 0 = Just $ T.concat ["[#", T.singleton (chr $ ord 'A' + p), "]"]

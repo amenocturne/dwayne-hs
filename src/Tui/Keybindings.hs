@@ -19,6 +19,7 @@ import Brick.BChan
 import Data.Char (isUpper, toLower)
 import Data.List.NonEmpty (NonEmpty (..), fromList)
 import qualified Data.Set as S
+import qualified Data.Vector as V
 import Model.OrgMode (Task, todoKeyword)
 import Parser.Parser
 import TextUtils
@@ -34,29 +35,45 @@ import Writer.OrgWriter ()
 
 adjustCursor :: (Int -> Int) -> GlobalAppState a
 adjustCursor f = do
-  state <- get
-  let cv = view currentViewLens state
+  ctx <- get
+  let cv = view currentViewLens ctx
   let modifyCursor c = clamp 0 (length cv - 1) (f c)
-  modify $ over (currentCursorLens . _Just) modifyCursor
+  let currentCursor = view currentCursorLens ctx
+  let newCursor = fmap modifyCursor currentCursor
+  modify $ set currentCursorLens newCursor
   adjustViewport
 
 adjustViewport :: GlobalAppState a
 adjustViewport = do
   ctx <- get
-  mvp <- lookupViewport Viewport1
-  let maybeCursor = view currentCursorLens ctx
-  case (mvp, maybeCursor) of
-    (Just vp, Just cursor) -> do
-      let marginVal = view (config . scrollingMargin) ctx
-      let currentTop = vp ^. BT.vpTop
-          visibleHeight = snd (vp ^. BT.vpSize)
-          newTop
-            | cursor >= currentTop + visibleHeight - marginVal =
-                cursor - (visibleHeight - marginVal - 1)
-            | cursor <= currentTop + marginVal =
-                max 0 (cursor - marginVal)
-            | otherwise = currentTop
-      setTop (viewportScroll Viewport1) newTop
+  let curCursor = view currentCursorLens ctx
+  let marginVal = view (config . scrollingMargin) ctx
+  maybeViewPort <- lookupViewport Viewport1
+
+  case (curCursor, maybeViewPort) of
+    (Just cur, Just viewPort) -> do
+      let compView = view compactViewLens ctx
+      let compStart = view compactViewTaskStartIndex compView
+      let compEnd = view compactViewTasksEndIndex compView
+      let curView = view currentViewLens ctx
+      let height = snd (view BT.vpSize viewPort)
+      let clampPos i = min (max i 0) (V.length curView - 1)
+
+      let fromDesiredTop desiredTop
+            | desiredTop <= 0 = set compactViewTaskStartIndex 0 . set compactViewTasksEndIndex (clampPos height)
+            | otherwise = set compactViewTaskStartIndex desiredTop . set compactViewTasksEndIndex (clampPos $ desiredTop + height - 1)
+
+      let fromDesiredBottom desiredBottom
+            | desiredBottom >= V.length curView - 1 = set compactViewTaskStartIndex (clampPos $ V.length curView - height) . set compactViewTasksEndIndex (clampPos $ V.length curView - 1)
+            | otherwise = set compactViewTaskStartIndex (clampPos $ desiredBottom - height) . set compactViewTasksEndIndex desiredBottom
+
+      let newCompactView
+            | cur < compStart + marginVal =
+                fromDesiredTop (cur - marginVal) compView
+            | cur > compEnd - marginVal =
+                fromDesiredBottom (cur + marginVal) compView
+            | otherwise = compView
+      modify $ over compactViewLens (const newCompactView)
     _ -> return ()
 
 -- TODO: refactor
@@ -181,8 +198,8 @@ normalModeBindings =
   , -- History
     normalBinding Undo 'u' "Undo" $ modify undo
   , normalBinding Redo (withMod 'r' MCtrl) "Redo" $ modify redo
-  -- Todo Keywords
-  , changeTodoKeywordBinding "INBOX" "ti"
+  , -- Todo Keywords
+    changeTodoKeywordBinding "INBOX" "ti"
   , changeTodoKeywordBinding "RELEVANT" "tr"
   , changeTodoKeywordBinding "SOMEDAY" "ts"
   , changeTodoKeywordBinding "NOTES" "tn"

@@ -5,7 +5,6 @@ module Tui.Render where
 import Brick
 import Brick.Widgets.Center
 import Control.Lens
-import Data.Maybe (mapMaybe)
 import qualified Data.Text as T
 import Graphics.Vty.Attributes
 import Render.Render
@@ -15,6 +14,7 @@ import Tui.Types
 import Brick.Widgets.Border (vBorder)
 import Brick.Widgets.Border.Style (unicodeRounded)
 import Brick.Widgets.Dialog (renderDialog)
+import qualified Data.Vector as V
 
 ui :: String -> Widget Name
 ui text = vBox [hCenter $ str "Top widget", center $ txtWrap (T.pack text)]
@@ -38,16 +38,18 @@ drawUI ctx =
 
 drawCompactListView :: (RenderTask a Name) => AppContext a -> [Widget Name]
 drawCompactListView ctx =
-  [ joinBorders $
-      withBorderStyle unicodeRounded $
-        hBox [hLimitPercent 50 $ viewport Viewport1 Vertical compactTasks, hLimit 1 $ fill ' ', vBorder, maybeFocusedTask]
-  ]
+  [joinBorders $ withBorderStyle unicodeRounded $ hBox [hLimitPercent 50 $ viewport Viewport1 Vertical compactTasks, hLimit 1 $ fill ' ', vBorder, maybeFocusedTask]]
  where
-  taskPointers = view currentViewLens ctx
+  compView = view compactViewLens ctx
+  start = view compactViewTaskStartIndex compView
+  end = view compactViewTasksEndIndex compView
+  taskPointers = V.slice start (end - start + 1) (view currentViewLens ctx)
+
   fs = view fileStateLens ctx
-  compactTasks = vBox $ mapMaybe renderTask taskPointers
+  compactTasks = vBox $ V.toList $ V.mapMaybe renderTask taskPointers
   maybeFocusedTask = maybe emptyWidget R.renderFull (preview currentTaskLens ctx)
   selectedTaskPtr = preview currentTaskPtr ctx
+
   renderTask ptr = if Just ptr == selectedTaskPtr then fmap (withAttr highlightAttr) renderedTask else renderedTask
    where
     renderedTask = fmap R.renderCompact (preview (taskBy ptr) fs)
