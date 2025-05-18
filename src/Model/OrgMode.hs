@@ -9,8 +9,8 @@ module Model.OrgMode where
 import Control.Lens
 import qualified Data.Text as T
 import Data.Time
-import Model.Injection
 import Data.Vector as V
+import Model.Injection
 
 -- Model
 
@@ -50,16 +50,16 @@ data OrgTime = OrgTime
   deriving (Show)
 
 data Task = Task
-  {_level :: Int
-  ,_todoKeyword :: T.Text
-  ,_priority :: Maybe Int
-  ,_title :: T.Text
-  ,_tags :: [T.Text]
-  ,_scheduled :: Maybe OrgTime
-  ,_deadline :: Maybe OrgTime
-  ,_closed :: Maybe OrgTime
-  ,_properties :: [(T.Text, T.Text)]
-  ,_description :: T.Text
+  { _level :: Int
+  , _todoKeyword :: T.Text
+  , _priority :: Maybe Int
+  , _title :: T.Text
+  , _tags :: [T.Text]
+  , _scheduled :: Maybe OrgTime
+  , _deadline :: Maybe OrgTime
+  , _closed :: Maybe OrgTime
+  , _properties :: [(T.Text, T.Text)]
+  , _description :: T.Text
   }
   deriving (Show)
 
@@ -162,3 +162,17 @@ orgDayTimeFormat = "%Y-%m-%d %a %H:%M"
 
 orgTimeFormat :: String
 orgTimeFormat = "%H:%M"
+
+orgTodoKeyWords :: [T.Text]
+orgTodoKeyWords =
+  [ "INBOX"
+  , "RELEVANT"
+  , "SOMEDAY"
+  , "NOTES"
+  , "LIST"
+  , "WAITING"
+  , "PROJECTS"
+  , "TODO"
+  , "DONE"
+  , "TRASH"
+  ]

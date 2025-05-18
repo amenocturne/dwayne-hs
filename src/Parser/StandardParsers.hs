@@ -42,13 +42,17 @@ singleDigitParser = Parser f
  where
   f (modLoc, str) = case T.uncons str of
     Nothing -> ((modLoc, ""), ParserFailure "Input is empty, but expected a digit")
-    Just (x, xs) -> (if isDigit x then ((modLoc . shiftLocationByString (T.pack [x]), xs), ParserSuccess (digitToInt x)) else ((modLoc, ""), ParserFailure $ "Expected a digit, but got " ++ [x]))
+    Just (x, xs) ->
+      ( if isDigit x
+          then ((modLoc . shiftLocationByString (T.pack [x]), xs), ParserSuccess (digitToInt x))
+          else ((modLoc, T.cons x xs), ParserFailure $ "Expected a digit, but got " ++ [x])
+      )
 
 positiveIntParser :: Parser Int
 positiveIntParser = sum . fmap (\(i, d) -> d * 10 ^ i) . zip [0 ..] . reverse <$> many singleDigitParser
 
 stringParser :: T.Text -> Parser T.Text
-stringParser t = mapError ( \e ->  "Expected `" ++ T.unpack t  ++ "` but failed with: " ++ e) $ fmap T.pack (traverse charParser (T.unpack t))
+stringParser t = tryParser $ mapError (\e -> "Expected `" ++ T.unpack t ++ "` but failed with: " ++ e) $ fmap T.pack (traverse charParser (T.unpack t))
 
 splitParser :: (T.Text -> (T.Text, T.Text)) -> Parser T.Text
 splitParser f = Parser $ \(loc, str) ->
@@ -103,7 +107,26 @@ unMaybeParser e (Parser p) = Parser $ \i ->
         ParserFailure e' -> (i, ParserFailure e')
 
 parseEnum :: (Injection b (Maybe a), Injection a b) => (b -> Parser b) -> [a] -> Parser a
-parseEnum makeConstParser enumValues = unMaybeParser "MUST NEVER HAPPEN" $ fmap to (asum $ fmap (makeConstParser . to) enumValues)
+parseEnum makeConstParser enumValues = tryParser $ unMaybeParser "MUST NEVER HAPPEN" $ fmap to (asum $ fmap (makeConstParser . to) enumValues)
 
 takeParser :: Int -> Parser T.Text
 takeParser n = splitParser (\t -> (T.take n t, T.drop n t))
+
+manyStrict :: Parser a -> Parser [a]
+manyStrict (Parser parserFn) = Parser $ \input ->
+  let go acc (currentLocFun, remainingText) =
+        case parserFn (currentLocFun, remainingText) of
+          ((newLocFun, newRemaining), ParserSuccess x) ->
+            go (acc ++ [x]) (newLocFun, newRemaining)
+          ((_, _), ParserFailure err) ->
+            if T.null remainingText
+              then ((currentLocFun, remainingText), ParserSuccess acc)
+              else ((currentLocFun, remainingText), ParserFailure err)
+   in go [] input
+
+-- a tiny combinator that “tries p but rolls back location on failure”
+tryParser :: Parser a -> Parser a
+tryParser (Parser runP) = Parser $ \(locFun, txt) ->
+  case runP (locFun, txt) of
+    ((newLocFun, rest), ParserSuccess x) -> ((newLocFun, rest), ParserSuccess x)
+    (_, ParserFailure e) -> ((locFun, txt), ParserFailure e)

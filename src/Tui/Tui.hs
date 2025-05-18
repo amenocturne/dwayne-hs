@@ -5,11 +5,11 @@
 
 module Tui.Tui where
 
-import Brick
+import Brick hiding (Location)
 import Control.Lens
 import Data.Functor
 import qualified Data.Map.Strict as M
-import Data.Maybe (listToMaybe)
+import Data.Maybe (listToMaybe, mapMaybe)
 import Graphics.Vty.Config (defaultConfig)
 import Graphics.Vty.CrossPlatform (mkVty)
 import Model.OrgMode
@@ -22,6 +22,7 @@ import Tui.Types
 import Writer.Writer
 
 import Brick.BChan
+import Data.List
 import qualified Data.Vector as V
 import Parser.Parser
 import TextUtils
@@ -42,7 +43,8 @@ instance (RenderTask a Name, Writer a, Show a) => Tui a where
   tui conf = do
     parsedFiles <- mapM (\f -> fmap (f,) (readTasks (view fileParser conf) f)) (view files conf)
     eventChan <- newBChan 10 -- TODO: maybe use different event channel size
-    let fState = M.fromList parsedFiles
+    let fState = M.fromList (fmap (\(a, (_, c)) -> (a, c)) parsedFiles)
+    let parsingErrors = mapMaybe (\(f, (l, e)) -> fmap (f,l,) (errorToMaybe e)) parsedFiles
     let pointers = getAllPointers fState
     let state =
           AppState
@@ -82,6 +84,14 @@ instance (RenderTask a Name, Writer a, Show a) => Tui a where
     let buildVty = mkVty defaultConfig
     initialVty <- buildVty
     _ <- writeBChan (view (appState . eventChannel) ctx) SaveAllFiles
+    case parsingErrors of
+      [] -> return ()
+      errs ->
+        writeBChan (view (appState . eventChannel) ctx) $
+          Error $
+            intercalate "\n" $
+              fmap (\(f, l, e) -> "Error while parsing `" ++ f ++ "`: " ++ e ++ " at " ++ show (line l) ++ ":" ++ show (column l)) errs
+
     void $ customMain initialVty buildVty (Just eventChan) app ctx
    where
     -- NOTE: useful code below to save file
@@ -91,8 +101,8 @@ instance (RenderTask a Name, Writer a, Show a) => Tui a where
     -- ParserFailure e -> simpleMain (ui (show e))
     -- return ()
 
-    readTasks :: Parser a -> FilePath -> IO (ParserResult a)
+    readTasks :: Parser a -> FilePath -> IO (Location, ParserResult a)
     readTasks p f = do
       c <- readFileExample f
-      let (_, _, tasks) = runParser p c
-      return tasks
+      let (l, _, tasks) = runParser p c
+      return (l, tasks)

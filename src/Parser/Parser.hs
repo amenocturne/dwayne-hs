@@ -67,7 +67,7 @@ instance Monad Parser where
       (i', ParserFailure e) -> (i', ParserFailure e)
 
 zeroLocation :: Location
-zeroLocation = Location 0 0
+zeroLocation = Location 1 1
 
 shifLocationByChar :: Location -> Char -> Location
 shifLocationByChar (Location l _) '\n' = Location (l + 1) 0
@@ -80,6 +80,10 @@ resultToMaybe :: ParserResult a -> Maybe a
 resultToMaybe (ParserSuccess a) = Just a
 resultToMaybe (ParserFailure _) = Nothing
 
+errorToMaybe :: ParserResult a -> Maybe ParserError
+errorToMaybe (ParserSuccess _) = Nothing
+errorToMaybe (ParserFailure e) = Just e
+
 failingParser :: ParserError -> Parser a
 failingParser err = Parser $ \i -> (i, ParserFailure err)
 
@@ -90,3 +94,7 @@ runParser :: Parser a -> T.Text -> (Location, T.Text, ParserResult a)
 runParser (Parser run) i =
   let ((loc, leftOver), res) = run (id, i)
    in (loc zeroLocation, leftOver, res)
+
+isParserError :: ParserResult a -> Bool
+isParserError (ParserFailure _) = True
+isParserError (ParserSuccess _) = False

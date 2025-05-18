@@ -93,6 +93,9 @@ data ErrorDialog = ErrorDialog
   , _edMessage :: String
   }
 
+instance Show ErrorDialog where
+  show (ErrorDialog _ msg) = msg
+
 data TaskPointer = TaskPointer
   { _file :: FilePath
   , _taskIndex :: Int

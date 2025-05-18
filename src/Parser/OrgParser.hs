@@ -24,8 +24,6 @@ import Parser.Parser
 import Parser.StandardParsers
 import TextUtils
 
--- import Data.Maybe (mapMaybe)
-
 ------------------------------- Title Line -------------------------------------
 
 -- TODO: when in the description first word is bold in markdown format like:
@@ -46,7 +44,10 @@ taskLevelParser = failOnConditionParser parser (<= 0) errorMsg
   errorMsg = "Task level must be specified with at least one '*'"
 
 todoKeyWordParser :: Parser T.Text
-todoKeyWordParser = wordParser
+todoKeyWordParser =
+  mapError
+    (const $ "Could not parse any of existing todo keywords: " ++ T.unpack (T.intercalate " " orgTodoKeyWords))
+    (asum $ fmap stringParser orgTodoKeyWords)
 
 priorityParser :: Parser Int
 priorityParser = stringParser "[#" *> letterToPriorityParser <* charParser ']'
@@ -213,7 +214,7 @@ anyTaskparser =
 --         )
 --       . (`makeForest` (\t -> level t - 1))
 allTasksParser :: Parser [Task]
-allTasksParser = many anyTaskparser
+allTasksParser = manyStrict anyTaskparser
 
 orgFileParser :: Parser (TaskFile Task)
 orgFileParser = fmap (uncurry TaskFile . second V.fromList) parser
