@@ -13,7 +13,8 @@ module Parser.StandardParsers where
 
 import Data.Char (digitToInt, isDigit, isLetter, isSpace)
 import Data.Foldable
-import Data.Functor (void)
+import Data.Functor (void, ($>))
+import Data.Maybe (mapMaybe)
 import qualified Data.Text as T
 import GHC.Base
 import Model.Injection
@@ -130,3 +131,31 @@ tryParser (Parser runP) = Parser $ \(locFun, txt) ->
   case runP (locFun, txt) of
     ((newLocFun, rest), ParserSuccess x) -> ((newLocFun, rest), ParserSuccess x)
     (_, ParserFailure e) -> ((locFun, txt), ParserFailure e)
+
+-- Generalized combinator for trying all parsers and selecting based on a rule
+tryAllWith :: (Eq a) => ([a] -> Maybe a) -> [Parser a] -> Parser a
+tryAllWith selector parsers = Parser $ \input@(modLoc, _) ->
+  let results =
+        [ (modLoc', remaining, res)
+        | (Parser p) <- parsers
+        , let ((modLoc', remaining), res) = p input
+        , isParserSuccess res
+        ]
+      ss = mapMaybe (\(_, _, c) -> resultToMaybe c) results
+   in case selector ss of
+        Just val ->
+          let (bestModLoc, bestInput, bestRes) = head $ filter (\(_, _, c) -> Just val == resultToMaybe c) results
+           in ((modLoc . bestModLoc, bestInput), bestRes)
+        _ -> (input, ParserFailure "No valid selection")
+
+-- Turn a parser to a parser that does not consume input string or modifies location
+notConsumingInput :: Parser a -> Parser a
+notConsumingInput (Parser runP) = Parser $ \(modLoc, str) ->
+  case runP (modLoc, str) of
+    (_, x) -> ((modLoc, str), x)
+
+-- consumes all and outputs all the text char by char until supplied parser succeeds
+takeUntilSucceeds :: Parser a -> Parser T.Text
+takeUntilSucceeds stop = go T.empty
+ where
+  go acc = (tryParser stop $> acc) <|> (singleCharParser >>= \c -> go (T.snoc acc c))

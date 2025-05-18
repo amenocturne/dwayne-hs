@@ -98,3 +98,7 @@ runParser (Parser run) i =
 isParserError :: ParserResult a -> Bool
 isParserError (ParserFailure _) = True
 isParserError (ParserSuccess _) = False
+
+isParserSuccess :: ParserResult a -> Bool
+isParserSuccess (ParserSuccess _) = True
+isParserSuccess _ = False
