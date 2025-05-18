@@ -65,7 +65,7 @@ handleEvent (AppEvent event) = case event of
             { _edDialog =
                 dialog
                   (Just $ str "Error")
-                  (Just (Viewport1, [("OK", Viewport1, ())]))
+                  Nothing
                   50
             , _edMessage = msg
             }

@@ -40,7 +40,7 @@ data KeyEvent
   | ErrorDialogAccept
   deriving (Eq, Show, Ord)
 
-data Name = Viewport1 deriving (Eq, Ord, Show)
+data Name = CompactViewWidget deriving (Eq, Ord, Show)
 
 type FileState a = M.Map String (ParserResult (TaskFile a))
 

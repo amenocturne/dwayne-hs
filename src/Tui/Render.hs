@@ -38,7 +38,7 @@ drawUI ctx =
 
 drawCompactListView :: (RenderTask a Name) => AppContext a -> [Widget Name]
 drawCompactListView ctx =
-  [joinBorders $ withBorderStyle unicodeRounded $ hBox [hLimitPercent 50 $ viewport Viewport1 Vertical compactTasks, hLimit 1 $ fill ' ', vBorder, maybeFocusedTask]]
+  [joinBorders $ withBorderStyle unicodeRounded $ hBox [hLimitPercent 50 $ reportExtent CompactViewWidget compactTasks, hLimit 1 $ fill ' ', vBorder, hLimitPercent 50 maybeFocusedTask]]
  where
   compView = view compactViewLens ctx
   start = view compactViewTaskStartIndex compView

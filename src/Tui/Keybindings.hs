@@ -48,15 +48,14 @@ adjustViewport = do
   ctx <- get
   let curCursor = view currentCursorLens ctx
   let marginVal = view (config . scrollingMargin) ctx
-  maybeViewPort <- lookupViewport Viewport1
-
-  case (curCursor, maybeViewPort) of
-    (Just cur, Just viewPort) -> do
+  maybeExtent <- lookupExtent CompactViewWidget
+  case (curCursor, maybeExtent) of
+    (Just cur, Just extent) -> do
       let compView = view compactViewLens ctx
       let compStart = view compactViewTaskStartIndex compView
       let compEnd = view compactViewTasksEndIndex compView
       let curView = view currentViewLens ctx
-      let height = snd (view BT.vpSize viewPort)
+      let height = snd (BT.extentSize extent)
       let clampPos i = min (max i 0) (V.length curView - 1)
 
       let fromDesiredTop desiredTop
