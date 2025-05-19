@@ -38,6 +38,11 @@ data KeyEvent
   | -- Error dialog
     ErrorDialogQuit
   | ErrorDialogAccept
+  | -- Searching
+    SwitchToSearchMode
+  | AbortSearch
+  | SearchDeleteChar
+  | ApplySearch
   deriving (Eq, Show, Ord)
 
 data Name = CompactViewWidget deriving (Eq, Ord, Show)
@@ -60,7 +65,16 @@ data AppState a = AppState
   , _errorDialog :: Maybe ErrorDialog
   , _keyState :: KeyState
   , _undoState :: UndoState a
+  , _appMode :: AppMode a
+  , _searchState :: Maybe (SearchState a)
   }
+
+data SearchState a = SearchState
+  { _searchInput :: T.Text
+  , _searchResult :: V.Vector a
+  }
+
+data AppMode a = NormalMode | SearchMode deriving (Eq)
 
 data TasksState a = TasksState
   { _fileState :: FileState a
@@ -84,10 +98,8 @@ data UndoState a = UndoState
 
 data KeyState
   = NoInput
-  | KeysPressed
-      { _keyBuffer :: NonEmpty KeyPress
-      , _lastKeyPressed :: UTCTime
-      }
+  | KeysPressed {_keyBuffer :: NonEmpty KeyPress, _lastKeyPressed :: UTCTime}
+
 data ErrorDialog = ErrorDialog
   { _edDialog :: Dialog () Name
   , _edMessage :: String
@@ -132,6 +144,7 @@ makeLenses ''KeyPress
 makeLenses ''TasksState
 makeLenses ''UndoState
 makeLenses ''CompactView
+makeLenses ''SearchState
 
 tasksStateLens :: Lens' (AppContext a) (TasksState a)
 tasksStateLens = appState . tasksState

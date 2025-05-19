@@ -74,6 +74,8 @@ executable dwayne
       Tui.Render,
       Tui.Tui,
       Tui.Types,
+      Searcher.Searcher,
+      Searcher.OrgSearcher,
       TextUtils
 
     -- LANGUAGE extensions used by modules in this package.

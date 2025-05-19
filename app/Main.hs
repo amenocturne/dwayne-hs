@@ -16,6 +16,7 @@ import Tui.Keybindings (normalModeBindings)
 import Tui.Tui
 import Tui.Types
 import Writer.OrgWriter ()
+import Searcher.OrgSearcher ()
 
 -- filtered :: Parser (TaskFile Task)
 -- filtered = fmap (\t -> t{content = filter hasBrokenProperty (content t)}) orgFileParser

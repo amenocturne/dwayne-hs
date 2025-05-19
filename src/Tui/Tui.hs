@@ -26,6 +26,7 @@ import Data.List
 import qualified Data.Vector as V
 import Parser.Parser
 import TextUtils
+import Searcher.Searcher
 
 getAllPointers :: FileState a -> V.Vector TaskPointer
 getAllPointers fs = V.concatMap fun (V.fromList $ M.toList fs) -- TODO: optimize all this convertions
@@ -39,7 +40,7 @@ getAllPointers fs = V.concatMap fun (V.fromList $ M.toList fs) -- TODO: optimize
 class Tui a where
   tui :: AppConfig a -> IO ()
 
-instance (RenderTask a Name, Writer a, Show a) => Tui a where
+instance (Searcher a, RenderTask a Name, Writer a, Show a) => Tui a where
   tui conf = do
     parsedFiles <- mapM (\f -> fmap (f,) (readTasks (view fileParser conf) f)) (view files conf)
     eventChan <- newBChan 10 -- TODO: maybe use different event channel size
@@ -67,6 +68,8 @@ instance (RenderTask a Name, Writer a, Show a) => Tui a where
                   { _undoStack = []
                   , _redoStack = []
                   }
+            , _appMode = NormalMode
+            , _searchState = Nothing
             }
     let ctx =
           AppContext

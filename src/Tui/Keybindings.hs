@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -22,6 +23,8 @@ import qualified Data.Set as S
 import qualified Data.Vector as V
 import Model.OrgMode (Task, todoKeyword)
 import Parser.Parser
+import Searcher.OrgSearcher ()
+import Searcher.Searcher
 import TextUtils
 import Writer.OrgWriter ()
 
@@ -130,13 +133,53 @@ redo s = f s
 changeTodoKeyword :: T.Text -> AppContext Task -> AppContext Task
 changeTodoKeyword keyword = over (currentTaskLens . todoKeyword) (const keyword)
 
+switchMode :: AppMode a -> AppContext a -> AppContext a
+switchMode mode = over (appState . appMode) (const mode)
+
+abortSearch :: AppContext a -> AppContext a
+abortSearch = set (appState . searchState) Nothing
+
+removeLastIfExists :: T.Text -> T.Text
+removeLastIfExists t
+  | T.null t = t -- Return unchanged if empty
+  | otherwise = T.dropEnd 1 t
+
+searchDeleteChar :: AppContext a -> AppContext a
+searchDeleteChar ctx = f ctx
+ where
+  input = preview (appState . searchState . _Just . searchInput) ctx
+  f = case fmap T.null input of
+    Just False -> over (appState . searchState . _Just . searchInput) removeLastIfExists
+    _ -> switchMode NormalMode . set (appState . searchState) Nothing
+
+applySearch :: (Searcher a) => AppContext a -> AppContext a
+applySearch ctx =
+  ( set currentViewLens newView
+      . set (appState . tasksState . currentTask) newCurTask
+      . cleanCompactView
+      . abortSearch
+  )
+    ctx
+ where
+  compView = view compactViewLens ctx
+  start = view compactViewTaskStartIndex compView
+  end = view compactViewTasksEndIndex compView
+  cleanCompactView = set (compactViewLens . compactViewTaskStartIndex) 0 . set (compactViewLens . compactViewTasksEndIndex) (min (V.length newView - 1) (end - start + 1))
+  oldView = view (appState . tasksState . currentView) ctx
+  fs = view (appState . tasksState . fileState) ctx
+  maybeQuery = preview (appState . searchState . _Just . searchInput) ctx
+  ptrToMatch q ptr = maybe False (matches q) (preview (taskBy ptr) fs)
+  (newCurTask, newView) = case fmap (\q -> V.filter (ptrToMatch q) oldView) maybeQuery of
+    Just nv -> if V.length nv > 0 then (Just 0, nv) else (Nothing, nv)
+    Nothing -> (view (appState . tasksState . currentTask) ctx, oldView)
+
 ----------------------- Bindings ----------------------------
 
 errorDialogKeyContext :: AppContext a -> Bool
 errorDialogKeyContext = isJust . view (appState . errorDialog)
 
-normalKeyContext :: AppContext a -> Bool
-normalKeyContext ctx = not $ errorDialogKeyContext ctx
+modeKeyContext :: AppMode a -> AppContext a -> Bool
+modeKeyContext mode ctx = view (appState . appMode) ctx == mode && not (errorDialogKeyContext ctx)
 
 class WithMod a where
   withMod :: a -> Modifier -> NonEmpty KeyPress
@@ -167,27 +210,39 @@ toKeySeq :: String -> NonEmpty KeyPress
 toKeySeq s = fromList s >>= toKey
 
 changeTodoKeywordBinding :: T.Text -> String -> KeyBinding Task
-changeTodoKeywordBinding keyword bind = KeyBinding (ChangeTodoKeyword keyword) (toKey bind) (T.concat ["Change todo keyword to ", keyword]) (modify saveForUndo >> modify (changeTodoKeyword keyword)) normalKeyContext
+changeTodoKeywordBinding keyword bind = KeyBinding (ChangeTodoKeyword keyword) (toKey bind) (T.concat ["Change todo keyword to ", keyword]) (modify saveForUndo >> modify (changeTodoKeyword keyword)) (modeKeyContext NormalMode)
 
-class ToNormalModeBinding k where
-  normalBinding :: KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
+class ToBinding k where
+  toBinding :: AppMode a -> KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
 
-instance ToNormalModeBinding Char where
-  normalBinding event bind desc action = KeyBinding event (toKey bind) desc action normalKeyContext
+instance ToBinding Char where
+  toBinding mode event bind desc action = KeyBinding event (toKey bind) desc action (modeKeyContext mode)
 
-instance ToNormalModeBinding Key where
-  normalBinding event bind desc action = KeyBinding event (toKey bind) desc action normalKeyContext
+instance ToBinding Key where
+  toBinding mode event bind desc action = KeyBinding event (toKey bind) desc action (modeKeyContext mode)
 
-instance ToNormalModeBinding (NonEmpty KeyPress) where
-  normalBinding event bind desc action = KeyBinding event bind desc action normalKeyContext
+instance ToBinding (NonEmpty KeyPress) where
+  toBinding mode event bind desc action = KeyBinding event bind desc action (modeKeyContext mode)
+
+normalBinding :: (ToBinding k) => KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
+normalBinding = toBinding NormalMode
+
+searchBinding :: (ToBinding k) => KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
+searchBinding = toBinding SearchMode
 
 normalModeBindings :: [KeyBinding Task]
 normalModeBindings =
   [ --------------------------------- Error Dialog -----------------------------
     KeyBinding ErrorDialogQuit (toKey KEsc) "Quit error dialog" proceedInErrorDialog errorDialogKeyContext
   , KeyBinding ErrorDialogAccept (toKey KEnter) "Accept selected option" proceedInErrorDialog errorDialogKeyContext
+  , --------------------------------- Search Mode -----------------------------
+    searchBinding AbortSearch (toKey KEsc) "Abort search" $ modify $ abortSearch . switchMode NormalMode
+  , searchBinding SearchDeleteChar (toKey KBS) "Delete char" $ modify searchDeleteChar
+  , searchBinding ApplySearch (toKey KEnter) "Apply search results" $ modify $ applySearch . switchMode NormalMode . saveForUndo
   , --------------------------------- Normal Mode -----------------------------
-    -- Movement
+    -- Mode switching
+    normalBinding SwitchToSearchMode '/' "Switch to search mode" $ modify $ switchMode SearchMode
+  , -- Movement
     normalBinding MoveUp 'k' "Move up" $ adjustCursor (\i -> i - 1)
   , normalBinding MoveDown 'j' "Move down" $ adjustCursor (+ 1)
   , normalBinding JumpEnd 'G' "Jump to the end" $ adjustCursor (const maxBound)
