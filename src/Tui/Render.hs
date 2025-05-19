@@ -17,9 +17,6 @@ import qualified Data.Text as T
 import qualified Data.Vector as V
 import Searcher.Searcher
 
--- TODO: make so that it renders left and right pane 50 by 50 and doesn't make
--- them bigger/smaller
-
 highlightAttr :: AttrName
 highlightAttr = attrName "highlight"
 
@@ -69,7 +66,11 @@ drawCompactSearchView ctx =
   tasks = V.catMaybes $ fmap (\p -> preview (taskBy p) fs) cv
   searchResults = maybe tasks (\q -> if T.null q then tasks else V.filter (matches q) tasks) maybeQuery
   displayedTasks = V.slice 0 (min (end - start + 1) (V.length searchResults)) searchResults
-  compactTasks = vBox $ V.toList $ V.map R.renderCompact displayedTasks
+  compactTasks =
+    if V.length displayedTasks == 0
+      then fill ' '
+      else
+        vBox $ V.toList $ V.map R.renderCompact displayedTasks
 
 drawCompactListView :: (RenderTask a Name) => AppContext a -> [Widget Name]
 drawCompactListView ctx =
@@ -87,7 +88,7 @@ drawCompactListView ctx =
   taskPointers = V.slice start (end - start + 1) (view currentViewLens ctx)
 
   fs = view fileStateLens ctx
-  compactTasks = vBox $ V.toList $ V.mapMaybe renderTask taskPointers
+  compactTasks = if V.length taskPointers == 0 then fill ' ' else vBox $ V.toList $ V.mapMaybe renderTask taskPointers
   maybeFocusedTask = maybe emptyWidget R.renderFull (preview currentTaskLens ctx)
   selectedTaskPtr = preview currentTaskPtr ctx
 
