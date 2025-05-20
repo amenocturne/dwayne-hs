@@ -50,7 +50,7 @@ todoKeyWordParser =
     (asum $ fmap stringParser orgTodoKeyWords)
 
 priorityParser :: Parser Int
-priorityParser = stringParser "[#" *> letterToPriorityParser <* charParser ']'
+priorityParser = tryParser $ stringParser "[#" *> letterToPriorityParser <* charParser ']'
  where
   letterToPriorityParser = failOnConditionParser (fmap (\c -> ord c - ord 'A') singleCharParser) (\i -> i < 0 || i > ord 'Z' - ord 'A') "Got invalid priority letter"
 
@@ -148,12 +148,12 @@ scheduledClosedDeadLineParser = maybeParser $ asum (fmap makeP orgTimeFields)
 propertyParser :: Parser (T.Text, T.Text)
 propertyParser =
   charParser ':'
-    *> ( (\a _ _ b -> (a, b))
+    *> ( (\a _ _ b _ -> (a, b))
           <$> wordParser
           <*> stringParser ":"
           <*> skipBlanksExceptNewLinesParser
           <*> tillTheEndOfStringParser
-          <* charParser '\n'
+          <*> charParser '\n'
        )
 
 propertiesParser :: Parser [(T.Text, T.Text)]
@@ -167,7 +167,17 @@ propertiesParser =
 ------------------------------- Properties -------------------------------------
 
 descriptionParser :: Parser T.Text
-descriptionParser = removeLeadingSpaces <$> takeUntilDelimParser "\n*"
+descriptionParser =
+  removeLeadingSpaces
+    <$> takeUntilSucceeds titleLineParser
+ where
+  titleLineParser =
+    (,,,,)
+      <$> charParser '\n'
+      <*> (skipBlanksParser *> taskLevelParser)
+      <*> (skipBlanksExceptNewLinesParser *> todoKeyWordParser)
+      <*> (skipBlanksExceptNewLinesParser *> maybeParser priorityParser)
+      <*> (skipBlanksExceptNewLinesParser *> titleAndTagsParser)
 
 findProp :: TimeField -> [(T.Text, a)] -> Maybe a
 findProp field l = snd <$> find (\(n, _) -> n == timeFieldName field) l

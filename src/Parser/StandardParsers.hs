@@ -36,7 +36,7 @@ singleCharParser = Parser f
  where
   f (modLoc, str) = case T.uncons str of
     Nothing -> ((modLoc, ""), ParserFailure "Input is empty, but expected a character")
-    Just (x, xs) -> ((modLoc . shiftLocationByString (T.pack [x]), xs), ParserSuccess x)
+    Just (x, xs) -> ((modLoc . (`shiftLocationByChar` x), xs), ParserSuccess x)
 
 singleDigitParser :: Parser Int
 singleDigitParser = Parser f
@@ -45,12 +45,14 @@ singleDigitParser = Parser f
     Nothing -> ((modLoc, ""), ParserFailure "Input is empty, but expected a digit")
     Just (x, xs) ->
       ( if isDigit x
-          then ((modLoc . shiftLocationByString (T.pack [x]), xs), ParserSuccess (digitToInt x))
+          then ((modLoc . (`shiftLocationByChar` x), xs), ParserSuccess (digitToInt x))
           else ((modLoc, T.cons x xs), ParserFailure $ "Expected a digit, but got " ++ [x])
       )
 
 positiveIntParser :: Parser Int
-positiveIntParser = sum . fmap (\(i, d) -> d * 10 ^ i) . zip [0 ..] . reverse <$> many singleDigitParser
+positiveIntParser = sum . fmap (\(i, d) -> d * 10 ^ i) . zip [0 ..] . reverse <$> parser
+ where
+  parser = tryParser $ (:) <$> singleDigitParser <*> many singleDigitParser
 
 stringParser :: T.Text -> Parser T.Text
 stringParser t = tryParser $ mapError (\e -> "Expected `" ++ T.unpack t ++ "` but failed with: " ++ e) $ fmap T.pack (traverse charParser (T.unpack t))
@@ -83,7 +85,7 @@ tillTheEndOfStringParser =
     l -> succeedingParser l
 
 failOnConditionParser :: Parser a -> (a -> Bool) -> ParserError -> Parser a
-failOnConditionParser p cond err = p >>= \r -> if cond r then failingParser err else pure r
+failOnConditionParser p cond err = tryParser $ p >>= \r -> if cond r then failingParser err else pure r
 
 mapError :: (ParserError -> ParserError) -> Parser a -> Parser a
 mapError f (Parser p) = Parser $ \i ->
@@ -120,8 +122,9 @@ manyStrict (Parser parserFn) = Parser $ \input ->
           ((newLocFun, newRemaining), ParserSuccess x) ->
             go (acc ++ [x]) (newLocFun, newRemaining)
           ((_, _), ParserFailure err) ->
-            if T.null remainingText
-              then ((currentLocFun, remainingText), ParserSuccess acc)
+            if not (null acc) || T.null remainingText
+              then
+                ((currentLocFun, remainingText), ParserSuccess acc)
               else ((currentLocFun, remainingText), ParserFailure err)
    in go [] input
 
@@ -156,6 +159,19 @@ notConsumingInput (Parser runP) = Parser $ \(modLoc, str) ->
 
 -- consumes all and outputs all the text char by char until supplied parser succeeds
 takeUntilSucceeds :: Parser a -> Parser T.Text
-takeUntilSucceeds stop = go T.empty
+takeUntilSucceeds stop = Parser $ \(locFn, input) ->
+  let go accText remainingText =
+        if T.null remainingText
+          then ((locFn . shiftLocationByString accText, remainingText), ParserSuccess accText)
+          else
+            let stopParser = notConsumingInput stop
+                ((_, _), stopResult) = runP stopParser (id, remainingText)
+             in case stopResult of
+                  ParserSuccess _ -> ((locFn . shiftLocationByString accText, remainingText), ParserSuccess accText)
+                  _ -> case T.uncons remainingText of
+                    Just (c, rest) ->
+                      go (T.snoc accText c) rest
+                    Nothing -> ((locFn, ""), ParserSuccess accText)
+   in go T.empty input
  where
-  go acc = (tryParser stop $> acc) <|> (singleCharParser >>= \c -> go (T.snoc acc c))
+  runP (Parser p) = p

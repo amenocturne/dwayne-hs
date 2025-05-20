@@ -17,11 +17,11 @@ import GHC.Base
 
 ------------------------------- PARSER ---------------------------------------
 
-data Location = Location {line :: Int, column :: Int} deriving (Show)
+data Location = Location {line :: Int, column :: Int} deriving (Show, Eq)
 
 type ParserInput = (Location -> Location, T.Text)
 type ParserError = String
-data ParserResult a = ParserSuccess {_success :: a} | ParserFailure {_error :: ParserError} deriving (Functor, Show)
+data ParserResult a = ParserSuccess {_success :: a} | ParserFailure {_error :: ParserError} deriving (Functor, Show, Eq)
 newtype Parser a = Parser (ParserInput -> (ParserInput, ParserResult a)) deriving (Functor)
 
 makeLenses ''ParserResult
@@ -66,15 +66,16 @@ instance Monad Parser where
       (i', ParserSuccess x) -> let Parser q = f x in q i'
       (i', ParserFailure e) -> (i', ParserFailure e)
 
+-- because we start on line 1 and we haven't consumed any characters
 zeroLocation :: Location
-zeroLocation = Location 1 1
+zeroLocation = Location 1 0
 
-shifLocationByChar :: Location -> Char -> Location
-shifLocationByChar (Location l _) '\n' = Location (l + 1) 0
-shifLocationByChar (Location l c) _ = Location l (c + 1)
+shiftLocationByChar :: Location -> Char -> Location
+shiftLocationByChar (Location l _) '\n' = Location (l + 1) (column zeroLocation)
+shiftLocationByChar (Location l c) _ = Location l (c + 1)
 
 shiftLocationByString :: T.Text -> Location -> Location
-shiftLocationByString input loc = T.foldl shifLocationByChar loc input
+shiftLocationByString input loc = T.foldl shiftLocationByChar loc input
 
 resultToMaybe :: ParserResult a -> Maybe a
 resultToMaybe (ParserSuccess a) = Just a

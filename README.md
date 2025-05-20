@@ -20,5 +20,5 @@ dwayne
 
 ```
 cabal configure --enable-profiling
-cabal run dwayne-hs -- +RTS -p -RTS
+cabal run dwayne -- +RTS -p -RTS
 ```

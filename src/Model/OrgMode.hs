@@ -3,14 +3,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Model.OrgMode where
 
-import Control.Lens
+import Control.Lens (makeLenses)
 import qualified Data.Text as T
 import Data.Time
 import Data.Vector as V
 import Model.Injection
+import Data.List (sortBy)
 
 -- Model
 
@@ -33,21 +35,21 @@ data RepeatInterval = RepeatInterval
   , repeatValue :: Int
   , repeatTimeUnit :: TimeUnit
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 data DelayInterval = DelayInterval
   { delayType :: DelayType
   , dealyValue :: Int
   , delayTimeUnit :: TimeUnit
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 data OrgTime = OrgTime
   { time :: Either Day LocalTime
   , repeater :: Maybe RepeatInterval
   , delay :: Maybe DelayInterval
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 data Task = Task
   { _level :: Int
@@ -74,9 +76,6 @@ data Delimiter = AngleDelim | BracketDelim
 makeLenses ''TaskFile
 
 ---------------------- CONSTANTS ------------------------------------
-
-allDelayTypes :: [DelayType]
-allDelayTypes = [minBound .. maxBound]
 
 instance Injection DelayType T.Text where
   to AllOccurrences = "-"
@@ -116,8 +115,6 @@ instance Injection Char (Maybe TimeUnit) where
   to 'y' = Just Year
   to _ = Nothing
 
-allRepeatTypes :: [RepeatType]
-allRepeatTypes = [minBound .. maxBound]
 
 instance Injection RepeatType T.Text where
   to NextDate = "+"
@@ -129,6 +126,23 @@ instance Injection T.Text (Maybe RepeatType) where
   to "++" = Just NextFutureDate
   to ".+" = Just PlusCompletionDate
   to _ = Nothing
+
+-- Sorting specifies the order in which this types are parsed, so we should
+-- firstly try -- and only then -
+allDelayTypes :: [DelayType]
+allDelayTypes = sortInverseLength [minBound .. maxBound]
+
+-- Sorting specifies the order in which this types are parsed, so we should
+-- firstly try ++ and only then +
+allRepeatTypes :: [RepeatType]
+allRepeatTypes = sortInverseLength [minBound .. maxBound]
+
+sortInverseLength:: (Injection a T.Text) => [a] -> [a]
+sortInverseLength = sortBy compareLength
+  where
+    compareLength :: (Injection a T.Text) => a -> a -> Ordering
+    compareLength a b = compare (T.length (to b)) (T.length (to a))
+
 
 -- Time fields
 

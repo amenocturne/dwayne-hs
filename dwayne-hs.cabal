@@ -50,56 +50,72 @@ extra-doc-files:    CHANGELOG.md
 -- Extra source files to be distributed with the package, such as examples, or a tutorial module.
 -- extra-source-files:
 
-executable dwayne
-    -- Import common warning flags.
-      ghc-options: -Wall -threaded
+library
+    exposed-modules:
+        Model.Injection
+        Model.OrgMode
+        Model.Tree
+        Parser.OrgParser
+        Parser.Parser
+        Parser.StandardParsers
+        Render.OrgRender
+        Render.Render
+        Writer.OrgWriter
+        Writer.Writer
+        Tui.Events
+        Tui.Keybindings
+        Tui.Render
+        Tui.Tui
+        Tui.Types
+        Searcher.Searcher
+        Searcher.OrgSearcher
+        TextUtils
 
-    -- .hs or .lhs file containing the Main module.
-    main-is:          Main.hs
-
-    -- Modules included in this executable, other than Main.
-    other-modules:
-      Model.Injection,
-      Model.OrgMode,
-      Model.Tree,
-      Parser.OrgParser,
-      Parser.Parser,
-      Parser.StandardParsers,
-      Render.OrgRender,
-      Render.Render,
-      Writer.OrgWriter,
-      Writer.Writer,
-      Tui.Events,
-      Tui.Keybindings,
-      Tui.Render,
-      Tui.Tui,
-      Tui.Types,
-      Searcher.Searcher,
-      Searcher.OrgSearcher,
-      TextUtils
-
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
-
-    -- Other library packages from which modules are imported.
     build-depends:
-      base >=4.17.2.1 && < 4.19,
-      bytestring >= 0.11.5.3,
-      lens >= 5.0,
-      text >= 2.0.0,
-      vector >= 0.13.2.0 ,
-      containers,
-      time,
-      brick,
-      vty,
-      vty-crossplatform,
-      directory,
-      process
+        base >=4.17.2.1 && < 4.19,
+        bytestring >= 0.11.5.3,
+        lens >= 5.0,
+        text >= 2.0.0,
+        vector >= 0.13.2.0,
+        containers,
+        time,
+        brick,
+        vty,
+        vty-crossplatform,
+        directory,
+        process
 
-    -- Directories containing source files.
-    hs-source-dirs:
-      app,
-      src
-
-    -- Base language which the package is written in.
+    hs-source-dirs: src
     default-language: Haskell2010
+
+executable dwayne
+    main-is: Main.hs
+    other-modules:
+    build-depends:
+        base >=4.17.2.1 && < 4.19,
+        dwayne-hs
+    hs-source-dirs: app
+    ghc-options: -Wall -threaded
+    default-language: Haskell2010
+
+test-suite spec
+    type: exitcode-stdio-1.0
+    main-is: Spec.hs
+    hs-source-dirs: test
+    build-depends:
+        base >=4.17.2.1 && < 4.19,
+        hspec >= 2.7,
+        hspec-discover >= 2.7,
+        text >= 2.0.0,
+        vector >= 0.13.2.0,
+        lens >= 5.0,
+        time,
+        QuickCheck,
+        dwayne-hs
+    ghc-options: -Wall -threaded
+    default-language: Haskell2010
+    other-modules:
+        SpecHelper
+        Parser.ParserSpec
+        Parser.StandardParsersSpec
+        Parser.OrgParserSpec
