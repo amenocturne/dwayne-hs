@@ -157,6 +157,9 @@ notConsumingInput (Parser runP) = Parser $ \(modLoc, str) ->
   case runP (modLoc, str) of
     (_, x) -> ((modLoc, str), x)
 
+-- TODO: to fix performance with this function I can take until "\n*" and only
+-- then check if it parses to title line and if not repeat this action
+
 -- consumes all and outputs all the text char by char until supplied parser succeeds
 takeUntilSucceeds :: Parser a -> Parser T.Text
 takeUntilSucceeds stop = Parser $ \(locFn, input) ->
@@ -175,3 +178,34 @@ takeUntilSucceeds stop = Parser $ \(locFn, input) ->
    in go T.empty input
  where
   runP (Parser p) = p
+
+-- TODO: refactor
+-- Efficiently takes text until finding a delimiter followed by text matching the given parser
+takeUntilDelimThenSucceeds :: T.Text -> Parser a -> Parser T.Text
+takeUntilDelimThenSucceeds delim stopP = Parser $ \(locFn, input) ->
+  let
+    go accText remainingText =
+      if T.null remainingText
+        then ((locFn . shiftLocationByString accText, remainingText), ParserSuccess accText)
+        else
+          -- Find next potential boundary
+          let (before, after) = splitByFirstDelimiter delim remainingText
+              newAcc = T.append accText before
+           in if T.null after
+                then
+                  -- No more delimiters, return all text
+                  ((locFn . shiftLocationByString newAcc, ""), ParserSuccess newAcc)
+                else
+                  -- Check if stop parser succeeds
+                  let (Parser pFn) = notConsumingInput stopP
+                      ((_, _), stopResult) = pFn (id, after)
+                   in case stopResult of
+                        ParserSuccess _ ->
+                          -- Valid boundary, return accumulated text
+                          ((locFn . shiftLocationByString newAcc, after), ParserSuccess newAcc)
+                        _ ->
+                          -- Not a valid boundary, include delimiter and continue
+                          let nextAcc = T.append newAcc delim
+                           in go nextAcc (T.drop (T.length delim) after)
+   in
+    go T.empty input

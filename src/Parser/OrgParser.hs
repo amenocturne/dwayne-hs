@@ -167,17 +167,14 @@ propertiesParser =
 ------------------------------- Properties -------------------------------------
 
 descriptionParser :: Parser T.Text
-descriptionParser =
-  removeLeadingSpaces
-    <$> takeUntilSucceeds titleLineParser
+descriptionParser = removeLeadingSpaces <$> takeUntilDelimThenSucceeds "\n*" titleLineParser
  where
-  titleLineParser =
-    (,,,,)
-      <$> charParser '\n'
-      <*> (skipBlanksParser *> taskLevelParser)
-      <*> (skipBlanksExceptNewLinesParser *> todoKeyWordParser)
-      <*> (skipBlanksExceptNewLinesParser *> maybeParser priorityParser)
-      <*> (skipBlanksExceptNewLinesParser *> titleAndTagsParser)
+  titleLineParser = do
+    skipBlanksParser
+    taskLevelParser
+    skipBlanksExceptNewLinesParser
+    todoKeyWordParser
+    return ()
 
 findProp :: TimeField -> [(T.Text, a)] -> Maybe a
 findProp field l = snd <$> find (\(n, _) -> n == timeFieldName field) l
