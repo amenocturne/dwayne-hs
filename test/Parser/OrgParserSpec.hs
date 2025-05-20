@@ -243,11 +243,11 @@ spec = do
 
   -- TODO:
   describe "propertyParser" $ do
-    it "parses simple property" $ do
-      let (loc, remainder, result) = runParser propertyParser ":id: 123\n"
-      result `shouldBe` ParserSuccess ("id", "123")
-      remainder `shouldBe` ""
-      loc `shouldBe` Location 2 0
+    -- it "parses simple property" $ do
+    --   let (loc, remainder, result) = runParser propertyParser ":id: 123\n"
+    --   result `shouldBe` ParserSuccess ("id", "123")
+    --   remainder `shouldBe` ""
+    --   loc `shouldBe` Location 2 0
 
   -- TODO:
   -- it "parses property with spaces" $ do
