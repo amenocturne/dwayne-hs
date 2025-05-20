@@ -181,31 +181,55 @@ takeUntilSucceeds stop = Parser $ \(locFn, input) ->
 
 -- TODO: refactor
 -- Efficiently takes text until finding a delimiter followed by text matching the given parser
+
+{- | Parser that efficiently takes text until finding a valid boundary.
+A valid boundary is a delimiter followed by text that matches the stop parser.
+-}
 takeUntilDelimThenSucceeds :: T.Text -> Parser a -> Parser T.Text
-takeUntilDelimThenSucceeds delim stopP = Parser $ \(locFn, input) ->
-  let
-    go accText remainingText =
-      if T.null remainingText
-        then ((locFn . shiftLocationByString accText, remainingText), ParserSuccess accText)
-        else
-          -- Find next potential boundary
-          let (before, after) = splitByFirstDelimiter delim remainingText
-              newAcc = T.append accText before
-           in if T.null after
-                then
-                  -- No more delimiters, return all text
-                  ((locFn . shiftLocationByString newAcc, ""), ParserSuccess newAcc)
-                else
-                  -- Check if stop parser succeeds
-                  let (Parser pFn) = notConsumingInput stopP
-                      ((_, _), stopResult) = pFn (id, after)
-                   in case stopResult of
-                        ParserSuccess _ ->
-                          -- Valid boundary, return accumulated text
-                          ((locFn . shiftLocationByString newAcc, after), ParserSuccess newAcc)
-                        _ ->
-                          -- Not a valid boundary, include delimiter and continue
-                          let nextAcc = T.append newAcc delim
-                           in go nextAcc (T.drop (T.length delim) after)
-   in
-    go T.empty input
+takeUntilDelimThenSucceeds delim stopP = Parser $ \input ->
+  parseText T.empty input
+ where
+  parseText :: T.Text -> ParserInput -> (ParserInput, ParserResult T.Text)
+  parseText acc (locFn, remaining)
+    -- End of input or empty input case
+    | T.null remaining =
+        finishWith acc "" locFn
+    -- Still have text to process
+    | otherwise =
+        let (before, after) = splitByFirstDelimiter delim remaining
+            newAcc = T.append acc before
+            newLoc = locFn . shiftLocationByString newAcc
+         in handleAfterText newAcc after newLoc
+
+  -- Process the text after finding a potential delimiter
+  handleAfterText :: T.Text -> T.Text -> (Location -> Location) -> (ParserInput, ParserResult T.Text)
+  handleAfterText acc after locFn
+    -- No delimiter was found (or end of input)
+    | T.null after =
+        finishWith acc "" locFn
+    -- Found delimiter - check if it's followed by a valid stop point
+    | isValidStopPoint after =
+        finishWith acc after locFn
+    -- Delimiter followed by invalid stop point - continue parsing
+    | otherwise =
+        let nextAcc = T.append acc delim
+            nextRemaining = T.drop (T.length delim) after
+         in parseText nextAcc (locFn, nextRemaining)
+
+  -- Create successful result with the given accumulated text and remainder
+  finishWith :: T.Text -> T.Text -> (Location -> Location) -> (ParserInput, ParserResult T.Text)
+  finishWith acc remainder locFn =
+    ((locFn, remainder), ParserSuccess acc)
+
+  -- Check if text begins with a pattern matching the stop parser
+  isValidStopPoint :: T.Text -> Bool
+  isValidStopPoint text =
+    case runNonConsumingParser text of
+      ParserSuccess _ -> True
+      _ -> False
+
+  -- Run parser without consuming input
+  runNonConsumingParser text =
+    let (Parser pFn) = notConsumingInput stopP
+        ((_, _), result) = pFn (id, text)
+     in result
