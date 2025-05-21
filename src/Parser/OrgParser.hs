@@ -10,6 +10,7 @@
 
 module Parser.OrgParser where
 
+import Control.Monad (void)
 import Data.Bifunctor
 import Data.Char (isDigit, isLower)
 import Data.Foldable
@@ -147,44 +148,52 @@ scheduledClosedDeadLineParser = maybeParser $ asum (fmap makeP orgTimeFields)
 
 propertyParser :: Parser (T.Text, T.Text)
 propertyParser =
-  charParser ':'
-    *> ( (\a _ _ b _ -> (a, b))
-          <$> wordParser
-          <*> stringParser ":"
-          <*> skipBlanksExceptNewLinesParser
-          <*> tillTheEndOfStringParser
-          <*> charParser '\n'
-       )
+  mapError (const "Could not read property") $
+    tryParser $
+      (,)
+        <$> (skipBlanksExceptNewLinesParser *> charParser ':' *> skipBlanksExceptNewLinesParser *> wordParser)
+        <*> (skipBlanksExceptNewLinesParser *> charParser ':' *> skipBlanksExceptNewLinesParser *> tillTheEndOfStringParser)
+        <* charParser '\n'
 
 propertiesParser :: Parser [(T.Text, T.Text)]
 propertiesParser =
-  stringParser orgPropertiesBegin
-    *> skipBlanksParser
+  skipBlanksExceptNewLinesParser
+    *> stringParser orgPropertiesBegin
+    *> charParser '\n'
     *> many propertyParser
-    <* skipBlanksParser
+    <* skipBlanksExceptNewLinesParser
     <* stringParser orgPropertiesEnd
 
 ------------------------------- Properties -------------------------------------
 
+titleLineParser = do
+  skipBlanksParser
+  taskLevelParser
+  skipBlanksExceptNewLinesParser
+  todoKeyWordParser
+  return ()
+
 descriptionParser :: Parser T.Text
-descriptionParser = removeLeadingSpaces <$> takeUntilDelimThenSucceeds "\n*" titleLineParser
- where
-  titleLineParser = do
-    skipBlanksParser
-    taskLevelParser
-    skipBlanksExceptNewLinesParser
-    todoKeyWordParser
-    return ()
+descriptionParser =
+  T.strip
+    <$> takeUntilDelimThenSucceeds "\n" titleLineParser
+
+brokenDescriptionParser :: Parser T.Text
+brokenDescriptionParser =
+  unMaybeParser "Read empty description" $
+    fmap (\t -> if T.null t then Nothing else Just t) $
+      T.strip
+        <$> takeUntilSucceeds
+          (void propertiesParser <|> titleLineParser)
 
 findProp :: TimeField -> [(T.Text, a)] -> Maybe a
 findProp field l = snd <$> find (\(n, _) -> n == timeFieldName field) l
 
 properTaskParser :: Parser Task
 properTaskParser =
-  ( \level todoKeyword priority (title, tags) timeProp1 timeProp2 timeProp3 maybeProperties description ->
+  ( \level todoKeyword priority (title, tags) timeProp1 timeProp2 timeProp3 properties description ->
       let
         propsList = catMaybes [timeProp1, timeProp2, timeProp3]
-        properties = fromMaybe [] maybeProperties
        in
         Task
           level
@@ -205,12 +214,60 @@ properTaskParser =
     <*> (skipBlanksParser *> scheduledClosedDeadLineParser)
     <*> (skipBlanksExceptNewLinesParser *> scheduledClosedDeadLineParser)
     <*> (skipBlanksExceptNewLinesParser *> scheduledClosedDeadLineParser)
-    <*> (skipBlanksParser *> maybeParser propertiesParser)
+    <*> (skipBlanksParser *> propertiesParser)
+    <*> descriptionParser
+
+brokenDescriptionTaskParser :: Parser Task
+brokenDescriptionTaskParser =
+  ( \level todoKeyword priority (title, tags) description ->
+      let
+       in Task
+            level
+            todoKeyword
+            priority
+            title
+            tags
+            Nothing
+            Nothing
+            Nothing
+            []
+            description
+  )
+    <$> (skipBlanksParser *> taskLevelParser)
+    <*> (skipBlanksExceptNewLinesParser *> todoKeyWordParser)
+    <*> (skipBlanksExceptNewLinesParser *> maybeParser priorityParser)
+    <*> (skipBlanksExceptNewLinesParser *> titleAndTagsParser)
+    <*> brokenDescriptionParser
+
+-- <*> (skipBlanksParser *> propertiesParser)
+
+noPropertiesTaskParser :: Parser Task
+noPropertiesTaskParser =
+  ( \level todoKeyword priority (title, tags) description ->
+      let
+       in Task
+            level
+            todoKeyword
+            priority
+            title
+            tags
+            Nothing
+            Nothing
+            Nothing
+            []
+            description
+  )
+    <$> (skipBlanksParser *> taskLevelParser)
+    <*> (skipBlanksExceptNewLinesParser *> todoKeyWordParser)
+    <*> (skipBlanksExceptNewLinesParser *> maybeParser priorityParser)
+    <*> (skipBlanksExceptNewLinesParser *> titleAndTagsParser)
     <*> descriptionParser
 
 anyTaskparser :: Parser Task
 anyTaskparser =
   properTaskParser
+    <|> brokenDescriptionTaskParser
+    <|> noPropertiesTaskParser
 
 -- allTasksParser :: Parser (Forest Task)
 -- allTasksParser =
@@ -220,11 +277,9 @@ anyTaskparser =
 --             Right forest -> succeedingParser forest
 --         )
 --       . (`makeForest` (\t -> level t - 1))
-allTasksParser :: Parser [Task]
-allTasksParser = manyStrict anyTaskparser
 
 orgFileParser :: Parser (TaskFile Task)
 orgFileParser = fmap (uncurry TaskFile . second V.fromList) parser
  where
   fileTitleParser = maybeParser $ stringParser "#+TITLE: " *> tillTheEndOfStringParser <* skipBlanksParser
-  parser = (,) <$> fileTitleParser <*> allTasksParser
+  parser = (,) <$> fileTitleParser <*> manyStrict anyTaskparser

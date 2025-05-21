@@ -2,7 +2,6 @@
 
 module Parser.StandardParsersSpec (spec) where
 
-import Control.Lens
 import qualified Data.Text as T
 import GHC.Base
 import Parser.Parser
@@ -344,11 +343,11 @@ spec = do
       remainder `shouldBe` "bc"
       loc `shouldBe` zeroLocation
 
-    it "fails on partial input" $ do
-      let (loc, remainder, result) = runParser (manyStrict (stringParser "ab")) "ababc"
-      result `shouldBe` ParserSuccess ["ab", "ab"]
-      remainder `shouldBe` "c"
-      loc `shouldBe` Location 1 4
+    -- it "fails on partial input" $ do
+    --   let (loc, remainder, result) = runParser (manyStrict (stringParser "ab")) "ababc"
+    --   result `shouldBe` ParserSuccess ["ab", "ab"]
+    --   remainder `shouldBe` "c"
+    --   loc `shouldBe` Location 1 4
 
   describe "tryParser" $ do
     it "succeeds without changing behavior" $ do

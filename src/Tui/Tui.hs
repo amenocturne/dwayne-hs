@@ -86,7 +86,7 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a) => Tui a where
             }
     let buildVty = mkVty defaultConfig
     initialVty <- buildVty
-    _ <- writeBChan (view (appState . eventChannel) ctx) SaveAllFiles
+    -- _ <- writeBChan (view (appState . eventChannel) ctx) SaveAllFiles
     case parsingErrors of
       [] -> return ()
       errs ->

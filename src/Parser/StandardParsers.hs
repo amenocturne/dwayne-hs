@@ -29,14 +29,14 @@ charParser c = Parser f
   makeError got = ParserFailure $ "Expected character '" ++ [c] ++ "', but got '" ++ got ++ "'"
   f (modLoc, str) = case T.uncons str of
     Nothing -> ((modLoc, ""), makeError "empty")
-    Just (x, xs) -> if x == c then ((modLoc . shiftLocationByString (T.pack [x]), xs), ParserSuccess x) else ((modLoc, T.cons x xs), makeError [x])
+    Just (x, xs) -> if x == c then (((`shiftLocationByChar` x) . modLoc, xs), ParserSuccess x) else ((modLoc, T.cons x xs), makeError [x])
 
 singleCharParser :: Parser Char
 singleCharParser = Parser f
  where
   f (modLoc, str) = case T.uncons str of
     Nothing -> ((modLoc, ""), ParserFailure "Input is empty, but expected a character")
-    Just (x, xs) -> ((modLoc . (`shiftLocationByChar` x), xs), ParserSuccess x)
+    Just (x, xs) -> (((`shiftLocationByChar` x) . modLoc, xs), ParserSuccess x)
 
 singleDigitParser :: Parser Int
 singleDigitParser = Parser f
@@ -45,7 +45,7 @@ singleDigitParser = Parser f
     Nothing -> ((modLoc, ""), ParserFailure "Input is empty, but expected a digit")
     Just (x, xs) ->
       ( if isDigit x
-          then ((modLoc . (`shiftLocationByChar` x), xs), ParserSuccess (digitToInt x))
+          then (((`shiftLocationByChar` x) . modLoc, xs), ParserSuccess (digitToInt x))
           else ((modLoc, T.cons x xs), ParserFailure $ "Expected a digit, but got " ++ [x])
       )
 
@@ -148,7 +148,7 @@ tryAllWith selector parsers = Parser $ \input@(modLoc, _) ->
    in case selector ss of
         Just val ->
           let (bestModLoc, bestInput, bestRes) = head $ filter (\(_, _, c) -> Just val == resultToMaybe c) results
-           in ((modLoc . bestModLoc, bestInput), bestRes)
+           in ((bestModLoc . modLoc, bestInput), bestRes)
         _ -> (input, ParserFailure "No valid selection")
 
 -- Turn a parser to a parser that does not consume input string or modifies location

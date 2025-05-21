@@ -1,35 +1,33 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-type-defaults #-}
 
 module Parser.ParserSpec (spec) where
 
-import qualified Data.Text as T
 import Parser.Parser
 import Parser.StandardParsers
 import Test.Hspec
-import Test.Hspec.QuickCheck
-import Test.QuickCheck
 
 spec :: Spec
 spec = do
   let failure :: ParserResult ()
       failure = ParserFailure "error"
-  let success = ParserSuccess 42
+  let ps = ParserSuccess 42
   describe "ParserResult functions" $ do
     it "resultToMaybe converts success to Just" $
-      resultToMaybe success `shouldBe` Just 42
+      resultToMaybe ps `shouldBe` Just 42
 
     it "resultToMaybe converts failure to Nothing" $ do
       resultToMaybe failure `shouldBe` Nothing
 
     it "errorToMaybe converts success to Nothing" $
-      errorToMaybe success `shouldBe` Nothing
+      errorToMaybe ps `shouldBe` Nothing
 
     it "errorToMaybe converts failure to Just error" $
-      errorToMaybe (ParserFailure "error") `shouldBe` (Just "error")
+      errorToMaybe (ParserFailure "error") `shouldBe` Just "error"
 
   describe "Parser state validation" $ do
     it "isParserSuccess identifies success correctly" $
-      isParserSuccess success `shouldBe` True
+      isParserSuccess ps `shouldBe` True
 
     it "isParserSuccess identifies failure correctly" $
       isParserSuccess (ParserFailure "error") `shouldBe` False
@@ -38,7 +36,7 @@ spec = do
       isParserError (ParserFailure "error") `shouldBe` True
 
     it "isParserError identifies success correctly" $
-      isParserError success `shouldBe` False
+      isParserError ps `shouldBe` False
 
   describe "runParser" $ do
     it "returns the parsed result and remaining input" $ do

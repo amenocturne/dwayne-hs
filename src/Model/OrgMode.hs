@@ -189,4 +189,5 @@ orgTodoKeyWords =
   , "TODO"
   , "DONE"
   , "TRASH"
+  , "" -- for tasks without todo keyword
   ]

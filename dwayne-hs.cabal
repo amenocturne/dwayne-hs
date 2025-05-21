@@ -92,7 +92,10 @@ executable dwayne
     main-is: Main.hs
     other-modules:
     build-depends:
+        vector ^>=0.13.2.0,
         base >=4.17.2.1 && < 4.19,
+        text >= 2.0.0,
+        lens >= 5.0,
         dwayne-hs
     hs-source-dirs: app
     ghc-options: -Wall -threaded

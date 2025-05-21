@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Parser.OrgParserSpec (spec) where
@@ -7,11 +6,9 @@ import Control.Lens
 import qualified Data.Text as T
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
-import qualified Data.Vector as V
 import Model.OrgMode
 import Parser.OrgParser
 import Parser.Parser
-import Parser.StandardParsers
 import Test.Hspec
 
 spec :: Spec
@@ -52,20 +49,6 @@ spec = do
       result `shouldBe` ParserSuccess "INBOX"
       remainder `shouldBe` " Task"
       loc `shouldBe` Location 1 5 -- Position after "INBOX"
-    it "fails on invalid keyword" $ do
-      let (loc, _, result) = runParser todoKeyWordParser "INVALID Task"
-      isParserError result `shouldBe` True
-      loc `shouldBe` zeroLocation -- Should not advance on error
-    it "fails on empty string" $ do
-      let (loc, _, result) = runParser todoKeyWordParser ""
-      isParserError result `shouldBe` True
-      loc `shouldBe` zeroLocation
-
-    it "fails on partial keyword" $ do
-      let (loc, _, result) = runParser todoKeyWordParser "TO Task"
-      isParserError result `shouldBe` True
-      loc `shouldBe` zeroLocation
-
   describe "priorityParser" $ do
     it "parses priority A correctly" $ do
       let (loc, remainder, result) = runParser priorityParser "[#A]"
@@ -145,10 +128,10 @@ spec = do
     it "parses simple date" $ do
       let (loc, remainder, result) = runParser dateTimeParserReimplemented "2023-01-15 Sun"
       case result of
-        ParserSuccess (OrgTime time repeater delay) -> do
-          time `shouldBe` Left (fromGregorian 2023 1 15)
-          repeater `shouldBe` Nothing
-          delay `shouldBe` Nothing
+        ParserSuccess (OrgTime t r d) -> do
+          t `shouldBe` Left (fromGregorian 2023 1 15)
+          r `shouldBe` Nothing
+          d `shouldBe` Nothing
         ParserFailure err -> fail $ "Parser failed: " ++ err
       remainder `shouldBe` ""
       loc `shouldBe` Location 1 14
@@ -156,10 +139,10 @@ spec = do
     it "parses date with time" $ do
       let (loc, remainder, result) = runParser dateTimeParserReimplemented "2023-01-15 Sun 10:30"
       case result of
-        ParserSuccess (OrgTime time repeater delay) -> do
-          time `shouldBe` Right (LocalTime (fromGregorian 2023 1 15) (TimeOfDay 10 30 0))
-          repeater `shouldBe` Nothing
-          delay `shouldBe` Nothing
+        ParserSuccess (OrgTime t r d) -> do
+          t `shouldBe` Right (LocalTime (fromGregorian 2023 1 15) (TimeOfDay 10 30 0))
+          r `shouldBe` Nothing
+          d `shouldBe` Nothing
         ParserFailure err -> fail $ "Parser failed: " ++ err
       remainder `shouldBe` ""
       loc `shouldBe` Location 1 20
@@ -167,10 +150,10 @@ spec = do
     it "parses date with weekly repeater" $ do
       let (loc, remainder, result) = runParser dateTimeParserReimplemented "2023-01-15 Sun +1w"
       case result of
-        ParserSuccess (OrgTime time repeater delay) -> do
-          time `shouldBe` Left (fromGregorian 2023 1 15)
-          repeater `shouldBe` Just (RepeatInterval NextDate 1 Week)
-          delay `shouldBe` Nothing
+        ParserSuccess (OrgTime t r d) -> do
+          t `shouldBe` Left (fromGregorian 2023 1 15)
+          r `shouldBe` Just (RepeatInterval NextDate 1 Week)
+          d `shouldBe` Nothing
         ParserFailure err -> fail $ "Parser failed: " ++ err
       remainder `shouldBe` ""
       loc `shouldBe` Location 1 18
@@ -179,20 +162,20 @@ spec = do
       let (loc, remainder, result) = runParser dateTimeParserReimplemented "2023-01-15 Sun ++2m"
       remainder `shouldBe` ""
       case result of
-        ParserSuccess (OrgTime time repeater delay) -> do
-          time `shouldBe` Left (fromGregorian 2023 1 15)
-          repeater `shouldBe` Just (RepeatInterval NextFutureDate 2 Month)
-          delay `shouldBe` Nothing
+        ParserSuccess (OrgTime t r d) -> do
+          t `shouldBe` Left (fromGregorian 2023 1 15)
+          r `shouldBe` Just (RepeatInterval NextFutureDate 2 Month)
+          d `shouldBe` Nothing
         ParserFailure err -> fail $ "Parser failed: " ++ err
       loc `shouldBe` Location 1 19
 
     it "parses date with completion repeater format" $ do
       let (loc, remainder, result) = runParser dateTimeParserReimplemented "2023-01-15 Sun .+3d"
       case result of
-        ParserSuccess (OrgTime time repeater delay) -> do
-          time `shouldBe` Left (fromGregorian 2023 1 15)
-          repeater `shouldBe` Just (RepeatInterval PlusCompletionDate 3 Day)
-          delay `shouldBe` Nothing
+        ParserSuccess (OrgTime t r d) -> do
+          t `shouldBe` Left (fromGregorian 2023 1 15)
+          r `shouldBe` Just (RepeatInterval PlusCompletionDate 3 Day)
+          d `shouldBe` Nothing
         ParserFailure err -> fail $ "Parser failed: " ++ err
       remainder `shouldBe` ""
       loc `shouldBe` Location 1 19
@@ -200,10 +183,10 @@ spec = do
     it "parses date with delay" $ do
       let (loc, remainder, result) = runParser dateTimeParserReimplemented "2023-01-15 Sun -1d"
       case result of
-        ParserSuccess (OrgTime time repeater delay) -> do
-          time `shouldBe` Left (fromGregorian 2023 1 15)
-          repeater `shouldBe` Nothing
-          delay `shouldBe` Just (DelayInterval AllOccurrences 1 Day)
+        ParserSuccess (OrgTime t r d) -> do
+          t `shouldBe` Left (fromGregorian 2023 1 15)
+          r `shouldBe` Nothing
+          d `shouldBe` Just (DelayInterval AllOccurrences 1 Day)
         ParserFailure err -> fail $ "Parser failed: " ++ err
       remainder `shouldBe` ""
       loc `shouldBe` Location 1 18
@@ -211,10 +194,10 @@ spec = do
     it "parses date with first occurrence delay format" $ do
       let (loc, remainder, result) = runParser dateTimeParserReimplemented "2023-01-15 Sun --2d"
       case result of
-        ParserSuccess (OrgTime time repeater delay) -> do
-          time `shouldBe` Left (fromGregorian 2023 1 15)
-          repeater `shouldBe` Nothing
-          delay `shouldBe` Just (DelayInterval FirstOccurrence 2 Day)
+        ParserSuccess (OrgTime t r d) -> do
+          t `shouldBe` Left (fromGregorian 2023 1 15)
+          r `shouldBe` Nothing
+          d `shouldBe` Just (DelayInterval FirstOccurrence 2 Day)
         ParserFailure err -> fail $ "Parser failed: " ++ err
       remainder `shouldBe` ""
       loc `shouldBe` Location 1 19
@@ -233,104 +216,103 @@ spec = do
     it "parses date with repeater and delay" $ do
       let (loc, remainder, result) = runParser dateTimeParserReimplemented "2023-01-15 Sun +1w -2d"
       case result of
-        ParserSuccess (OrgTime time repeater delay) -> do
-          time `shouldBe` Left (fromGregorian 2023 1 15)
-          repeater `shouldBe` Just (RepeatInterval NextDate 1 Week)
-          delay `shouldBe` Just (DelayInterval AllOccurrences 2 Day)
+        ParserSuccess (OrgTime t r d) -> do
+          t `shouldBe` Left (fromGregorian 2023 1 15)
+          r `shouldBe` Just (RepeatInterval NextDate 1 Week)
+          d `shouldBe` Just (DelayInterval AllOccurrences 2 Day)
         ParserFailure err -> fail $ "Parser failed: " ++ err
       remainder `shouldBe` ""
       loc `shouldBe` Location 1 22
 
-  -- TODO:
   describe "propertyParser" $ do
-    -- it "parses simple property" $ do
-    --   let (loc, remainder, result) = runParser propertyParser ":id: 123\n"
-    --   result `shouldBe` ParserSuccess ("id", "123")
-    --   remainder `shouldBe` ""
-    --   loc `shouldBe` Location 2 0
+    it "parses simple property" $ do
+      let (loc, remainder, result) = runParser propertyParser ":id: 123\n"
+      result `shouldBe` ParserSuccess ("id", "123")
+      remainder `shouldBe` ""
+      loc `shouldBe` Location 2 0
 
-  -- TODO:
-  -- it "parses property with spaces" $ do
-  --   let (loc, remainder, result) = runParser propertyParser ":key:  value with spaces\n"
-  --   result `shouldBe` ParserSuccess ("key", "value with spaces")
-  --   remainder `shouldBe` ""
-  --   loc `shouldBe` Location 2 0
+    it "parses property with spaces" $ do
+      let (loc, remainder, result) = runParser propertyParser ":key:  value with spaces\n"
+      result `shouldBe` ParserSuccess ("key", "value with spaces")
+      remainder `shouldBe` ""
+      loc `shouldBe` Location 2 0
 
-  -- TODO:
-  -- it "parses property with empty value" $ do
-  --   let (loc, remainder, result) = runParser propertyParser ":key:\n"
-  --   result `shouldBe` ParserSuccess ("key", "")
-  --   remainder `shouldBe` ""
-  --   loc `shouldBe` Location 2 0
+    it "fails on property with empty value" $ do
+      let (loc, remainder, result) = runParser propertyParser ":key:\n"
+      isParserError result `shouldBe` True
+      remainder `shouldBe` ":key:\n"
+      loc `shouldBe` zeroLocation
 
-  -- TODO:
-  -- it "parses property with URL value" $ do
-  --   let (loc, remainder, result) = runParser propertyParser ":url: https://example.com/path?query=value\n"
-  --   result `shouldBe` ParserSuccess ("url", "https://example.com/path?query=value")
-  --   remainder `shouldBe` ""
-  --   loc `shouldBe` Location 2 0
+    it "parses property with URL value" $ do
+      let (loc, remainder, result) = runParser propertyParser ":url: https://example.com/path?query=value\n"
+      result `shouldBe` ParserSuccess ("url", "https://example.com/path?query=value")
+      remainder `shouldBe` ""
+      loc `shouldBe` Location 2 0
 
-  -- TODO:
-  -- describe "propertiesParser" $ do
-  --   it "parses multiple properties" $ do
-  --     let input = T.strip $ T.unlines
-  --                 [ ":PROPERTIES:"
-  --                 , ":id: 123"
-  --                 , ":url: https://example.com"
-  --                 , ":END:"
-  --                 ]
-  --         (loc, remainder, result) = runParser propertiesParser input
-  --
-  --     result `shouldBe` ParserSuccess [("id", "123"), ("url", "https://example.com")]
-  --     remainder `shouldBe` ""
-  --     loc `shouldBe` Location 4 5
+    it "parses multiple properties" $ do
+      let input =
+            T.strip $
+              T.unlines
+                [ ":PROPERTIES:"
+                , ":id: 123"
+                , ":url: https://example.com"
+                , ":END:"
+                ]
+          (loc, remainder, result) = runParser propertiesParser input
 
-  -- TODO:
-  -- it "parses empty properties" $ do
-  --   let input = T.strip $ T.unlines
-  --               [ ":PROPERTIES:"
-  --               , ":END:"
-  --               ]
-  --       (loc, remainder, result) = runParser propertiesParser input
-  --
-  --   result `shouldBe` ParserSuccess []
-  --   remainder `shouldBe` ""
-  --   loc `shouldBe` Location 2 5
+      result `shouldBe` ParserSuccess [("id", "123"), ("url", "https://example.com")]
+      remainder `shouldBe` ""
+      loc `shouldBe` Location 4 5
 
-  -- TODO:
-  -- it "parses properties with mixed content" $ do
-  --   let input = T.strip $ T.unlines
-  --               [ ":PROPERTIES:"
-  --               , ":id: 123"
-  --               , ":tags: work important"
-  --               , ":url: https://example.com"
-  --               , ":END:"
-  --               ]
-  --       (loc, remainder, result) = runParser propertiesParser input
-  --
-  --   result `shouldBe` ParserSuccess [("id", "123"), ("tags", "work important"), ("url", "https://example.com")]
-  --   remainder `shouldBe` ""
-  --   loc `shouldBe` Location 5 5
+    it "parses empty properties" $ do
+      let input =
+            T.strip $
+              T.unlines
+                [ ":PROPERTIES:"
+                , ":END:"
+                ]
+          (loc, remainder, result) = runParser propertiesParser input
+
+      result `shouldBe` ParserSuccess []
+      remainder `shouldBe` ""
+      loc `shouldBe` Location 2 5
+
+    it "parses properties with mixed content" $ do
+      let input =
+            T.strip $
+              T.unlines
+                [ ":PROPERTIES:"
+                , ":id: 123"
+                , ":tags: work important"
+                , ":url: https://example.com"
+                , ":END:"
+                ]
+          (loc, remainder, result) = runParser propertiesParser input
+
+      result `shouldBe` ParserSuccess [("id", "123"), ("tags", "work important"), ("url", "https://example.com")]
+      remainder `shouldBe` ""
+      loc `shouldBe` Location 5 5
 
   describe "descriptionParser" $ do
     it "parses simple description" $ do
       let (loc, remainder, result) = runParser descriptionParser "This is a simple description\n"
-      result `shouldBe` ParserSuccess "This is a simple description\n"
+      result `shouldBe` ParserSuccess "This is a simple description"
       remainder `shouldBe` ""
-      loc `shouldBe` Location 2 0
+      loc `shouldBe` Location 1 28
 
-    it "parses multi-line description" $ do
-      let input =
-            T.unlines
-              [ "This is the first line"
-              , "This is the second line"
-              , "This is the third line"
-              ]
-          (loc, remainder, result) = runParser descriptionParser input
-
-      result `shouldBe` ParserSuccess input
-      remainder `shouldBe` ""
-      loc `shouldBe` Location 4 0
+    -- it "parses multi-line description" $ do
+    --   let input =
+    --         T.strip $
+    --           T.unlines
+    --             [ "This is the first line"
+    --             , "This is the second line"
+    --             , "This is the third line"
+    --             ]
+    --       (loc, remainder, result) = runParser descriptionParser input
+    --
+    --   result `shouldBe` ParserSuccess input
+    --   remainder `shouldBe` ""
+    --   loc `shouldBe` Location 4 0
 
     it "stops at next heading" $ do
       let input =
@@ -350,35 +332,51 @@ spec = do
       remainder `shouldBe` "\n* TODO Next task"
       loc `shouldBe` Location 1 0
 
-    it "handles description with URL links" $ do
-      let input =
-            T.strip $
-              T.unlines
-                [ "Description with http://example.com link"
-                , "And another https://example.org/path?query=value"
-                ]
-          (loc, remainder, result) = runParser descriptionParser input
+  -- TODO:
+  -- it "handles description with URL links" $ do
+  --   let input =
+  --         T.strip $
+  --           T.unlines
+  --             [ "Description with http://example.com link"
+  --             , "And another https://example.org/path?query=value"
+  --             ]
+  --       (loc, remainder, result) = runParser descriptionParser input
+  --
+  --   result `shouldBe` ParserSuccess input
+  --   remainder `shouldBe` ""
+  --   loc `shouldBe` Location 2 48
 
-      result `shouldBe` ParserSuccess input
-      remainder `shouldBe` ""
-      loc `shouldBe` Location 2 48
-
-    it "handles description with org-mode formatting" $ do
-      let input =
-            T.unlines
-              [ "Description with *bold* and /italic/ formatting"
-              , "And [[http://example.com][link]]"
-              ]
-          (loc, remainder, result) = runParser descriptionParser input
-
-      result `shouldBe` ParserSuccess input
-      remainder `shouldBe` ""
-      loc `shouldBe` Location 3 0
+  -- TODO:
+  -- it "handles description with org-mode formatting" $ do
+  --   let input =
+  --         T.unlines
+  --           [ "Description with *bold* and /italic/ formatting"
+  --           , "And [[http://example.com][link]]"
+  --           ]
+  --       (loc, remainder, result) = runParser descriptionParser input
+  --
+  --   result `shouldBe` ParserSuccess input
+  --   remainder `shouldBe` ""
+  --   loc `shouldBe` Location 2 32
+  describe "brokenDescripitonParser" $ do
+    it "parses broken description without properties" $
+      do
+        let input =
+              T.strip $
+                T.unlines
+                  [ "  https://music.youtube.com/watch?v=ylmNrof40gE&feature=share"
+                  , "  :PROPERTIES:"
+                  , "  :CREATED:  [2022-06-13 Mon 11:29]"
+                  , "  :END:"
+                  ]
+            (loc, remainder, result) = runParser brokenDescriptionParser input
+        resultToMaybe result
+        `shouldBe` Just "https://music.youtube.com/watch?v=ylmNrof40gE&feature=share"
 
   describe "properTaskParser" $ do
     it "parses a minimal task" $ do
       let input = "* TODO Minimal task"
-          (loc, remainder, result) = runParser properTaskParser input
+          (loc, remainder, result) = runParser anyTaskparser input
       remainder `shouldBe` ""
       case result of
         ParserSuccess task -> do

@@ -10,19 +10,26 @@ module Main (main) where
 
 -- TODO: Should handle external edits to files when the app is opened and update its state correctly
 
+-- import qualified Control.Lens as L
+-- import Data.Text as T
+-- import Data.Text.Internal.Search as T
+-- import qualified Data.Vector as V
+-- import Model.OrgMode
+-- import Parser.Parser
 import Parser.OrgParser (anyTaskparser, orgFileParser)
 import Render.OrgRender ()
+import Searcher.OrgSearcher ()
 import Tui.Keybindings (normalModeBindings)
 import Tui.Tui
 import Tui.Types
 import Writer.OrgWriter ()
-import Searcher.OrgSearcher ()
 
--- filtered :: Parser (TaskFile Task)
--- filtered = fmap (\t -> t{content = filter hasBrokenProperty (content t)}) orgFileParser
+-- filtered :: Parser (TaskFile Task) -> Parser (TaskFile Task)
+-- filtered = fmap $ L.over content $ V.filter hasAstericsInDesc
 --  where
---   hasBrokenProperty task = elem "BROKEN_PROPERTIES" $ fmap fst (properties task)
---   hasBrokenDescription task = elem "BROKEN_DESCRIPTION" $ fmap fst (properties task)
+--   hasAstericsInDesc task = not (Prelude.null (indices "*" (L.view description task)))
+--   hasEmptyTodoKeyword task = T.null $ L.view todoKeyword task
+
 main :: IO ()
 main = do
   tui
