@@ -48,6 +48,8 @@ data KeyEvent
   | AbortSearch
   | SearchDeleteChar
   | ApplySearch
+  -- Views
+  | View T.Text
   deriving (Eq, Show, Ord)
 
 data Name = CompactViewWidget deriving (Eq, Ord, Show)

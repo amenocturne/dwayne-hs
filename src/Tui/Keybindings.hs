@@ -28,6 +28,7 @@ import Parser.Parser
 import Searcher.OrgSearcher ()
 import Searcher.Searcher
 import TextUtils
+import Tui.Tui
 import Writer.OrgWriter ()
 
 -- TODO: make a shortcut to open in a default browser first found link in a task (useful for music/articles)
@@ -179,6 +180,20 @@ applySearch ctx =
     Just nv -> if V.length nv > 0 then (Just 0, nv) else (Nothing, nv)
     Nothing -> (view cursorLens ctx, oldView)
 
+applyFilterToAllTasks :: (a -> Bool) -> GlobalAppState a
+applyFilterToAllTasks predicate = do
+  ctx <- get
+  let fs = view fileStateLens ctx
+  let ptrToMatch ptr = maybe False predicate (preview (taskBy ptr) fs)
+  let newView = V.filter ptrToMatch (getAllPointers fs)
+  let newCurTask = if V.length newView > 0 then Just 0 else Nothing
+  modify $ over currentViewLens (const newView)
+  modify $ over cursorLens (const newCurTask)
+  adjustViewport
+
+todoKeywordFilter :: T.Text -> Task -> Bool
+todoKeywordFilter keyword task = view todoKeyword task == keyword
+
 ----------------------- Bindings ----------------------------
 
 errorDialogKeyContext :: AppContext a -> Bool
@@ -223,6 +238,14 @@ changeTodoKeywordBinding keyword bind =
     (T.concat ["Change todo keyword to ", keyword])
     (saveForUndo $ modify (changeTodoKeyword keyword))
     (modeKeyContext NormalMode)
+
+changeViewKeywordBinding :: T.Text -> String -> KeyBinding Task
+changeViewKeywordBinding keyword bind =
+  normalBinding
+    (View keyword)
+    (toKeySeq bind)
+    (T.concat ["Show ", keyword, " tasks"])
+    $ saveForJump (applyFilterToAllTasks (todoKeywordFilter keyword))
 
 class ToBinding k where
   toBinding :: AppMode a -> KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
@@ -277,6 +300,18 @@ normalModeBindings =
   , changeTodoKeywordBinding "TODO" "tt"
   , changeTodoKeywordBinding "DONE" "td"
   , changeTodoKeywordBinding "TRASH" "tx"
+  , -- Views
+    normalBinding (View "all") (toKeySeq " aa") "Show all tasks" $ saveForJump $ applyFilterToAllTasks (const True)
+  , changeViewKeywordBinding "INBOX" " ai"
+  , changeViewKeywordBinding "RELEVANT" " ar"
+  , changeViewKeywordBinding "SOMEDAY" " as"
+  , changeViewKeywordBinding "NOTES" " an"
+  , changeViewKeywordBinding "LIST" " al"
+  , changeViewKeywordBinding "WAITING" " aw"
+  , changeViewKeywordBinding "PROJECTS" " ap"
+  , changeViewKeywordBinding "TODO" " at"
+  , changeViewKeywordBinding "DONE" " ad"
+  , changeViewKeywordBinding "TRASH" " ax"
   , -- Other
     normalBinding Quit (toKey 'q') "Quit" halt
   , normalBinding EditInEditor (toKey KEnter) "Edit in editor" $ saveForUndo editSelectedTaskInEditor

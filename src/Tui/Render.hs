@@ -70,7 +70,7 @@ drawCompactSearchView ctx =
     if V.length displayedTasks == 0
       then fill ' '
       else
-        vBox $ V.toList $ V.map R.renderCompact displayedTasks
+        vBox $ V.toList (V.map R.renderCompact displayedTasks) ++ [padBottom Max (fill ' ')]
 
 drawCompactListView :: (RenderTask a Name) => AppContext a -> [Widget Name]
 drawCompactListView ctx =
@@ -78,7 +78,7 @@ drawCompactListView ctx =
       [ padRight Max $ reportExtent CompactViewWidget compactTasks
       , hLimit 1 $ fill ' '
       , vBorder
-      , padRight Max $ maybeFocusedTask
+      , padRight Max maybeFocusedTask
       ]
   ]
  where
@@ -88,7 +88,7 @@ drawCompactListView ctx =
   taskPointers = V.slice start (end - start + 1) (view currentViewLens ctx)
 
   fs = view fileStateLens ctx
-  compactTasks = if V.length taskPointers == 0 then fill ' ' else vBox $ V.toList $ V.mapMaybe renderTask taskPointers
+  compactTasks = vBox $ V.toList (V.mapMaybe renderTask taskPointers) ++ [padBottom Max (fill ' ')]
   maybeFocusedTask = maybe emptyWidget R.renderFull (preview currentTaskLens ctx)
   selectedTaskPtr = preview currentTaskPtr ctx
 
