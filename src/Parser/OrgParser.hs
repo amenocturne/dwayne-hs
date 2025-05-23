@@ -152,7 +152,11 @@ propertyParser =
     tryParser $
       (,)
         <$> (skipBlanksExceptNewLinesParser *> charParser ':' *> skipBlanksExceptNewLinesParser *> wordParser)
-        <*> (skipBlanksExceptNewLinesParser *> charParser ':' *> skipBlanksExceptNewLinesParser *> tillTheEndOfStringParser)
+        <*> ( skipBlanksExceptNewLinesParser
+                *> charParser ':'
+                *> skipBlanksExceptNewLinesParser
+                *> failOnConditionParser tillTheEndOfStringParser (T.null) "Got empty property value"
+            )
         <* charParser '\n'
 
 propertiesParser :: Parser [(T.Text, T.Text)]
@@ -169,6 +173,7 @@ propertiesParser =
 titleLineParser = do
   skipBlanksParser
   taskLevelParser
+  charParser ' '
   skipBlanksExceptNewLinesParser
   todoKeyWordParser
   return ()
@@ -207,7 +212,7 @@ properTaskParser =
           properties
           description
   )
-    <$> (skipBlanksParser *> taskLevelParser)
+    <$> (skipBlanksParser *> taskLevelParser <* charParser ' ')
     <*> (skipBlanksExceptNewLinesParser *> todoKeyWordParser)
     <*> (skipBlanksExceptNewLinesParser *> maybeParser priorityParser)
     <*> (skipBlanksExceptNewLinesParser *> titleAndTagsParser)
@@ -219,7 +224,7 @@ properTaskParser =
 
 brokenDescriptionTaskParser :: Parser Task
 brokenDescriptionTaskParser =
-  ( \level todoKeyword priority (title, tags) description ->
+  ( \level todoKeyword priority (title, tags) description properties description2->
       let
        in Task
             level
@@ -230,14 +235,16 @@ brokenDescriptionTaskParser =
             Nothing
             Nothing
             Nothing
-            []
-            description
+            properties
+            (T.unlines [description, description2])
   )
-    <$> (skipBlanksParser *> taskLevelParser)
+    <$> (skipBlanksParser *> taskLevelParser <* charParser ' ')
     <*> (skipBlanksExceptNewLinesParser *> todoKeyWordParser)
     <*> (skipBlanksExceptNewLinesParser *> maybeParser priorityParser)
     <*> (skipBlanksExceptNewLinesParser *> titleAndTagsParser)
     <*> brokenDescriptionParser
+    <*> (skipBlanksParser *> propertiesParser)
+    <*> descriptionParser
 
 -- <*> (skipBlanksParser *> propertiesParser)
 
@@ -257,7 +264,7 @@ noPropertiesTaskParser =
             []
             description
   )
-    <$> (skipBlanksParser *> taskLevelParser)
+    <$> (skipBlanksParser *> taskLevelParser <* charParser ' ')
     <*> (skipBlanksExceptNewLinesParser *> todoKeyWordParser)
     <*> (skipBlanksExceptNewLinesParser *> maybeParser priorityParser)
     <*> (skipBlanksExceptNewLinesParser *> titleAndTagsParser)

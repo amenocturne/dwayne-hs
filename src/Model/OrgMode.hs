@@ -155,6 +155,9 @@ orgDeadlineField = TimeField "DEADLINE" AngleDelim
 orgClosedField :: TimeField
 orgClosedField = TimeField "CLOSED" BracketDelim
 
+orgCreatedProperty:: T.Text
+orgCreatedProperty = "CREATED"
+
 orgTimeFields :: [TimeField]
 orgTimeFields = [orgScheduledField, orgDeadlineField, orgClosedField]
 

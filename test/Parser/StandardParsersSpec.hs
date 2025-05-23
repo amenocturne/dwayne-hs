@@ -243,15 +243,15 @@ spec = do
       remainder `shouldBe` "\nnext line"
       loc `shouldBe` Location 1 11
 
-    it "fails on empty input" $ do
+    it "parser empty input" $ do
       let (loc, remainder, result) = runParser tillTheEndOfStringParser ""
-      isParserError result `shouldBe` True
+      result `shouldBe` ParserSuccess ""
       remainder `shouldBe` ""
       loc `shouldBe` zeroLocation
 
-    it "fails on just a newline" $ do
+    it "returns empty string on new line" $ do
       let (loc, remainder, result) = runParser tillTheEndOfStringParser "\n"
-      isParserError result `shouldBe` True
+      result `shouldBe` ParserSuccess ""
       remainder `shouldBe` "\n"
       loc `shouldBe` zeroLocation
 

@@ -9,17 +9,17 @@ import Data.Maybe
 import qualified Data.Text as T
 import Data.Time (defaultTimeLocale)
 import Data.Time.Format (formatTime)
+import qualified Data.Vector as V
 import GHC.Char (chr)
 import Model.Injection
 import Model.OrgMode
 import Writer.Writer
-import qualified Data.Vector as V
 
 instance (Writer a) => Writer (TaskFile a) where
-  write (TaskFile maybeName tasks) = T.intercalate "\n" $ titleText ++ tasksText
+  write (TaskFile maybeName tasks) = T.concat $ titleText ++ [T.intercalate "\n\n" tasksText]
    where
     titleText = case maybeName of
-      Just n -> ["#+TITLE: " <> n, ""]
+      Just n -> ["#+TITLE: " <> n, "\n"]
       Nothing -> []
     tasksText = map write (V.toList tasks) -- TODO: Rewrite function to accept Vector instead of list and avoid convertion
 
@@ -31,7 +31,7 @@ instance Writer Task where
       [ headerLine
       , timeFieldsLine
       , propertiesSection
-      , if T.null desc then desc else T.concat [desc, "\n"]
+      , if T.null desc then "" else T.concat ["\n", desc]
       ]
 
     headerLine =
@@ -68,17 +68,23 @@ instance Writer Task where
     propertiesSection
       | null (view properties task) = ""
       | otherwise =
-          T.unlines $
-            filter
-              (not . T.null)
-              [ orgPropertiesBegin
-              , propertiesText
-              , orgPropertiesEnd
-              ]
+          T.strip $
+            T.unlines $
+              filter
+                (not . T.null)
+                [ orgPropertiesBegin
+                , propertiesText
+                , orgPropertiesEnd
+                ]
 
     propertiesText =
       T.intercalate "\n" $
-        map (\(key, value) -> T.concat [":", key, ":  ", value]) (view properties task)
+        map (uncurry renderProperty) (view properties task)
+
+    renderProperty key value =
+      if key == orgCreatedProperty
+        then T.concat [":", key, ":  ", value] -- for some reason it has 2 spaces
+        else T.concat [":", key, ": ", value]
 
     renderTimeFieldText :: TimeField -> OrgTime -> T.Text
     renderTimeFieldText (TimeField n delim) (OrgTime t r d) =

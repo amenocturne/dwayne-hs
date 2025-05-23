@@ -373,7 +373,7 @@ spec = do
         resultToMaybe result
         `shouldBe` Just "https://music.youtube.com/watch?v=ylmNrof40gE&feature=share"
 
-  describe "properTaskParser" $ do
+  describe "anyTaskparser" $ do
     it "parses a minimal task" $ do
       let input = "* TODO Minimal task"
           (loc, remainder, result) = runParser anyTaskparser input
@@ -391,5 +391,29 @@ spec = do
           view properties task `shouldBe` []
           view description task `shouldBe` ""
         ParserFailure err -> fail $ "Parser failed: " ++ err
-
       loc `shouldBe` Location 1 19
+
+    it "parses task with no title" $ do
+      let input =
+            T.strip $
+              T.unlines
+                [ "* TODO"
+                , ":PROPERTIES:"
+                , ":END:"
+                ]
+          (loc, remainder, result) = runParser anyTaskparser input
+      remainder `shouldBe` ""
+      case result of
+        ParserSuccess task -> do
+          view level task `shouldBe` 1
+          view todoKeyword task `shouldBe` "TODO"
+          view priority task `shouldBe` Nothing
+          view title task `shouldBe` ""
+          view tags task `shouldBe` []
+          view scheduled task `shouldBe` Nothing
+          view deadline task `shouldBe` Nothing
+          view closed task `shouldBe` Nothing
+          view properties task `shouldBe` []
+          view description task `shouldBe` ""
+        ParserFailure err -> fail $ "Parser failed: " ++ err
+      loc `shouldBe` Location 3 5
