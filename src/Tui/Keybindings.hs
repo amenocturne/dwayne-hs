@@ -17,6 +17,7 @@ import Tui.Types
 import Writer.Writer
 
 import Brick.BChan
+import Control.Monad.IO.Class (liftIO)
 import Data.Char (isUpper, toLower)
 import Data.List.NonEmpty (NonEmpty (..), fromList)
 import qualified Data.Set as S
@@ -118,6 +119,21 @@ undo = over (appState . fileState) L.undo
 
 redo :: AppContext a -> AppContext a
 redo = over (appState . fileState) L.redo
+
+saveForJump :: GlobalAppState a -> GlobalAppState a
+saveForJump f = do
+  ctx <- get
+  let oldHist = view (appState . compactView) ctx
+  f
+  newCtx <- get
+  let newState = view compactViewLens newCtx
+  when (newState /= view L.currentState oldHist) $ modify $ over (appState . compactView) (const $ L.append newState oldHist)
+
+jumpBack :: AppContext a -> AppContext a
+jumpBack = over (appState . compactView) L.undo
+
+jumpForward :: AppContext a -> AppContext a
+jumpForward = over (appState . compactView) L.redo
 
 -- Needs to be specific type
 changeTodoKeyword :: T.Text -> AppContext Task -> AppContext Task
@@ -234,15 +250,17 @@ normalModeBindings =
   , --------------------------------- Search Mode -----------------------------
     searchBinding AbortSearch (toKey KEsc) "Abort search" $ modify $ abortSearch . switchMode NormalMode
   , searchBinding SearchDeleteChar (toKey KBS) "Delete char" $ modify searchDeleteChar
-  , searchBinding ApplySearch (toKey KEnter) "Apply search results" $ modify $ applySearch . switchMode NormalMode
+  , searchBinding ApplySearch (toKey KEnter) "Apply search results" $ saveForJump $ modify (applySearch . switchMode NormalMode)
   , --------------------------------- Normal Mode -----------------------------
     -- Mode switching
     normalBinding SwitchToSearchMode '/' "Switch to search mode" $ modify $ switchMode SearchMode
   , -- Movement
     normalBinding MoveUp 'k' "Move up" $ adjustCursor (\i -> i - 1)
   , normalBinding MoveDown 'j' "Move down" $ adjustCursor (+ 1)
-  , normalBinding JumpEnd 'G' "Jump to the end" $ adjustCursor (const maxBound)
-  , normalBinding JumpBeginning (toKeySeq "gg") "Jump to the end" $ adjustCursor (const 0)
+  , normalBinding JumpEnd 'G' "Jump to the end" $ saveForJump $ adjustCursor (const maxBound)
+  , normalBinding JumpBeginning (toKeySeq "gg") "Jump to the end" $ saveForJump $ adjustCursor (const 0)
+  , normalBinding JumpBackward (withMod 'o' MCtrl) "Jump backward" $ modify jumpBack
+  , normalBinding JumpForward '\t' "Jump forward" $ modify jumpForward -- NOTE: Terminals translate Ctrl-i into TAB
   , -- KeyBuffer
     normalBinding CleanKeyState KEsc "Clean key state" $ modify $ set (appState . keyState) NoInput
   , -- History

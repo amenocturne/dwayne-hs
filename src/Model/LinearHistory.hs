@@ -8,7 +8,7 @@ data LinearHistory a = LinearHistory
   { _pastStates :: [a]
   , _currentState :: a
   , _futureStates :: [a]
-  }
+  } deriving (Show)
 
 makeLenses ''LinearHistory
 
