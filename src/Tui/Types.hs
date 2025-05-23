@@ -1,5 +1,7 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Tui.Types where
 
@@ -16,6 +18,7 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.Set (Set)
 import Data.Time (UTCTime)
 import qualified Data.Vector as V
+import Model.LinearHistory
 import Parser.Parser
 
 data AppContext a = AppContext
@@ -63,11 +66,10 @@ data AppState a = AppState
   { _eventChannel :: BChan AppEvent
   , _errorDialog :: Maybe ErrorDialog
   , _keyState :: KeyState
-  , _undoState :: UndoState a
   , _appMode :: AppMode a
   , _searchState :: Maybe (SearchState a)
   , _compactView :: CompactView
-  , _fileState :: FileState a
+  , _fileState :: LinearHistory (FileState a)
   }
 
 data SearchState a = SearchState
@@ -82,12 +84,6 @@ data CompactView = CompactView
   , _compactViewTasksEndIndex :: Int
   , _cursor :: Maybe Int -- Index of a currently focused task in a view
   , _currentView :: V.Vector TaskPointer
-  }
-  deriving (Show)
-
-data UndoState a = UndoState
-  { _undoStack :: [FileState a]
-  , _redoStack :: [FileState a]
   }
   deriving (Show)
 
@@ -136,7 +132,6 @@ makeLenses ''AppConfig
 makeLenses ''ErrorDialog
 makeLenses ''KeyBinding
 makeLenses ''KeyPress
-makeLenses ''UndoState
 makeLenses ''CompactView
 makeLenses ''SearchState
 
@@ -150,13 +145,7 @@ compactViewLens :: Lens' (AppContext a) CompactView
 compactViewLens = appState . compactView
 
 fileStateLens :: Lens' (AppContext a) (FileState a)
-fileStateLens = appState . fileState
-
-undoStackLens :: Lens' (AppContext a) [FileState a]
-undoStackLens = appState . undoState . undoStack
-
-redoStackLens :: Lens' (AppContext a) [FileState a]
-redoStackLens = appState . undoState . redoStack
+fileStateLens = appState . fileState . currentState
 
 taskBy :: TaskPointer -> Traversal' (FileState a) a
 taskBy ptr =

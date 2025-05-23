@@ -52,6 +52,7 @@ library
         Model.Injection
         Model.OrgMode
         Model.Tree
+        Model.LinearHistory
         Parser.OrgParser
         Parser.Parser
         Parser.StandardParsers

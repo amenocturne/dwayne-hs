@@ -21,6 +21,7 @@ import Data.Char (isUpper, toLower)
 import Data.List.NonEmpty (NonEmpty (..), fromList)
 import qualified Data.Set as S
 import qualified Data.Vector as V
+import qualified Model.LinearHistory as L
 import Model.OrgMode (Task, todoKeyword)
 import Parser.Parser
 import Searcher.OrgSearcher ()
@@ -103,31 +104,20 @@ editSelectedTaskInEditor = do
 proceedInErrorDialog :: (Writer a) => GlobalAppState a
 proceedInErrorDialog = modify (over (appState . errorDialog) (const Nothing))
 
-saveForUndo :: AppContext a -> AppContext a
-saveForUndo s = (setUndo . setRedo) s
- where
-  setUndo = set undoStackLens (view fileStateLens s : view undoStackLens s)
-  setRedo = set redoStackLens []
+saveForUndo :: (Eq a) => GlobalAppState a -> GlobalAppState a
+saveForUndo f = do
+  ctx <- get
+  let oldHist = view (appState . fileState) ctx
+  f
+  newCtx <- get
+  let newState = view fileStateLens newCtx
+  when (newState /= view L.currentState oldHist) $ modify $ over (appState . fileState) (const $ L.append newState oldHist)
 
 undo :: AppContext a -> AppContext a
-undo s = f s
- where
-  undoSt = view undoStackLens s
-  redoSt = view redoStackLens s
-  curSt = view fileStateLens s
-  f = case undoSt of
-    [] -> id
-    x : xs -> set undoStackLens xs . set fileStateLens x . set redoStackLens (curSt : redoSt)
+undo = over (appState . fileState) L.undo
 
 redo :: AppContext a -> AppContext a
-redo s = f s
- where
-  undoSt = view undoStackLens s
-  redoSt = view redoStackLens s
-  curSt = view fileStateLens s
-  f = case redoSt of
-    [] -> id
-    x : xs -> set redoStackLens xs . set fileStateLens x . set undoStackLens (curSt : undoSt)
+redo = over (appState . fileState) L.redo
 
 -- Needs to be specific type
 changeTodoKeyword :: T.Text -> AppContext Task -> AppContext Task
@@ -210,7 +200,13 @@ toKeySeq :: String -> NonEmpty KeyPress
 toKeySeq s = fromList s >>= toKey
 
 changeTodoKeywordBinding :: T.Text -> String -> KeyBinding Task
-changeTodoKeywordBinding keyword bind = KeyBinding (ChangeTodoKeyword keyword) (toKey bind) (T.concat ["Change todo keyword to ", keyword]) (modify saveForUndo >> modify (changeTodoKeyword keyword)) (modeKeyContext NormalMode)
+changeTodoKeywordBinding keyword bind =
+  KeyBinding
+    (ChangeTodoKeyword keyword)
+    (toKey bind)
+    (T.concat ["Change todo keyword to ", keyword])
+    (saveForUndo $ modify (changeTodoKeyword keyword))
+    (modeKeyContext NormalMode)
 
 class ToBinding k where
   toBinding :: AppMode a -> KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
@@ -265,5 +261,5 @@ normalModeBindings =
   , changeTodoKeywordBinding "TRASH" "tx"
   , -- Other
     normalBinding Quit (toKey 'q') "Quit" halt
-  , normalBinding EditInEditor (toKey KEnter) "Edit in editor" $ modify saveForUndo >> editSelectedTaskInEditor
+  , normalBinding EditInEditor (toKey KEnter) "Edit in editor" $ saveForUndo editSelectedTaskInEditor
   ]

@@ -24,6 +24,7 @@ import Writer.Writer
 import Brick.BChan
 import Data.List
 import qualified Data.Vector as V
+import Model.LinearHistory (initLinearHistory)
 import Parser.Parser
 import Searcher.Searcher
 import TextUtils
@@ -52,11 +53,6 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a) => Tui a where
             { _eventChannel = eventChan
             , _errorDialog = Nothing
             , _keyState = NoInput
-            , _undoState =
-                UndoState
-                  { _undoStack = []
-                  , _redoStack = []
-                  }
             , _appMode = NormalMode
             , _searchState = Nothing
             , _compactView =
@@ -66,7 +62,7 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a) => Tui a where
                   , _cursor = 0 <$ listToMaybe (V.toList pointers)
                   , _currentView = pointers
                   }
-            , _fileState = fState
+            , _fileState = initLinearHistory fState
             }
     let ctx =
           AppContext

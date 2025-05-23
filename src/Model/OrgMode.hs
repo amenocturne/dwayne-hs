@@ -63,13 +63,13 @@ data Task = Task
   , _properties :: [(T.Text, T.Text)]
   , _description :: T.Text
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 data TaskFile a = TaskFile
   { _name :: Maybe T.Text
   , _content :: V.Vector a
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 data Delimiter = AngleDelim | BracketDelim
 
