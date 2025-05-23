@@ -87,7 +87,7 @@ handleEvent (AppEvent event) = case event of
             }
     modify $ set (appState . errorDialog) (Just dlg)
   SaveAllFiles -> do
-    ctx <- get
+    ctx <- get -- TODO: should read files, parse them and check if they have any changes since the first read.
     let files = M.toList $ view fileStateLens ctx
     let saveFiles = traverse (uncurry writeTaskFile) files
     when (view (config . autoSave) ctx) $ void $ liftIO saveFiles

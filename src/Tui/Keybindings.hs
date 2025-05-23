@@ -194,6 +194,9 @@ applyFilterToAllTasks predicate = do
 todoKeywordFilter :: T.Text -> Task -> Bool
 todoKeywordFilter keyword task = view todoKeyword task == keyword
 
+saveAll :: GlobalAppState a
+saveAll = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ctx) SaveAllFiles
+
 ----------------------- Bindings ----------------------------
 
 errorDialogKeyContext :: AppContext a -> Bool
@@ -315,4 +318,6 @@ normalModeBindings =
   , -- Other
     normalBinding Quit (toKey 'q') "Quit" halt
   , normalBinding EditInEditor (toKey KEnter) "Edit in editor" $ saveForUndo editSelectedTaskInEditor
+  , -- Saving Files
+    normalBinding SaveAll 's' "Save all" saveAll
   ]

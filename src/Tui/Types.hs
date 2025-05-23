@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 module Tui.Types where
 
@@ -40,6 +39,7 @@ data KeyEvent
   | Undo
   | Redo
   | CleanKeyState
+  | SaveAll
   | -- Error dialog
     ErrorDialogQuit
   | ErrorDialogAccept
