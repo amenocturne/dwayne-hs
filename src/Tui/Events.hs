@@ -88,7 +88,7 @@ handleEvent (AppEvent event) = case event of
     modify $ set (appState . errorDialog) (Just dlg)
   SaveAllFiles -> do
     ctx <- get
-    let files = M.toList $ view (appState . tasksState . fileState) ctx
+    let files = M.toList $ view fileStateLens ctx
     let saveFiles = traverse (uncurry writeTaskFile) files
     when (view (config . autoSave) ctx) $ void $ liftIO saveFiles
 handleEvent _ = return ()

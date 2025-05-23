@@ -41,15 +41,15 @@ adjustCursor f = do
   ctx <- get
   let cv = view currentViewLens ctx
   let modifyCursor c = clamp 0 (length cv - 1) (f c)
-  let currentCursor = view currentCursorLens ctx
+  let currentCursor = view cursorLens ctx
   let newCursor = fmap modifyCursor currentCursor
-  modify $ set currentCursorLens newCursor
+  modify $ set cursorLens newCursor
   adjustViewport
 
 adjustViewport :: GlobalAppState a
 adjustViewport = do
   ctx <- get
-  let curCursor = view currentCursorLens ctx
+  let curCursor = view cursorLens ctx
   let marginVal = view (config . scrollingMargin) ctx
   maybeExtent <- lookupExtent CompactViewWidget
   case (curCursor, maybeExtent) of
@@ -106,7 +106,7 @@ proceedInErrorDialog = modify (over (appState . errorDialog) (const Nothing))
 saveForUndo :: AppContext a -> AppContext a
 saveForUndo s = (setUndo . setRedo) s
  where
-  setUndo = set undoStackLens (view tasksStateLens s : view undoStackLens s)
+  setUndo = set undoStackLens (view fileStateLens s : view undoStackLens s)
   setRedo = set redoStackLens []
 
 undo :: AppContext a -> AppContext a
@@ -114,20 +114,20 @@ undo s = f s
  where
   undoSt = view undoStackLens s
   redoSt = view redoStackLens s
-  curSt = view tasksStateLens s
+  curSt = view fileStateLens s
   f = case undoSt of
     [] -> id
-    x : xs -> set undoStackLens xs . set tasksStateLens x . set redoStackLens (curSt : redoSt)
+    x : xs -> set undoStackLens xs . set fileStateLens x . set redoStackLens (curSt : redoSt)
 
 redo :: AppContext a -> AppContext a
 redo s = f s
  where
   undoSt = view undoStackLens s
   redoSt = view redoStackLens s
-  curSt = view tasksStateLens s
+  curSt = view fileStateLens s
   f = case redoSt of
     [] -> id
-    x : xs -> set redoStackLens xs . set tasksStateLens x . set undoStackLens (curSt : undoSt)
+    x : xs -> set redoStackLens xs . set fileStateLens x . set undoStackLens (curSt : undoSt)
 
 -- Needs to be specific type
 changeTodoKeyword :: T.Text -> AppContext Task -> AppContext Task
@@ -155,7 +155,7 @@ searchDeleteChar ctx = f ctx
 applySearch :: (Searcher a) => AppContext a -> AppContext a
 applySearch ctx =
   ( set currentViewLens newView
-      . set (appState . tasksState . currentTask) newCurTask
+      . set cursorLens newCurTask
       . cleanCompactView
       . abortSearch
   )
@@ -165,13 +165,13 @@ applySearch ctx =
   start = view compactViewTaskStartIndex compView
   end = view compactViewTasksEndIndex compView
   cleanCompactView = set (compactViewLens . compactViewTaskStartIndex) 0 . set (compactViewLens . compactViewTasksEndIndex) (min (V.length newView - 1) (end - start + 1))
-  oldView = view (appState . tasksState . currentView) ctx
-  fs = view (appState . tasksState . fileState) ctx
+  oldView = view currentViewLens ctx
+  fs = view fileStateLens ctx
   maybeQuery = preview (appState . searchState . _Just . searchInput) ctx
   ptrToMatch q ptr = maybe False (matches q) (preview (taskBy ptr) fs)
   (newCurTask, newView) = case fmap (\q -> V.filter (ptrToMatch q) oldView) maybeQuery of
     Just nv -> if V.length nv > 0 then (Just 0, nv) else (Nothing, nv)
-    Nothing -> (view (appState . tasksState . currentTask) ctx, oldView)
+    Nothing -> (view cursorLens ctx, oldView)
 
 ----------------------- Bindings ----------------------------
 
@@ -238,7 +238,7 @@ normalModeBindings =
   , --------------------------------- Search Mode -----------------------------
     searchBinding AbortSearch (toKey KEsc) "Abort search" $ modify $ abortSearch . switchMode NormalMode
   , searchBinding SearchDeleteChar (toKey KBS) "Delete char" $ modify searchDeleteChar
-  , searchBinding ApplySearch (toKey KEnter) "Apply search results" $ modify $ applySearch . switchMode NormalMode . saveForUndo
+  , searchBinding ApplySearch (toKey KEnter) "Apply search results" $ modify $ applySearch . switchMode NormalMode
   , --------------------------------- Normal Mode -----------------------------
     -- Mode switching
     normalBinding SwitchToSearchMode '/' "Switch to search mode" $ modify $ switchMode SearchMode

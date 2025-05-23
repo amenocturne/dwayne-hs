@@ -25,8 +25,8 @@ import Brick.BChan
 import Data.List
 import qualified Data.Vector as V
 import Parser.Parser
-import TextUtils
 import Searcher.Searcher
+import TextUtils
 
 getAllPointers :: FileState a -> V.Vector TaskPointer
 getAllPointers fs = V.concatMap fun (V.fromList $ M.toList fs) -- TODO: optimize all this convertions
@@ -49,18 +49,7 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a) => Tui a where
     let pointers = getAllPointers fState
     let state =
           AppState
-            { _tasksState =
-                TasksState
-                  { _fileState = fState
-                  , _currentView = pointers
-                  , _currentTask = 0 <$ listToMaybe (V.toList pointers)
-                  , _compactView =
-                      CompactView
-                        { _compactViewTaskStartIndex = 0
-                        , _compactViewTasksEndIndex = min (V.length pointers - 1) 200 -- NOTE: safe bet that there will be less than 200 tasks on the screen as we don't know the size of the viewport in the beginning
-                        }
-                  }
-            , _eventChannel = eventChan
+            { _eventChannel = eventChan
             , _errorDialog = Nothing
             , _keyState = NoInput
             , _undoState =
@@ -70,6 +59,14 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a) => Tui a where
                   }
             , _appMode = NormalMode
             , _searchState = Nothing
+            , _compactView =
+                CompactView
+                  { _compactViewTaskStartIndex = 0
+                  , _compactViewTasksEndIndex = min (V.length pointers - 1) 200 -- NOTE: safe bet that there will be less than 200 tasks on the screen as we don't know the size of the viewport in the beginning
+                  , _cursor = 0 <$ listToMaybe (V.toList pointers)
+                  , _currentView = pointers
+                  }
+            , _fileState = fState
             }
     let ctx =
           AppContext
@@ -86,7 +83,7 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a) => Tui a where
             }
     let buildVty = mkVty defaultConfig
     initialVty <- buildVty
-    -- _ <- writeBChan (view (appState . eventChannel) ctx) SaveAllFiles
+    _ <- writeBChan (view (appState . eventChannel) ctx) SaveAllFiles
     case parsingErrors of
       [] -> return ()
       errs ->

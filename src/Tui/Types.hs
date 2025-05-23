@@ -60,13 +60,14 @@ data AppConfig a = AppConfig
   }
 
 data AppState a = AppState
-  { _tasksState :: TasksState a
-  , _eventChannel :: BChan AppEvent
+  { _eventChannel :: BChan AppEvent
   , _errorDialog :: Maybe ErrorDialog
   , _keyState :: KeyState
   , _undoState :: UndoState a
   , _appMode :: AppMode a
   , _searchState :: Maybe (SearchState a)
+  , _compactView :: CompactView
+  , _fileState :: FileState a
   }
 
 data SearchState a = SearchState
@@ -76,23 +77,17 @@ data SearchState a = SearchState
 
 data AppMode a = NormalMode | SearchMode deriving (Eq)
 
-data TasksState a = TasksState
-  { _fileState :: FileState a
-  , _currentView :: V.Vector TaskPointer
-  , _compactView :: CompactView
-  , _currentTask :: Maybe Int -- Index of a currently focused task in a view
-  }
-  deriving (Show)
-
 data CompactView = CompactView
   { _compactViewTaskStartIndex :: Int
   , _compactViewTasksEndIndex :: Int
+  , _cursor :: Maybe Int -- Index of a currently focused task in a view
+  , _currentView :: V.Vector TaskPointer
   }
   deriving (Show)
 
 data UndoState a = UndoState
-  { _undoStack :: [TasksState a]
-  , _redoStack :: [TasksState a]
+  { _undoStack :: [FileState a]
+  , _redoStack :: [FileState a]
   }
   deriving (Show)
 
@@ -141,30 +136,26 @@ makeLenses ''AppConfig
 makeLenses ''ErrorDialog
 makeLenses ''KeyBinding
 makeLenses ''KeyPress
-makeLenses ''TasksState
 makeLenses ''UndoState
 makeLenses ''CompactView
 makeLenses ''SearchState
 
-tasksStateLens :: Lens' (AppContext a) (TasksState a)
-tasksStateLens = appState . tasksState
-
-currentCursorLens :: Lens' (AppContext a) (Maybe Int)
-currentCursorLens = tasksStateLens . currentTask
+cursorLens :: Lens' (AppContext a) (Maybe Int)
+cursorLens = appState . compactView . cursor
 
 currentViewLens :: Lens' (AppContext a) (V.Vector TaskPointer)
-currentViewLens = tasksStateLens . currentView
+currentViewLens = appState . compactView . currentView
 
 compactViewLens :: Lens' (AppContext a) CompactView
-compactViewLens = tasksStateLens . compactView
+compactViewLens = appState . compactView
 
 fileStateLens :: Lens' (AppContext a) (FileState a)
-fileStateLens = tasksStateLens . fileState
+fileStateLens = appState . fileState
 
-undoStackLens :: Lens' (AppContext a) [TasksState a]
+undoStackLens :: Lens' (AppContext a) [FileState a]
 undoStackLens = appState . undoState . undoStack
 
-redoStackLens :: Lens' (AppContext a) [TasksState a]
+redoStackLens :: Lens' (AppContext a) [FileState a]
 redoStackLens = appState . undoState . redoStack
 
 taskBy :: TaskPointer -> Traversal' (FileState a) a
@@ -176,7 +167,7 @@ taskBy ptr =
 
 currentTaskLens :: Traversal' (AppContext a) a
 currentTaskLens f ctx =
-  case (view currentCursorLens ctx, view currentViewLens ctx) of
+  case (view cursorLens ctx, view currentViewLens ctx) of
     (Just i, cv)
       | i >= 0
       , i < length cv ->
@@ -192,7 +183,7 @@ currentTaskLens f ctx =
 
 currentTaskPtr :: Traversal' (AppContext a) TaskPointer
 currentTaskPtr f ctx =
-  case (view currentCursorLens ctx, view currentViewLens ctx) of
+  case (view cursorLens ctx, view currentViewLens ctx) of
     (Just i, cv)
       | i >= 0
       , i < length cv ->
