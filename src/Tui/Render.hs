@@ -52,7 +52,7 @@ drawCompactSearchView ctx =
       [ padRight Max $ reportExtent CompactViewWidget compactTasks
       , hLimit 1 $ fill ' '
       , vBorder
-      , padRight Max emptyWidget
+      , padRight Max $ vBox [str $ "Number of tasks in view: " ++ show numberOfTasks, vLimit 1 $ fill '-']
       ]
   ]
  where
@@ -66,6 +66,7 @@ drawCompactSearchView ctx =
   tasks = V.catMaybes $ fmap (\p -> preview (taskBy p) fs) cv
   searchResults = maybe tasks (\q -> if T.null q then tasks else V.filter (matches q) tasks) maybeQuery
   displayedTasks = V.slice 0 (min (end - start + 1) (V.length searchResults)) searchResults
+  numberOfTasks = V.length searchResults
   compactTasks =
     if V.length displayedTasks == 0
       then fill ' '
@@ -78,7 +79,7 @@ drawCompactListView ctx =
       [ padRight Max $ reportExtent CompactViewWidget compactTasks
       , hLimit 1 $ fill ' '
       , vBorder
-      , padRight Max maybeFocusedTask
+      , padRight Max $ vBox [str $ "Number of tasks in view: " ++ show numberOfTasks, vLimit 1 $ fill '-', maybeFocusedTask]
       ]
   ]
  where
@@ -86,6 +87,7 @@ drawCompactListView ctx =
   start = view compactViewTaskStartIndex compView
   end = view compactViewTasksEndIndex compView
   taskPointers = V.slice start (end - start + 1) (view currentViewLens ctx)
+  numberOfTasks = V.length (view currentViewLens ctx)
 
   fs = view fileStateLens ctx
   compactTasks = vBox $ V.toList (V.mapMaybe renderTask taskPointers) ++ [padBottom Max (fill ' ')]
