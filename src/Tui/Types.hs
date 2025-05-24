@@ -83,6 +83,7 @@ data SearchState a = SearchState
 
 data AppMode a = NormalMode | SearchMode deriving (Eq)
 
+-- TODO: store a function that rebuilds this view and map it to 'r'
 data CompactView = CompactView
   { _compactViewTaskStartIndex :: Int
   , _compactViewTasksEndIndex :: Int
@@ -109,7 +110,7 @@ data TaskPointer = TaskPointer
   }
   deriving (Eq, Show)
 
-data AppEvent = Error String | SaveAllFiles deriving (Eq)
+data AppEvent = Error String | SaveAllFiles | QuitApp deriving (Eq)
 
 data DialogResult = DialogOK deriving (Eq)
 

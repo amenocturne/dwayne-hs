@@ -91,6 +91,7 @@ handleEvent (AppEvent event) = case event of
     let files = M.toList $ view fileStateLens ctx
     let saveFiles = traverse (uncurry writeTaskFile) files
     when (view (config . autoSave) ctx) $ void $ liftIO saveFiles
+  QuitApp -> halt
 handleEvent _ = return ()
 
 writeTaskFile :: (Writer a) => FilePath -> ParserResult a -> IO ()

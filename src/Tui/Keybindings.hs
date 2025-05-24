@@ -197,6 +197,11 @@ todoKeywordFilter keyword task = view todoKeyword task == keyword
 saveAll :: GlobalAppState a
 saveAll = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ctx) SaveAllFiles
 
+-- NOTE: this is a hack not to call `halt` immidiately so that it processes all
+-- other events in the channel first, for e.g. saving files
+quit :: GlobalAppState a
+quit = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ctx) QuitApp
+
 ----------------------- Bindings ----------------------------
 
 errorDialogKeyContext :: AppContext a -> Bool
@@ -282,7 +287,11 @@ normalModeBindings =
     normalBinding SwitchToSearchMode '/' "Switch to search mode" $ modify $ switchMode SearchMode
   , -- Movement
     normalBinding MoveUp 'k' "Move up" $ adjustCursor (\i -> i - 1)
+  , normalBinding MoveUp KUp "Move up" $ adjustCursor (\i -> i - 1)
+
   , normalBinding MoveDown 'j' "Move down" $ adjustCursor (+ 1)
+  , normalBinding MoveDown KDown "Move down" $ adjustCursor (+ 1)
+
   , normalBinding JumpEnd 'G' "Jump to the end" $ saveForJump $ adjustCursor (const maxBound)
   , normalBinding JumpBeginning (toKeySeq "gg") "Jump to the end" $ saveForJump $ adjustCursor (const 0)
   , normalBinding JumpBackward (withMod 'o' MCtrl) "Jump backward" $ modify jumpBack
@@ -316,8 +325,8 @@ normalModeBindings =
   , changeViewKeywordBinding "DONE" " ad"
   , changeViewKeywordBinding "TRASH" " ax"
   , -- Other
-    normalBinding Quit (toKey 'q') "Quit" halt
+    normalBinding Quit (toKey 'q') "Quit" $ saveAll >> quit
   , normalBinding EditInEditor (toKey KEnter) "Edit in editor" $ saveForUndo editSelectedTaskInEditor
   , -- Saving Files
-    normalBinding SaveAll 's' "Save all" saveAll
+    normalBinding SaveAll (withMod 's' MShift) "Save all" saveAll
   ]
