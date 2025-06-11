@@ -27,17 +27,6 @@ import TextUtils
 
 ------------------------------- Title Line -------------------------------------
 
--- TODO: when in the description first word is bold in markdown format like:
--- ```
-
--- ** word** some more text
-
--- ```
--- Then it parses it as start of the task, which is bad, should resolve that
---
--- TODO: Some tasks have description and then properties, should create separate
--- script to make them follow proper format
-
 taskLevelParser :: Parser Int
 taskLevelParser = failOnConditionParser parser (<= 0) errorMsg
  where

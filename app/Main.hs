@@ -8,8 +8,6 @@
 
 module Main (main) where
 
--- TODO: Should handle external edits to files when the app is opened and update its state correctly
-
 -- import qualified Control.Lens as L
 -- import Data.Text as T
 -- import Data.Text.Internal.Search as T
