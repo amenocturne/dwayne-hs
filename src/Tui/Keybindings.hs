@@ -144,39 +144,28 @@ changeTodoKeyword keyword = over (currentTaskLens . todoKeyword) (const keyword)
 switchMode :: AppMode a -> AppContext a -> AppContext a
 switchMode mode = over (appState . appMode) (const mode)
 
-abortSearch :: AppContext a -> AppContext a
-abortSearch = set (appState . searchState) Nothing
-
 abortCmd :: AppContext a -> AppContext a
-abortCmd = set (appState . cmdState) Nothing
+abortCmd = switchMode NormalMode . set (appState . cmdState) Nothing
 
 removeLastIfExists :: T.Text -> T.Text
 removeLastIfExists t
   | T.null t = t -- Return unchanged if empty
   | otherwise = T.dropEnd 1 t
 
-searchDeleteChar :: AppContext a -> AppContext a
-searchDeleteChar ctx = f ctx
- where
-  input = preview (appState . searchState . _Just . searchInput) ctx
-  f = case fmap T.null input of
-    Just False -> over (appState . searchState . _Just . searchInput) removeLastIfExists
-    _ -> switchMode NormalMode . set (appState . searchState) Nothing
-
 cmdDeleteChar :: AppContext a -> AppContext a
 cmdDeleteChar ctx =
   case view (appState . cmdState) ctx of
-    Just (TypingCmd input) | not (T.null input) ->
-      over (appState . cmdState) (\_ -> Just (TypingCmd (removeLastIfExists input))) ctx
+    Just (Typing prefix input)
+      | not (T.null input) ->
+          over (appState . cmdState) (\_ -> Just (Typing prefix (removeLastIfExists input))) ctx
     _ ->
       (switchMode NormalMode . set (appState . cmdState) Nothing) ctx
 
-applySearch :: (Searcher a) => AppContext a -> AppContext a
-applySearch ctx =
+applySearch :: (Searcher a) => T.Text -> AppContext a -> AppContext a
+applySearch query ctx =
   ( set currentViewLens newView
       . set cursorLens newCurTask
       . cleanCompactView
-      . abortSearch
   )
     ctx
  where
@@ -186,26 +175,31 @@ applySearch ctx =
   cleanCompactView = set (compactViewLens . compactViewTaskStartIndex) 0 . set (compactViewLens . compactViewTasksEndIndex) (min (V.length newView - 1) (end - start + 1))
   oldView = view currentViewLens ctx
   fs = view fileStateLens ctx
-  maybeQuery = preview (appState . searchState . _Just . searchInput) ctx
   ptrToMatch q ptr = maybe False (matches q) (preview (taskBy ptr) fs)
-  (newCurTask, newView) = case fmap (\q -> V.filter (ptrToMatch q) oldView) maybeQuery of
-    Just nv -> if V.length nv > 0 then (Just 0, nv) else (Nothing, nv)
-    Nothing -> (view cursorLens ctx, oldView)
+  (newCurTask, newView) =
+    let nv = V.filter (ptrToMatch query) oldView
+     in if V.length nv > 0 then (Just 0, nv) else (Nothing, nv)
 
-executeCommand :: GlobalAppState a
+executeCommand :: (Searcher a, Writer a, Show a) => GlobalAppState a
 executeCommand = do
   ctx <- get
   case view (appState . cmdState) ctx of
-    Just (TypingCmd cmd) ->
-      case T.strip cmd of
-        "w" -> do
-          saveAll
-          let filesSavedCount = M.size $ view fileStateLens ctx
-          let msg = T.pack $ show filesSavedCount <> if filesSavedCount == 1 then " file written" else " files written"
-          modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
-        unknown -> do
-          let msg = "E492: Not an editor command: " <> unknown
-          modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
+    Just (Typing prefix cmd) ->
+      case prefix of
+        ":" -> do
+          case T.strip cmd of
+            "w" -> do
+              saveAll
+              let filesSavedCount = M.size $ view fileStateLens ctx
+              let msg = T.pack $ show filesSavedCount <> if filesSavedCount == 1 then " file written" else " files written"
+              modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
+            unknown -> do
+              let msg = "E492: Not an editor command: " <> unknown
+              modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
+        "/" -> do
+          saveForJump $ modify (applySearch (T.strip cmd))
+          modify $ switchMode NormalMode . set (appState . cmdState) Nothing
+        _ -> modify $ switchMode NormalMode . set (appState . cmdState) Nothing -- Or show error
     _ -> return ()
 
 applyFilterToAllTasks :: (a -> Bool) -> GlobalAppState a
@@ -298,9 +292,6 @@ instance ToBinding (NonEmpty KeyPress) where
 normalBinding :: (ToBinding k) => KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
 normalBinding = toBinding NormalMode
 
-searchBinding :: (ToBinding k) => KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
-searchBinding = toBinding SearchMode
-
 cmdBinding :: (ToBinding k) => KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
 cmdBinding = toBinding CmdMode
 
@@ -309,18 +300,14 @@ normalModeBindings =
   [ --------------------------------- Error Dialog -----------------------------
     KeyBinding ErrorDialogQuit (toKey KEsc) "Quit error dialog" proceedInErrorDialog errorDialogKeyContext
   , KeyBinding ErrorDialogAccept (toKey KEnter) "Accept selected option" proceedInErrorDialog errorDialogKeyContext
-  , --------------------------------- Search Mode -----------------------------
-    searchBinding AbortSearch (toKey KEsc) "Abort search" $ modify $ abortSearch . switchMode NormalMode
-  , searchBinding SearchDeleteChar (toKey KBS) "Delete char" $ modify searchDeleteChar
-  , searchBinding ApplySearch (toKey KEnter) "Apply search results" $ saveForJump $ modify (applySearch . switchMode NormalMode)
   , --------------------------------- Cmd Mode --------------------------------
-    cmdBinding AbortCmd (toKey KEsc) "Abort command" $ modify $ abortCmd . switchMode NormalMode
+    cmdBinding AbortCmd (toKey KEsc) "Abort command" $ modify abortCmd
   , cmdBinding CmdDeleteChar (toKey KBS) "Delete char" $ modify cmdDeleteChar
   , cmdBinding ApplyCmd (toKey KEnter) "Execute command" executeCommand
   , --------------------------------- Normal Mode -----------------------------
     -- Mode switching
-    normalBinding SwitchToSearchMode '/' "Switch to search mode" $ modify $ switchMode SearchMode
-  , normalBinding SwitchToCmdMode ':' "Switch to command mode" $ modify $ \ctx -> (switchMode CmdMode . set (appState . cmdState) (Just $ TypingCmd T.empty)) ctx
+    normalBinding SwitchToSearchMode '/' "Switch to search mode" $ modify $ \ctx -> (switchMode CmdMode . set (appState . cmdState) (Just $ Typing "/" T.empty)) ctx
+  , normalBinding SwitchToCmdMode ':' "Switch to command mode" $ modify $ \ctx -> (switchMode CmdMode . set (appState . cmdState) (Just $ Typing ":" T.empty)) ctx
   , -- Movement
     normalBinding MoveUp 'k' "Move up" $ adjustCursor (\i -> i - 1)
   , normalBinding MoveUp KUp "Move up" $ adjustCursor (\i -> i - 1)

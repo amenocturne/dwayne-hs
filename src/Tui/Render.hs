@@ -12,7 +12,7 @@ import Tui.Types
 
 import Brick.Widgets.Border (vBorder)
 import Brick.Widgets.Dialog (renderDialog)
-import Data.Maybe (fromMaybe, maybeToList)
+import Data.Maybe (maybeToList)
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Searcher.Searcher
@@ -30,43 +30,37 @@ theAppAttrMap =
 drawUI :: (RenderTask a Name, Searcher a) => AppContext a -> [Widget Name]
 drawUI ctx =
   let mainLayers = case view (appState . appMode) ctx of
-        NormalMode -> drawCompactListView True ctx
-        SearchMode ->
-          let searchQuery = fromMaybe T.empty (preview (appState . searchState . _Just . searchInput) ctx)
-              maybeSearchWidget =
-                if view (appState . appMode) ctx == SearchMode
-                  then Just $ searchWidget searchQuery
-                  else Nothing
-           in [vBox $ drawCompactSearchView ctx ++ maybeToList maybeSearchWidget]
+        NormalMode -> [drawCompactListView True ctx]
         CmdMode ->
           let cmdW = case view (appState . cmdState) ctx of
-                Just (TypingCmd q) -> cmdWidget q
+                Just (Typing p q) -> cmdWidget p q
                 Just (ShowingMessage m) -> messageWidget m
                 Nothing -> emptyWidget
-           in [vBox $ drawCompactListView False ctx ++ [cmdW]]
+              mainView = case view (appState . cmdState) ctx of
+                Just (Typing "/" q) -> drawCompactSearchView q ctx
+                _ -> drawCompactListView False ctx
+           in [vBox [mainView, cmdW]]
    in case view (appState . errorDialog) ctx of
         Just dlg -> renderDialog (view edDialog dlg) (strWrap $ view edMessage dlg) : mainLayers
         Nothing -> mainLayers
 
-drawCompactSearchView :: (RenderTask a Name, Searcher a) => AppContext a -> [Widget Name]
-drawCompactSearchView ctx =
-  [ hBox
-      [ padRight Max $ reportExtent CompactViewWidget compactTasks
-      , hLimit 1 $ fill ' '
-      , vBorder
-      , padRight Max $ vBox [str $ "Number of tasks in view: " ++ show numberOfTasks, vLimit 1 $ fill '-']
-      ]
-  ]
+drawCompactSearchView :: (RenderTask a Name, Searcher a) => T.Text -> AppContext a -> Widget Name
+drawCompactSearchView query ctx =
+  hBox
+    [ padRight Max $ reportExtent CompactViewWidget compactTasks
+    , hLimit 1 $ fill ' '
+    , vBorder
+    , padRight Max $ vBox [str $ "Number of tasks in view: " ++ show numberOfTasks, vLimit 1 $ fill '-']
+    ]
  where
   compView = view compactViewLens ctx
   start = view compactViewTaskStartIndex compView
   end = view compactViewTasksEndIndex compView
 
-  maybeQuery = preview (appState . searchState . _Just . searchInput) ctx
   cv = view currentViewLens ctx
   fs = view fileStateLens ctx
   tasks = V.catMaybes $ fmap (\p -> preview (taskBy p) fs) cv
-  searchResults = maybe tasks (\q -> if T.null q then tasks else V.filter (matches q) tasks) maybeQuery
+  searchResults = if T.null query then tasks else V.filter (matches query) tasks
   displayedTasks = V.slice 0 (min (end - start + 1) (V.length searchResults)) searchResults
   numberOfTasks = V.length searchResults
   compactTasks =
@@ -75,15 +69,14 @@ drawCompactSearchView ctx =
       else
         vBox $ V.toList (V.map R.renderCompact displayedTasks) ++ [padBottom Max (fill ' ')]
 
-drawCompactListView :: (RenderTask a Name) => Bool -> AppContext a -> [Widget Name]
+drawCompactListView :: (RenderTask a Name) => Bool -> AppContext a -> Widget Name
 drawCompactListView withPadding ctx =
-  [ hBox
-      [ padRight Max $ reportExtent CompactViewWidget compactTasks
-      , hLimit 1 $ fill ' '
-      , vBorder
-      , padRight Max $ vBox [str $ "Number of tasks in view: " ++ show numberOfTasks, vLimit 1 $ fill '-', maybeFocusedTask]
-      ]
-  ]
+  hBox
+    [ padRight Max $ reportExtent CompactViewWidget compactTasks
+    , hLimit 1 $ fill ' '
+    , vBorder
+    , padRight Max $ vBox [str $ "Number of tasks in view: " ++ show numberOfTasks, vLimit 1 $ fill '-', maybeFocusedTask]
+    ]
  where
   compView = view compactViewLens ctx
   start = view compactViewTaskStartIndex compView
@@ -101,11 +94,8 @@ drawCompactListView withPadding ctx =
    where
     renderedTask = fmap R.renderCompact (preview (taskBy ptr) fs)
 
-searchWidget :: T.Text -> Widget Name
-searchWidget query = vLimit 1 $ hBox [str "/", txt query]
-
-cmdWidget :: T.Text -> Widget Name
-cmdWidget query = vLimit 1 $ showCursor CmdWidget (Location (T.length query + 1, 0)) (txt (":" <> query <> " "))
+cmdWidget :: T.Text -> T.Text -> Widget Name
+cmdWidget prefix query = vLimit 1 $ showCursor CmdWidget (Location (T.length prefix + T.length query, 0)) (txt (prefix <> query <> " "))
 
 messageWidget :: T.Text -> Widget Name
 messageWidget msg = vLimit 1 $ txt msg

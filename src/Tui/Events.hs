@@ -19,7 +19,6 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Data.Time (diffUTCTime, getCurrentTime)
 import Data.Time.Clock (UTCTime)
-import qualified Data.Vector as V
 import Parser.Parser
 import Writer.OrgWriter ()
 import Writer.Writer
@@ -61,16 +60,10 @@ handleNormalModeInput key mods = do
           Nothing -> modify $ set (appState . keyState) (KeysPressed l now)
           Just x -> cleanKeyState >> view keyAction x
 
-handleSearchInput :: Char -> GlobalAppState a
-handleSearchInput c = modify $ over (appState . searchState) (Just . maybe initSS appendC)
- where
-  appendC = over searchInput (`T.snoc` c)
-  initSS = SearchState (T.singleton c) V.empty
-
 handleCmdInput :: Char -> GlobalAppState a
 handleCmdInput c = modify $ over (appState . cmdState) (fmap appendC)
  where
-  appendC (TypingCmd t) = TypingCmd (t `T.snoc` c)
+  appendC (Typing p t) = Typing p (t `T.snoc` c)
   appendC other = other
 
 handleEvent :: (Writer a, Show a) => BrickEvent Name AppEvent -> GlobalAppState a
@@ -82,8 +75,6 @@ handleEvent (VtyEvent (EvKey key mods)) = do
     _ ->
       case (view (appState . appMode) ctx, key) of
         (NormalMode, _) -> handleNormalModeInput key mods
-        (SearchMode, KChar c) -> handleSearchInput c
-        (SearchMode, _) -> handleNormalModeInput key mods
         (CmdMode, KChar c) -> handleCmdInput c
         (CmdMode, _) -> handleNormalModeInput key mods
 handleEvent (AppEvent event) = case event of

@@ -43,13 +43,9 @@ data KeyEvent
   | -- Error dialog
     ErrorDialogQuit
   | ErrorDialogAccept
-  | -- Searching
+  | -- Command/Search mode
     SwitchToSearchMode
-  | AbortSearch
-  | SearchDeleteChar
-  | ApplySearch
-  | -- Command mode
-    SwitchToCmdMode
+  | SwitchToCmdMode
   | AbortCmd
   | CmdDeleteChar
   | ApplyCmd
@@ -76,23 +72,17 @@ data AppState a = AppState
   , _errorDialog :: Maybe ErrorDialog
   , _keyState :: KeyState
   , _appMode :: AppMode a
-  , _searchState :: Maybe (SearchState a)
   , _cmdState :: Maybe CmdState
   , _compactView :: LinearHistory CompactView
   , _fileState :: LinearHistory (FileState a)
   }
 
-data SearchState a = SearchState
-  { _searchInput :: T.Text
-  , _searchResult :: V.Vector a
-  }
-
 data CmdState
-  = TypingCmd T.Text
+  = Typing {_cmdPrefix :: T.Text, _cmdInput :: T.Text}
   | ShowingMessage T.Text
   deriving (Eq, Show)
 
-data AppMode a = NormalMode | SearchMode | CmdMode deriving (Eq)
+data AppMode a = NormalMode | CmdMode deriving (Eq)
 
 -- TODO: store a function that rebuilds this view and map it to 'r'
 data CompactView = CompactView
@@ -149,7 +139,7 @@ makeLenses ''ErrorDialog
 makeLenses ''KeyBinding
 makeLenses ''KeyPress
 makeLenses ''CompactView
-makeLenses ''SearchState
+makeLenses ''CmdState
 
 cursorLens :: Lens' (AppContext a) (Maybe Int)
 cursorLens = appState . compactView . currentState . cursor

@@ -54,7 +54,6 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a) => Tui a where
             , _errorDialog = Nothing
             , _keyState = NoInput
             , _appMode = NormalMode
-            , _searchState = Nothing
             , _cmdState = Nothing
             , _compactView =
                 initLinearHistory
