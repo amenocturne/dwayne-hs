@@ -155,9 +155,9 @@ removeLastIfExists t
 cmdDeleteChar :: AppContext a -> AppContext a
 cmdDeleteChar ctx =
   case view (appState . cmdState) ctx of
-    Just (Typing prefix input)
+    Just (Typing cmdType input)
       | not (T.null input) ->
-          over (appState . cmdState) (\_ -> Just (Typing prefix (removeLastIfExists input))) ctx
+          over (appState . cmdState) (\_ -> Just (Typing cmdType (removeLastIfExists input))) ctx
     _ ->
       (switchMode NormalMode . set (appState . cmdState) Nothing) ctx
 
@@ -184,9 +184,9 @@ executeCommand :: (Searcher a, Writer a, Show a) => GlobalAppState a
 executeCommand = do
   ctx <- get
   case view (appState . cmdState) ctx of
-    Just (Typing prefix cmd) ->
-      case prefix of
-        ":" -> do
+    Just (Typing cmdType cmd) ->
+      case cmdType of
+        Command -> do
           case T.strip cmd of
             "w" -> do
               saveAll
@@ -196,10 +196,9 @@ executeCommand = do
             unknown -> do
               let msg = "E492: Not an editor command: " <> unknown
               modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
-        "/" -> do
+        Search -> do
           saveForJump $ modify (applySearch (T.strip cmd))
           modify $ switchMode NormalMode . set (appState . cmdState) Nothing
-        _ -> modify $ switchMode NormalMode . set (appState . cmdState) Nothing -- Or show error
     _ -> return ()
 
 applyFilterToAllTasks :: (a -> Bool) -> GlobalAppState a
@@ -306,8 +305,8 @@ normalModeBindings =
   , cmdBinding ApplyCmd (toKey KEnter) "Execute command" executeCommand
   , --------------------------------- Normal Mode -----------------------------
     -- Mode switching
-    normalBinding SwitchToSearchMode '/' "Switch to search mode" $ modify $ \ctx -> (switchMode CmdMode . set (appState . cmdState) (Just $ Typing "/" T.empty)) ctx
-  , normalBinding SwitchToCmdMode ':' "Switch to command mode" $ modify $ \ctx -> (switchMode CmdMode . set (appState . cmdState) (Just $ Typing ":" T.empty)) ctx
+    normalBinding SwitchToSearchMode '/' "Switch to search mode" $ modify $ \ctx -> (switchMode CmdMode . set (appState . cmdState) (Just $ Typing Search T.empty)) ctx
+  , normalBinding SwitchToCmdMode ':' "Switch to command mode" $ modify $ \ctx -> (switchMode CmdMode . set (appState . cmdState) (Just $ Typing Command T.empty)) ctx
   , -- Movement
     normalBinding MoveUp 'k' "Move up" $ adjustCursor (\i -> i - 1)
   , normalBinding MoveUp KUp "Move up" $ adjustCursor (\i -> i - 1)

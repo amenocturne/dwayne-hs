@@ -33,11 +33,11 @@ drawUI ctx =
         NormalMode -> [drawCompactListView True ctx]
         CmdMode ->
           let cmdW = case view (appState . cmdState) ctx of
-                Just (Typing p q) -> cmdWidget p q
+                Just (Typing t q) -> cmdWidget t q
                 Just (ShowingMessage m) -> messageWidget m
                 Nothing -> emptyWidget
               mainView = case view (appState . cmdState) ctx of
-                Just (Typing "/" q) -> drawCompactSearchView q ctx
+                Just (Typing Search q) -> drawCompactSearchView q ctx
                 _ -> drawCompactListView False ctx
            in [vBox [mainView, cmdW]]
    in case view (appState . errorDialog) ctx of
@@ -94,8 +94,14 @@ drawCompactListView withPadding ctx =
    where
     renderedTask = fmap R.renderCompact (preview (taskBy ptr) fs)
 
-cmdWidget :: T.Text -> T.Text -> Widget Name
-cmdWidget prefix query = vLimit 1 $ showCursor CmdWidget (Location (T.length prefix + T.length query, 0)) (txt (prefix <> query <> " "))
+cmdTypeToPrefix :: CmdType -> T.Text
+cmdTypeToPrefix Command = ":"
+cmdTypeToPrefix Search = "/"
+
+cmdWidget :: CmdType -> T.Text -> Widget Name
+cmdWidget cmdType query =
+  let prefix = cmdTypeToPrefix cmdType
+   in vLimit 1 $ showCursor CmdWidget (Location (T.length prefix + T.length query, 0)) (txt (prefix <> query <> " "))
 
 messageWidget :: T.Text -> Widget Name
 messageWidget msg = vLimit 1 $ txt msg

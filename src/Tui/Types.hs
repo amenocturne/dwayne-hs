@@ -77,8 +77,10 @@ data AppState a = AppState
   , _fileState :: LinearHistory (FileState a)
   }
 
+data CmdType = Command | Search deriving (Eq, Show)
+
 data CmdState
-  = Typing {_cmdPrefix :: T.Text, _cmdInput :: T.Text}
+  = Typing {_cmdType :: CmdType, _cmdInput :: T.Text}
   | ShowingMessage T.Text
   deriving (Eq, Show)
 

@@ -63,7 +63,7 @@ handleNormalModeInput key mods = do
 handleCmdInput :: Char -> GlobalAppState a
 handleCmdInput c = modify $ over (appState . cmdState) (fmap appendC)
  where
-  appendC (Typing p t) = Typing p (t `T.snoc` c)
+  appendC (Typing cmdType input) = Typing cmdType (input `T.snoc` c)
   appendC other = other
 
 handleEvent :: (Writer a, Show a) => BrickEvent Name AppEvent -> GlobalAppState a
