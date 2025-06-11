@@ -29,22 +29,22 @@ theAppAttrMap =
 
 drawUI :: (RenderTask a Name, Searcher a) => AppContext a -> [Widget Name]
 drawUI ctx =
-  case view (appState . appMode) ctx of
-    NormalMode ->
-      let mainLayers = drawCompactListView ctx
-       in case view (appState . errorDialog) ctx of
-            Just dlg -> renderDialog (view edDialog dlg) (strWrap $ view edMessage dlg) : mainLayers
-            Nothing -> mainLayers
-    SearchMode ->
-      let searchQuery = fromMaybe T.empty (preview (appState . searchState . _Just . searchInput) ctx)
-          maybeSearchWidget =
-            if view (appState . appMode) ctx == SearchMode
-              then Just $ searchWidget searchQuery
-              else Nothing
-          mainLayers = [vBox $ drawCompactSearchView ctx ++ maybeToList maybeSearchWidget]
-       in case view (appState . errorDialog) ctx of
-            Just dlg -> renderDialog (view edDialog dlg) (strWrap $ view edMessage dlg) : mainLayers
-            Nothing -> mainLayers
+  let mainLayers = case view (appState . appMode) ctx of
+        NormalMode -> drawCompactListView True ctx
+        SearchMode ->
+          let searchQuery = fromMaybe T.empty (preview (appState . searchState . _Just . searchInput) ctx)
+              maybeSearchWidget =
+                if view (appState . appMode) ctx == SearchMode
+                  then Just $ searchWidget searchQuery
+                  else Nothing
+           in [vBox $ drawCompactSearchView ctx ++ maybeToList maybeSearchWidget]
+        CmdMode ->
+          let cmdQuery = fromMaybe T.empty (preview (appState . cmdState . _Just . cmdInput) ctx)
+              cmdW = cmdWidget cmdQuery
+           in [vBox $ drawCompactListView False ctx ++ [cmdW]]
+   in case view (appState . errorDialog) ctx of
+        Just dlg -> renderDialog (view edDialog dlg) (strWrap $ view edMessage dlg) : mainLayers
+        Nothing -> mainLayers
 
 drawCompactSearchView :: (RenderTask a Name, Searcher a) => AppContext a -> [Widget Name]
 drawCompactSearchView ctx =
@@ -73,8 +73,8 @@ drawCompactSearchView ctx =
       else
         vBox $ V.toList (V.map R.renderCompact displayedTasks) ++ [padBottom Max (fill ' ')]
 
-drawCompactListView :: (RenderTask a Name) => AppContext a -> [Widget Name]
-drawCompactListView ctx =
+drawCompactListView :: (RenderTask a Name) => Bool -> AppContext a -> [Widget Name]
+drawCompactListView withPadding ctx =
   [ hBox
       [ padRight Max $ reportExtent CompactViewWidget compactTasks
       , hLimit 1 $ fill ' '
@@ -90,7 +90,8 @@ drawCompactListView ctx =
   numberOfTasks = V.length (view currentViewLens ctx)
 
   fs = view fileStateLens ctx
-  compactTasks = vBox $ V.toList (V.mapMaybe renderTask taskPointers) ++ [padBottom Max (fill ' ')]
+  padding = if withPadding then [padBottom Max (fill ' ')] else []
+  compactTasks = vBox $ V.toList (V.mapMaybe renderTask taskPointers) ++ padding
   maybeFocusedTask = maybe emptyWidget R.renderFull (preview currentTaskLens ctx)
   selectedTaskPtr = preview currentTaskPtr ctx
 
@@ -100,3 +101,6 @@ drawCompactListView ctx =
 
 searchWidget :: T.Text -> Widget Name
 searchWidget query = vLimit 1 $ hBox [str "/", txt query]
+
+cmdWidget :: T.Text -> Widget Name
+cmdWidget query = vLimit 1 $ showCursor CmdWidget (Location (T.length query + 1, 0)) (txt (":" <> query <> " "))

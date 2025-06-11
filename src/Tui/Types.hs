@@ -48,11 +48,16 @@ data KeyEvent
   | AbortSearch
   | SearchDeleteChar
   | ApplySearch
+  | -- Command mode
+    SwitchToCmdMode
+  | AbortCmd
+  | CmdDeleteChar
+  | ApplyCmd
   -- Views
   | View T.Text
   deriving (Eq, Show, Ord)
 
-data Name = CompactViewWidget deriving (Eq, Ord, Show)
+data Name = CompactViewWidget | CmdWidget deriving (Eq, Ord, Show)
 
 type FileState a = M.Map String (ParserResult (TaskFile a))
 
@@ -72,6 +77,7 @@ data AppState a = AppState
   , _keyState :: KeyState
   , _appMode :: AppMode a
   , _searchState :: Maybe (SearchState a)
+  , _cmdState :: Maybe CmdState
   , _compactView :: LinearHistory CompactView
   , _fileState :: LinearHistory (FileState a)
   }
@@ -81,7 +87,12 @@ data SearchState a = SearchState
   , _searchResult :: V.Vector a
   }
 
-data AppMode a = NormalMode | SearchMode deriving (Eq)
+data CmdState = CmdState
+  { _cmdInput :: T.Text
+  }
+  deriving (Eq, Show)
+
+data AppMode a = NormalMode | SearchMode | CmdMode deriving (Eq)
 
 -- TODO: store a function that rebuilds this view and map it to 'r'
 data CompactView = CompactView
@@ -139,6 +150,7 @@ makeLenses ''KeyBinding
 makeLenses ''KeyPress
 makeLenses ''CompactView
 makeLenses ''SearchState
+makeLenses ''CmdState
 
 cursorLens :: Lens' (AppContext a) (Maybe Int)
 cursorLens = appState . compactView . currentState . cursor

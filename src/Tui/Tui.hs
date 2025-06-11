@@ -55,6 +55,7 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a) => Tui a where
             , _keyState = NoInput
             , _appMode = NormalMode
             , _searchState = Nothing
+            , _cmdState = Nothing
             , _compactView =
                 initLinearHistory
                   CompactView
@@ -73,7 +74,7 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a) => Tui a where
     let app =
           App
             { appDraw = drawUI -- List in type signature because each element is a layer and thus you can put widgets on top of one another
-            , appChooseCursor = neverShowCursor
+            , appChooseCursor = showFirstCursor
             , appHandleEvent = handleEvent
             , appStartEvent = return ()
             , appAttrMap = const theAppAttrMap

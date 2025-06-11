@@ -67,6 +67,12 @@ handleSearchInput c = modify $ over (appState . searchState) (Just . maybe initS
   appendC = over searchInput (`T.snoc` c)
   initSS = SearchState (T.singleton c) V.empty
 
+handleCmdInput :: Char -> GlobalAppState a
+handleCmdInput c = modify $ over (appState . cmdState) (Just . maybe initCS appendC)
+ where
+  appendC = over cmdInput (`T.snoc` c)
+  initCS = CmdState (T.singleton c)
+
 handleEvent :: (Writer a, Show a) => BrickEvent Name AppEvent -> GlobalAppState a
 handleEvent (VtyEvent (EvKey key mods)) = do
   ctx <- get
@@ -74,6 +80,8 @@ handleEvent (VtyEvent (EvKey key mods)) = do
     (NormalMode, _) -> handleNormalModeInput key mods
     (SearchMode, KChar c) -> handleSearchInput c
     (SearchMode, _) -> handleNormalModeInput key mods
+    (CmdMode, KChar c) -> handleCmdInput c
+    (CmdMode, _) -> handleNormalModeInput key mods
 handleEvent (AppEvent event) = case event of
   Error msg -> do
     let dlg =

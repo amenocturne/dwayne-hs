@@ -146,6 +146,9 @@ switchMode mode = over (appState . appMode) (const mode)
 abortSearch :: AppContext a -> AppContext a
 abortSearch = set (appState . searchState) Nothing
 
+abortCmd :: AppContext a -> AppContext a
+abortCmd = set (appState . cmdState) Nothing
+
 removeLastIfExists :: T.Text -> T.Text
 removeLastIfExists t
   | T.null t = t -- Return unchanged if empty
@@ -158,6 +161,14 @@ searchDeleteChar ctx = f ctx
   f = case fmap T.null input of
     Just False -> over (appState . searchState . _Just . searchInput) removeLastIfExists
     _ -> switchMode NormalMode . set (appState . searchState) Nothing
+
+cmdDeleteChar :: AppContext a -> AppContext a
+cmdDeleteChar ctx = f ctx
+ where
+  input = preview (appState . cmdState . _Just . cmdInput) ctx
+  f = case fmap T.null input of
+    Just False -> over (appState . cmdState . _Just . cmdInput) removeLastIfExists
+    _ -> switchMode NormalMode . set (appState . cmdState) Nothing
 
 applySearch :: (Searcher a) => AppContext a -> AppContext a
 applySearch ctx =
@@ -179,6 +190,15 @@ applySearch ctx =
   (newCurTask, newView) = case fmap (\q -> V.filter (ptrToMatch q) oldView) maybeQuery of
     Just nv -> if V.length nv > 0 then (Just 0, nv) else (Nothing, nv)
     Nothing -> (view cursorLens ctx, oldView)
+
+executeCommand :: GlobalAppState a
+executeCommand = do
+  ctx <- get
+  let maybeCmd = preview (appState . cmdState . _Just . cmdInput) ctx
+  case maybeCmd of
+    Just "w" -> saveAll
+    _ -> return () -- TODO: show error for unknown command
+  modify $ switchMode NormalMode . set (appState . cmdState) Nothing
 
 applyFilterToAllTasks :: (a -> Bool) -> GlobalAppState a
 applyFilterToAllTasks predicate = do
@@ -273,6 +293,9 @@ normalBinding = toBinding NormalMode
 searchBinding :: (ToBinding k) => KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
 searchBinding = toBinding SearchMode
 
+cmdBinding :: (ToBinding k) => KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
+cmdBinding = toBinding CmdMode
+
 normalModeBindings :: [KeyBinding Task]
 normalModeBindings =
   [ --------------------------------- Error Dialog -----------------------------
@@ -282,16 +305,19 @@ normalModeBindings =
     searchBinding AbortSearch (toKey KEsc) "Abort search" $ modify $ abortSearch . switchMode NormalMode
   , searchBinding SearchDeleteChar (toKey KBS) "Delete char" $ modify searchDeleteChar
   , searchBinding ApplySearch (toKey KEnter) "Apply search results" $ saveForJump $ modify (applySearch . switchMode NormalMode)
+  , --------------------------------- Cmd Mode --------------------------------
+    cmdBinding AbortCmd (toKey KEsc) "Abort command" $ modify $ abortCmd . switchMode NormalMode
+  , cmdBinding CmdDeleteChar (toKey KBS) "Delete char" $ modify cmdDeleteChar
+  , cmdBinding ApplyCmd (toKey KEnter) "Execute command" executeCommand
   , --------------------------------- Normal Mode -----------------------------
     -- Mode switching
     normalBinding SwitchToSearchMode '/' "Switch to search mode" $ modify $ switchMode SearchMode
+  , normalBinding SwitchToCmdMode ':' "Switch to command mode" $ modify $ switchMode CmdMode
   , -- Movement
     normalBinding MoveUp 'k' "Move up" $ adjustCursor (\i -> i - 1)
   , normalBinding MoveUp KUp "Move up" $ adjustCursor (\i -> i - 1)
-
   , normalBinding MoveDown 'j' "Move down" $ adjustCursor (+ 1)
   , normalBinding MoveDown KDown "Move down" $ adjustCursor (+ 1)
-
   , normalBinding JumpEnd 'G' "Jump to the end" $ saveForJump $ adjustCursor (const maxBound)
   , normalBinding JumpBeginning (toKeySeq "gg") "Jump to the end" $ saveForJump $ adjustCursor (const 0)
   , normalBinding JumpBackward (withMod 'o' MCtrl) "Jump backward" $ modify jumpBack
