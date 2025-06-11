@@ -39,8 +39,10 @@ drawUI ctx =
                   else Nothing
            in [vBox $ drawCompactSearchView ctx ++ maybeToList maybeSearchWidget]
         CmdMode ->
-          let cmdQuery = fromMaybe T.empty (preview (appState . cmdState . _Just . cmdInput) ctx)
-              cmdW = cmdWidget cmdQuery
+          let cmdW = case view (appState . cmdState) ctx of
+                Just (TypingCmd q) -> cmdWidget q
+                Just (ShowingMessage m) -> messageWidget m
+                Nothing -> emptyWidget
            in [vBox $ drawCompactListView False ctx ++ [cmdW]]
    in case view (appState . errorDialog) ctx of
         Just dlg -> renderDialog (view edDialog dlg) (strWrap $ view edMessage dlg) : mainLayers
@@ -104,3 +106,6 @@ searchWidget query = vLimit 1 $ hBox [str "/", txt query]
 
 cmdWidget :: T.Text -> Widget Name
 cmdWidget query = vLimit 1 $ showCursor CmdWidget (Location (T.length query + 1, 0)) (txt (":" <> query <> " "))
+
+messageWidget :: T.Text -> Widget Name
+messageWidget msg = vLimit 1 $ txt msg

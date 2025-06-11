@@ -87,9 +87,9 @@ data SearchState a = SearchState
   , _searchResult :: V.Vector a
   }
 
-data CmdState = CmdState
-  { _cmdInput :: T.Text
-  }
+data CmdState
+  = TypingCmd T.Text
+  | ShowingMessage T.Text
   deriving (Eq, Show)
 
 data AppMode a = NormalMode | SearchMode | CmdMode deriving (Eq)
@@ -150,7 +150,6 @@ makeLenses ''KeyBinding
 makeLenses ''KeyPress
 makeLenses ''CompactView
 makeLenses ''SearchState
-makeLenses ''CmdState
 
 cursorLens :: Lens' (AppContext a) (Maybe Int)
 cursorLens = appState . compactView . currentState . cursor

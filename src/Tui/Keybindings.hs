@@ -10,6 +10,7 @@ import Control.Monad (when)
 import Brick
 import qualified Brick.Types as BT
 import Control.Lens
+import qualified Data.Map.Strict as M
 import Data.Maybe (isJust)
 import qualified Data.Text as T
 import Graphics.Vty.Input.Events
@@ -163,12 +164,12 @@ searchDeleteChar ctx = f ctx
     _ -> switchMode NormalMode . set (appState . searchState) Nothing
 
 cmdDeleteChar :: AppContext a -> AppContext a
-cmdDeleteChar ctx = f ctx
- where
-  input = preview (appState . cmdState . _Just . cmdInput) ctx
-  f = case fmap T.null input of
-    Just False -> over (appState . cmdState . _Just . cmdInput) removeLastIfExists
-    _ -> switchMode NormalMode . set (appState . cmdState) Nothing
+cmdDeleteChar ctx =
+  case view (appState . cmdState) ctx of
+    Just (TypingCmd input) | not (T.null input) ->
+      over (appState . cmdState) (\_ -> Just (TypingCmd (removeLastIfExists input))) ctx
+    _ ->
+      (switchMode NormalMode . set (appState . cmdState) Nothing) ctx
 
 applySearch :: (Searcher a) => AppContext a -> AppContext a
 applySearch ctx =
@@ -194,11 +195,18 @@ applySearch ctx =
 executeCommand :: GlobalAppState a
 executeCommand = do
   ctx <- get
-  let maybeCmd = preview (appState . cmdState . _Just . cmdInput) ctx
-  case maybeCmd of
-    Just "w" -> saveAll
-    _ -> return () -- TODO: show error for unknown command
-  modify $ switchMode NormalMode . set (appState . cmdState) Nothing
+  case view (appState . cmdState) ctx of
+    Just (TypingCmd cmd) ->
+      case T.strip cmd of
+        "w" -> do
+          saveAll
+          let filesSavedCount = M.size $ view fileStateLens ctx
+          let msg = T.pack $ show filesSavedCount <> if filesSavedCount == 1 then " file written" else " files written"
+          modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
+        unknown -> do
+          let msg = "E492: Not an editor command: " <> unknown
+          modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
+    _ -> return ()
 
 applyFilterToAllTasks :: (a -> Bool) -> GlobalAppState a
 applyFilterToAllTasks predicate = do
@@ -312,7 +320,7 @@ normalModeBindings =
   , --------------------------------- Normal Mode -----------------------------
     -- Mode switching
     normalBinding SwitchToSearchMode '/' "Switch to search mode" $ modify $ switchMode SearchMode
-  , normalBinding SwitchToCmdMode ':' "Switch to command mode" $ modify $ switchMode CmdMode
+  , normalBinding SwitchToCmdMode ':' "Switch to command mode" $ modify $ \ctx -> (switchMode CmdMode . set (appState . cmdState) (Just $ TypingCmd T.empty)) ctx
   , -- Movement
     normalBinding MoveUp 'k' "Move up" $ adjustCursor (\i -> i - 1)
   , normalBinding MoveUp KUp "Move up" $ adjustCursor (\i -> i - 1)
