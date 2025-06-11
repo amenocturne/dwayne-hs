@@ -81,48 +81,51 @@ spec = do
       remainder `shouldBe` " Task"
       loc `shouldBe` Location 1 4
 
-  describe "titleAndTagsParser" $ do
-    it "parses title without tags" $ do
-      let (loc, _, result) = runParser titleAndTagsParser "Simple task title"
-      result `shouldBe` ParserSuccess ("Simple task title", [])
-      loc `shouldBe` Location 1 17
+  describe "splitToTitleAndTags" $ do
+    it "parses title without tags" $
+      splitToTitleAndTags "Simple task title" `shouldBe` ("Simple task title", [])
 
-    it "parses title with single tag" $ do
-      let (loc, _, result) = runParser titleAndTagsParser "Task with tag :work:"
-      result `shouldBe` ParserSuccess ("Task with tag", ["work"])
-      loc `shouldBe` Location 1 20
+    it "parses title with single tag" $
+      splitToTitleAndTags "Task with tag :work:" `shouldBe` ("Task with tag", ["work"])
 
-    it "parses title with multiple tags" $ do
-      let (loc, _, result) = runParser titleAndTagsParser "Task with tags :tag1:tag2:tag3:"
-      result `shouldBe` ParserSuccess ("Task with tags", ["tag1", "tag2", "tag3"])
-      loc `shouldBe` Location 1 31
+    it "parses title with multiple tags" $
+      splitToTitleAndTags "Task with tags :tag1:tag2:tag3:" `shouldBe` ("Task with tags", ["tag1", "tag2", "tag3"])
 
-    it "handles empty tag list" $ do
-      let (loc, _, result) = runParser titleAndTagsParser "Task with empty tags ::"
-      result `shouldBe` ParserSuccess ("Task with empty tags", [])
-      loc `shouldBe` Location 1 23
+    it "handles empty tag list" $
+      splitToTitleAndTags "Task with empty tags ::" `shouldBe` ("Task with empty tags", [])
 
-    it "handles tags with numbers" $ do
-      let (loc, _, result) = runParser titleAndTagsParser "Task with numbered tags :tag1:tag2:tag123:"
-      result `shouldBe` ParserSuccess ("Task with numbered tags", ["tag1", "tag2", "tag123"])
-      loc `shouldBe` Location 1 42
+    it "handles tags with numbers" $
+      splitToTitleAndTags "Task with numbered tags :tag1:tag2:tag123:" `shouldBe` ("Task with numbered tags", ["tag1", "tag2", "tag123"])
 
-    it "handles tags with underscores" $ do
-      let (loc, _, result) = runParser titleAndTagsParser "Task with underscore tags :tag_1:tag_2:"
-      result `shouldBe` ParserSuccess ("Task with underscore tags", ["tag_1", "tag_2"])
-      loc `shouldBe` Location 1 39
+    it "handles tags with underscores" $
+      splitToTitleAndTags "Task with underscore tags :tag_1:tag_2:" `shouldBe` ("Task with underscore tags", ["tag_1", "tag_2"])
 
-  -- TODO:
-  -- it "doesn't parse malformed tags" $ do
-  --   let (loc, _, result) = runParser titleAndTagsParser "Task with malformed :tag1:TAG2:"
-  --   result `shouldBe` ParserSuccess ("Task with malformed :tag1:TAG2:", [])
-  --   loc `shouldBe` Location 1 29
+    it "doesn't parse malformed tags (invalid characters)" $
+      splitToTitleAndTags "Task with malformed :tag1:TAG2:" `shouldBe` ("Task with malformed :tag1:TAG2:", [])
 
-  -- TODO:
-  -- it "handles tag-like text in the middle" $ do
-  --   let (loc, _, result) = runParser titleAndTagsParser "Task with :middle: text :tag1:tag2:"
-  --   result `shouldBe` ParserSuccess ("Task with :middle: text", ["tag1", "tag2"])
-  --   loc `shouldBe` Location 1 36
+    it "doesn't parse malformed tags (no trailing colon)" $
+      splitToTitleAndTags "Task with malformed :tag1:tag2" `shouldBe` ("Task with malformed :tag1:tag2", [])
+
+    it "handles tag-like text in the middle" $
+      splitToTitleAndTags "Task with :middle: text :tag1:tag2:" `shouldBe` ("Task with :middle: text", ["tag1", "tag2"])
+
+    it "handles title text immediately preceding tags" $
+      splitToTitleAndTags "Some text:tag1:tag2:" `shouldBe` ("Some text", ["tag1", "tag2"])
+
+    it "handles title with no space before tags" $
+      splitToTitleAndTags "Title:tag1:tag2:" `shouldBe` ("Title", ["tag1", "tag2"])
+
+    it "handles an empty string" $
+      splitToTitleAndTags "" `shouldBe` ("", [])
+
+    it "handles a string with only tags" $
+      splitToTitleAndTags ":tag1:tag2:" `shouldBe` ("", ["tag1", "tag2"])
+
+    it "handles a string with only two colons" $
+      splitToTitleAndTags "::" `shouldBe` ("", [])
+
+    it "handles a string with more than two colons" $
+      splitToTitleAndTags ":::" `shouldBe` ("", [])
 
   describe "dateTimeParserReimplemented" $ do
     it "parses simple date" $ do

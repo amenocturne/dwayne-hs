@@ -155,9 +155,6 @@ notConsumingInput (Parser runP) = Parser $ \(modLoc, str) ->
   case runP (modLoc, str) of
     (_, x) -> ((modLoc, str), x)
 
--- TODO: to fix performance with this function I can take until "\n*" and only
--- then check if it parses to title line and if not repeat this action
-
 -- consumes all and outputs all the text char by char until supplied parser succeeds
 takeUntilSucceeds :: Parser a -> Parser T.Text
 takeUntilSucceeds stop = Parser $ \(locFn, input) ->
@@ -176,9 +173,6 @@ takeUntilSucceeds stop = Parser $ \(locFn, input) ->
    in go T.empty input
  where
   runP (Parser p) = p
-
--- TODO: refactor
--- Efficiently takes text until finding a delimiter followed by text matching the given parser
 
 {- | Parser that efficiently takes text until finding a valid boundary.
 A valid boundary is a delimiter followed by text that matches the stop parser.

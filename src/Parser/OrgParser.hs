@@ -10,7 +10,7 @@
 
 module Parser.OrgParser where
 
-import Control.Monad (void)
+import Control.Monad (guard, void)
 import Data.Bifunctor
 import Data.Char (isDigit, isLower)
 import Data.Foldable
@@ -51,26 +51,26 @@ titleAndTagsParser :: Parser (T.Text, [T.Text])
 titleAndTagsParser = fmap splitToTitleAndTags tillTheEndOfStringParser
 
 splitToTitleAndTags :: T.Text -> (T.Text, [T.Text])
-splitToTitleAndTags input = (T.strip actualTitle, actualTags)
+splitToTitleAndTags input = fromMaybe (T.strip input, []) $ do
+  let tagsPart = T.takeWhileEnd isTagPartChar input
+  let titlePart = T.dropWhileEnd isTagPartChar input
+  let (nonTagPrefix, actualTagsPart) = T.breakOn ":" tagsPart
+
+  -- A tag string must have at least two characters, e.g., "::"
+  guard (T.length actualTagsPart >= 2)
+
+  -- Must start and end with a colon
+  guard (T.head actualTagsPart == ':' && T.last actualTagsPart == ':')
+
+  let title = T.strip (titlePart <> nonTagPrefix)
+
+  -- All characters in tags must be valid tag characters
+  let tags = filter (not . T.null) $ T.splitOn ":" actualTagsPart
+  guard (all (T.all isTagChar) tags)
+
+  return (title, tags)
  where
-  parts = split ':' input
-  (titleParts, tagParts) = break isTag parts
-  title = T.concat titleParts
-  tags = filter (not . T.null) $ fmap stripLeadingColumn tagParts
-
-  (actualTitle, actualTags) = case reverse tagParts of
-    [] -> (input, [])
-    x : rest -> if x == ":" && not (null rest) then (title, tags) else (input, [])
-
-  isTag :: T.Text -> Bool
-  isTag str = case T.uncons str of
-    Nothing -> False
-    Just (x, xs) -> x == ':' && T.all isTagChar xs
-
-  stripLeadingColumn :: T.Text -> T.Text
-  stripLeadingColumn str = case T.uncons str of
-    Nothing -> ""
-    Just (x, xs) -> if x == ':' then xs else str
+  isTagPartChar c = isTagChar c || c == ':'
 
 ------------------------------- Time Fields ------------------------------------
 
