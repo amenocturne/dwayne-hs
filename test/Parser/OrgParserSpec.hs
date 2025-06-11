@@ -298,21 +298,21 @@ spec = do
       let (loc, remainder, result) = runParser descriptionParser "This is a simple description\n"
       result `shouldBe` ParserSuccess "This is a simple description"
       remainder `shouldBe` ""
-      loc `shouldBe` Location 1 28
+      loc `shouldBe` Location 2 0
 
-    -- it "parses multi-line description" $ do
-    --   let input =
-    --         T.strip $
-    --           T.unlines
-    --             [ "This is the first line"
-    --             , "This is the second line"
-    --             , "This is the third line"
-    --             ]
-    --       (loc, remainder, result) = runParser descriptionParser input
-    --
-    --   result `shouldBe` ParserSuccess input
-    --   remainder `shouldBe` ""
-    --   loc `shouldBe` Location 4 0
+    it "parses multi-line description" $ do
+      let input =
+            T.strip $
+              T.unlines
+                [ "This is the first line"
+                , "This is the second line"
+                , "This is the third line"
+                ]
+          (loc, remainder, result) = runParser descriptionParser input
+
+      result `shouldBe` ParserSuccess input
+      remainder `shouldBe` ""
+      loc `shouldBe` Location 3 22
 
     it "stops at next heading" $ do
       let input =
@@ -332,32 +332,31 @@ spec = do
       remainder `shouldBe` "\n* TODO Next task"
       loc `shouldBe` Location 1 0
 
-  -- TODO:
-  -- it "handles description with URL links" $ do
-  --   let input =
-  --         T.strip $
-  --           T.unlines
-  --             [ "Description with http://example.com link"
-  --             , "And another https://example.org/path?query=value"
-  --             ]
-  --       (loc, remainder, result) = runParser descriptionParser input
-  --
-  --   result `shouldBe` ParserSuccess input
-  --   remainder `shouldBe` ""
-  --   loc `shouldBe` Location 2 48
+  it "handles description with URL links" $ do
+    let input =
+          T.strip $
+            T.unlines
+              [ "Description with http://example.com link"
+              , "And another https://example.org/path?query=value"
+              ]
+        (loc, remainder, result) = runParser descriptionParser input
 
-  -- TODO:
-  -- it "handles description with org-mode formatting" $ do
-  --   let input =
-  --         T.unlines
-  --           [ "Description with *bold* and /italic/ formatting"
-  --           , "And [[http://example.com][link]]"
-  --           ]
-  --       (loc, remainder, result) = runParser descriptionParser input
-  --
-  --   result `shouldBe` ParserSuccess input
-  --   remainder `shouldBe` ""
-  --   loc `shouldBe` Location 2 32
+    result `shouldBe` ParserSuccess input
+    remainder `shouldBe` ""
+    loc `shouldBe` Location 2 48
+
+  it "handles description with org-mode formatting" $ do
+    let input =
+          T.strip $
+            T.unlines
+              [ "Description with *bold* and /italic/ formatting"
+              , "And [[http://example.com][link]]"
+              ]
+        (loc, remainder, result) = runParser descriptionParser input
+
+    result `shouldBe` ParserSuccess input
+    remainder `shouldBe` ""
+    loc `shouldBe` Location 2 32
   describe "brokenDescripitonParser" $ do
     it "parses broken description without properties" $
       do
@@ -369,7 +368,7 @@ spec = do
                   , "  :CREATED:  [2022-06-13 Mon 11:29]"
                   , "  :END:"
                   ]
-            (loc, remainder, result) = runParser brokenDescriptionParser input
+            (_, _, result) = runParser brokenDescriptionParser input
         resultToMaybe result
         `shouldBe` Just "https://music.youtube.com/watch?v=ylmNrof40gE&feature=share"
 

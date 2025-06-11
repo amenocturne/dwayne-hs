@@ -196,8 +196,7 @@ takeUntilDelimThenSucceeds delim stopP = Parser $ \input ->
     | otherwise =
         let (before, after) = splitByFirstDelimiter delim remaining
             newAcc = T.append acc before
-            newLoc = locFn . shiftLocationByString newAcc
-         in handleAfterText newAcc after newLoc
+         in handleAfterText newAcc after locFn
 
   -- Process the text after finding a potential delimiter
   handleAfterText :: T.Text -> T.Text -> (Location -> Location) -> (ParserInput, ParserResult T.Text)
@@ -217,7 +216,7 @@ takeUntilDelimThenSucceeds delim stopP = Parser $ \input ->
   -- Create successful result with the given accumulated text and remainder
   finishWith :: T.Text -> T.Text -> (Location -> Location) -> (ParserInput, ParserResult T.Text)
   finishWith acc remainder locFn =
-    ((locFn, remainder), ParserSuccess acc)
+    ((locFn . shiftLocationByString acc, remainder), ParserSuccess acc)
 
   -- Check if text begins with a pattern matching the stop parser
   isValidStopPoint :: T.Text -> Bool
