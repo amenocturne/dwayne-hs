@@ -345,7 +345,7 @@ normalModeBindings =
   , changeViewKeywordBinding "DONE" " ad"
   , changeViewKeywordBinding "TRASH" " ax"
   , -- Other
-    normalBinding Quit (toKey 'q') "Quit" $ saveAll >> quit
+    normalBinding Quit (toKey 'q') "Quit" quit
   , normalBinding EditInEditor (toKey KEnter) "Edit in editor" $ saveForUndo editSelectedTaskInEditor
   , -- Saving Files
     normalBinding SaveAll (withMod 's' MShift) "Save all" saveAll
