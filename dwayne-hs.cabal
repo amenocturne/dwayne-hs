@@ -51,7 +51,6 @@ library
     exposed-modules:
         Model.Injection
         Model.OrgMode
-        Model.Tree
         Model.LinearHistory
         Parser.OrgParser
         Parser.Parser
