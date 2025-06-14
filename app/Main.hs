@@ -30,7 +30,7 @@ import Writer.OrgWriter ()
 
 main :: IO ()
 main = do
-  tui
+  tui $ withDefaultColors
     AppConfig
       { _taskParser = anyTaskparser
       , _fileParser = orgFileParser
@@ -43,4 +43,5 @@ main = do
       , _keybindings = normalModeBindings
       , _keyTimeoutMs = 1000
       , _autoSave = True
+      , _colorScheme = defaultColorScheme -- This will be overridden by withDefaultColors, but needed for completeness
       }

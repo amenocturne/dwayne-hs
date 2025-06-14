@@ -10,6 +10,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Graphics.Vty.Input.Events as E
 import Model.OrgMode
+import Tui.ColorScheme (ColorScheme)
 
 import Brick.BChan
 import Brick.Widgets.Dialog (Dialog)
@@ -67,6 +68,7 @@ data AppConfig a = AppConfig
   , _keybindings :: [KeyBinding a]
   , _keyTimeoutMs :: Int
   , _autoSave :: Bool
+  , _colorScheme :: ColorScheme
   }
 
 data AppState a = AppState

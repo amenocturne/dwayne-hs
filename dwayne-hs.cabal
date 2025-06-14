@@ -60,6 +60,7 @@ library
         Writer.OrgWriter
         Writer.Writer
         Tui.Events
+        Tui.ColorScheme
         Tui.Keybindings
         Tui.Render
         Tui.Tui
