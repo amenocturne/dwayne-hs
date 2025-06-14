@@ -161,6 +161,9 @@ fileStateLens = appState . fileState . currentState
 originalFileStateLens :: Lens' (AppContext a) (FileState a)
 originalFileStateLens = appState . originalFileState
 
+switchMode :: AppMode a -> AppContext a -> AppContext a
+switchMode mode = over (appState . appMode) (const mode)
+
 taskBy :: TaskPointer -> Traversal' (FileState a) a
 taskBy ptr =
   ix (view file ptr)

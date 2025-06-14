@@ -119,7 +119,9 @@ handleEvent (AppEvent event) = case event of
     ctx <- get
     modified <- liftIO $ checkFilesUnmodified ctx
     if not (null modified)
-      then
+      then do
+        -- Clear command state and return to normal mode before showing error
+        modify $ switchMode NormalMode . set (appState . cmdState) Nothing
         -- alert user and abort
         liftIO $
           writeBChan
@@ -145,7 +147,9 @@ handleEvent (AppEvent event) = case event of
   QuitApp -> do
     ctx <- get
     if checkUnsavedChanges ctx
-      then
+      then do
+        -- Clear command state and return to normal mode before showing error
+        modify $ switchMode NormalMode . set (appState . cmdState) Nothing
         -- alert user and abort quit
         liftIO $ writeBChan
           (view (appState . eventChannel) ctx)

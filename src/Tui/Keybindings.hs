@@ -205,8 +205,6 @@ jumpForward = over (appState . compactView) L.redo
 changeTodoKeyword :: T.Text -> AppContext Task -> AppContext Task
 changeTodoKeyword keyword = over (currentTaskLens . todoKeyword) (const keyword)
 
-switchMode :: AppMode a -> AppContext a -> AppContext a
-switchMode mode = over (appState . appMode) (const mode)
 
 abortCmd :: AppContext a -> AppContext a
 abortCmd = switchMode NormalMode . set (appState . cmdState) Nothing
