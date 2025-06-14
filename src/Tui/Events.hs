@@ -43,6 +43,12 @@ checkFilesUnmodified ctx = do
         ]
   return modified
 
+checkUnsavedChanges :: (Eq a) => AppContext a -> Bool
+checkUnsavedChanges ctx = 
+  let currentState = view fileStateLens ctx
+      originalState = view originalFileStateLens ctx
+  in currentState /= originalState
+
 matchesSubsequence :: [KeyPress] -> KeyBinding a -> Bool
 matchesSubsequence s = isPrefixOf s . view keyBinding
 
@@ -136,7 +142,18 @@ handleEvent (AppEvent event) = case event of
       liftIO $ void saveFiles
       -- Update original file state after successful save
       modify $ set originalFileStateLens (view fileStateLens ctx)
-  QuitApp -> halt
+  QuitApp -> do
+    ctx <- get
+    if checkUnsavedChanges ctx
+      then
+        -- alert user and abort quit
+        liftIO $ writeBChan
+          (view (appState . eventChannel) ctx)
+          ( Error $
+              "No write since last change (add ! to override)"
+          )
+      else halt
+  ForceQuit -> halt
 handleEvent _ = return ()
 
 writeTaskFile :: (Writer a) => FilePath -> ParserResult a -> IO ()

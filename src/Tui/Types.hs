@@ -116,7 +116,7 @@ data TaskPointer = TaskPointer
   }
   deriving (Eq, Show)
 
-data AppEvent = Error String | SaveAllFiles | ForceWriteAll | QuitApp deriving (Eq)
+data AppEvent = Error String | SaveAllFiles | ForceWriteAll | QuitApp | ForceQuit deriving (Eq)
 
 data DialogResult = DialogOK deriving (Eq)
 

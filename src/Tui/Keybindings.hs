@@ -263,6 +263,7 @@ executeCommand = do
               let msg = T.pack $ show filesSavedCount <> if filesSavedCount == 1 then " file written (forced)" else " files written (forced)"
               modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
             "q" -> quit
+            "q!" -> forceQuit
             unknown -> do
               let msg = "E492: Not an editor command: " <> unknown
               modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
@@ -295,6 +296,9 @@ forceWriteAll = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChann
 -- other events in the channel first, for e.g. saving files
 quit :: GlobalAppState a
 quit = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ctx) QuitApp
+
+forceQuit :: GlobalAppState a
+forceQuit = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ctx) ForceQuit
 
 ----------------------- Bindings ----------------------------
 
