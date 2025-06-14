@@ -7,11 +7,12 @@ import Control.Lens
 import Graphics.Vty.Input.Events
 import Tui.Types
 
+import Brick.BChan (writeBChan)
 import Brick.Widgets.Dialog
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import Data.Char (isUpper, toLower)
-import Data.List (find)
+import Data.List (find, intercalate)
 import Data.List.NonEmpty (isPrefixOf, nonEmpty, toList)
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -20,8 +21,27 @@ import qualified Data.Text.IO as TIO
 import Data.Time (diffUTCTime, getCurrentTime)
 import Data.Time.Clock (UTCTime)
 import Parser.Parser
+import TextUtils (readFileExample)
 import Writer.OrgWriter ()
 import Writer.Writer
+
+checkFilesUnmodified :: (Eq a) => AppContext a -> IO [FilePath]
+checkFilesUnmodified ctx = do
+  let fps = view (config . files) ctx
+      parser = view (config . fileParser) ctx
+      originalMap = view originalFileStateLens ctx
+  pairs <- liftIO $ forM fps $ \fp -> do
+    txt <- readFileExample fp
+    let (_, _, newRes) = runParser parser txt
+    return (fp, newRes)
+  let modified =
+        [ fp
+        | (fp, newRes) <- pairs
+        , case M.lookup fp originalMap of
+            Just originalRes -> originalRes /= newRes
+            Nothing -> True
+        ]
+  return modified
 
 matchesSubsequence :: [KeyPress] -> KeyBinding a -> Bool
 matchesSubsequence s = isPrefixOf s . view keyBinding
@@ -66,7 +86,7 @@ handleCmdInput c = modify $ over (appState . cmdState) (fmap appendC)
   appendC (Typing cmdType input) = Typing cmdType (input `T.snoc` c)
   appendC other = other
 
-handleEvent :: (Writer a, Show a) => BrickEvent Name AppEvent -> GlobalAppState a
+handleEvent :: (Writer a, Show a, Eq a) => BrickEvent Name AppEvent -> GlobalAppState a
 handleEvent (VtyEvent (EvKey key mods)) = do
   ctx <- get
   case view (appState . cmdState) ctx of
@@ -90,10 +110,24 @@ handleEvent (AppEvent event) = case event of
             }
     modify $ set (appState . errorDialog) (Just dlg)
   SaveAllFiles -> do
-    ctx <- get -- TODO: should read files, parse them and check if they have any changes since the first read.
-    let files = M.toList $ view fileStateLens ctx
-    let saveFiles = traverse (uncurry writeTaskFile) files
-    when (view (config . autoSave) ctx) $ void $ liftIO saveFiles
+    ctx <- get
+    modified <- liftIO $ checkFilesUnmodified ctx
+    if not (null modified)
+      then
+        -- alert user and abort
+        liftIO $
+          writeBChan
+            (view (appState . eventChannel) ctx)
+            ( Error $
+                "Aborting save, external edits detected in: "
+                  ++ intercalate ", " modified
+            )
+      else when (view (config . autoSave) ctx) $ do
+        let files = M.toList $ view fileStateLens ctx
+            saveFiles = traverse (uncurry writeTaskFile) files
+        liftIO $ void saveFiles
+        -- Update original file state after successful save
+        modify $ set originalFileStateLens (view fileStateLens ctx)
   QuitApp -> halt
 handleEvent _ = return ()
 

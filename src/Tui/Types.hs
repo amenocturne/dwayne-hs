@@ -77,6 +77,7 @@ data AppState a = AppState
   , _cmdState :: Maybe CmdState
   , _compactView :: LinearHistory CompactView
   , _fileState :: LinearHistory (FileState a)
+  , _originalFileState :: FileState a
   }
 
 data CmdType = Command | Search deriving (Eq, Show)
@@ -156,6 +157,9 @@ compactViewLens = appState . compactView . currentState
 
 fileStateLens :: Lens' (AppContext a) (FileState a)
 fileStateLens = appState . fileState . currentState
+
+originalFileStateLens :: Lens' (AppContext a) (FileState a)
+originalFileStateLens = appState . originalFileState
 
 taskBy :: TaskPointer -> Traversal' (FileState a) a
 taskBy ptr =

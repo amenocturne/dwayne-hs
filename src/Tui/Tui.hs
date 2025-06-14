@@ -41,7 +41,7 @@ getAllPointers fs = V.concatMap fun (V.fromList $ M.toList fs) -- TODO: optimize
 class Tui a where
   tui :: AppConfig a -> IO ()
 
-instance (Searcher a, RenderTask a Name, Writer a, Show a) => Tui a where
+instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a) => Tui a where
   tui conf = do
     parsedFiles <- mapM (\f -> fmap (f,) (readTasks (view fileParser conf) f)) (view files conf)
     eventChan <- newBChan 10 -- TODO: maybe use different event channel size
@@ -64,6 +64,7 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a) => Tui a where
                     , _currentView = pointers
                     }
             , _fileState = initLinearHistory fState
+            , _originalFileState = fState
             }
     let ctx =
           AppContext
