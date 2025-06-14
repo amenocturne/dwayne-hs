@@ -128,6 +128,14 @@ handleEvent (AppEvent event) = case event of
         liftIO $ void saveFiles
         -- Update original file state after successful save
         modify $ set originalFileStateLens (view fileStateLens ctx)
+  ForceWriteAll -> do
+    ctx <- get
+    when (view (config . autoSave) ctx) $ do
+      let files = M.toList $ view fileStateLens ctx
+          saveFiles = traverse (uncurry writeTaskFile) files
+      liftIO $ void saveFiles
+      -- Update original file state after successful save
+      modify $ set originalFileStateLens (view fileStateLens ctx)
   QuitApp -> halt
 handleEvent _ = return ()
 

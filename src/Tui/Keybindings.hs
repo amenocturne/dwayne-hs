@@ -257,6 +257,11 @@ executeCommand = do
               let filesSavedCount = M.size $ view fileStateLens ctx
               let msg = T.pack $ show filesSavedCount <> if filesSavedCount == 1 then " file written" else " files written"
               modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
+            "w!" -> do
+              forceWriteAll
+              let filesSavedCount = M.size $ view fileStateLens ctx
+              let msg = T.pack $ show filesSavedCount <> if filesSavedCount == 1 then " file written (forced)" else " files written (forced)"
+              modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
             "q" -> quit
             unknown -> do
               let msg = "E492: Not an editor command: " <> unknown
@@ -282,6 +287,9 @@ todoKeywordFilter keyword task = view todoKeyword task == keyword
 
 saveAll :: GlobalAppState a
 saveAll = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ctx) SaveAllFiles
+
+forceWriteAll :: GlobalAppState a
+forceWriteAll = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ctx) ForceWriteAll
 
 -- NOTE: this is a hack not to call `halt` immidiately so that it processes all
 -- other events in the channel first, for e.g. saving files
