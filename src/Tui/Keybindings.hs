@@ -257,6 +257,7 @@ executeCommand = do
               let filesSavedCount = M.size $ view fileStateLens ctx
               let msg = T.pack $ show filesSavedCount <> if filesSavedCount == 1 then " file written" else " files written"
               modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
+            "q" -> quit
             unknown -> do
               let msg = "E492: Not an editor command: " <> unknown
               modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
@@ -410,8 +411,5 @@ normalModeBindings =
   , changeViewKeywordBinding "TRASH" " ax"
   , -- Other
     normalBinding AddTask 'a' "Add new task" $ saveForUndo addNewTask
-  , normalBinding Quit (toKey 'q') "Quit" quit
   , normalBinding EditInEditor (toKey KEnter) "Edit in editor" $ saveForUndo editSelectedTaskInEditor
-  , -- Saving Files
-    normalBinding SaveAll (withMod 's' MShift) "Save all" saveAll
   ]
