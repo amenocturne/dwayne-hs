@@ -40,6 +40,7 @@ data KeyEvent
   | Redo
   | CleanKeyState
   | SaveAll
+  | AddTask
   | -- Error dialog
     ErrorDialogQuit
   | ErrorDialogAccept
@@ -49,8 +50,8 @@ data KeyEvent
   | AbortCmd
   | CmdDeleteChar
   | ApplyCmd
-  -- Views
-  | View T.Text
+  | -- Views
+    View T.Text
   deriving (Eq, Show, Ord)
 
 data Name = CompactViewWidget | CmdWidget deriving (Eq, Ord, Show)
@@ -59,6 +60,7 @@ type FileState a = M.Map String (ParserResult (TaskFile a))
 
 data AppConfig a = AppConfig
   { _files :: [String]
+  , _inboxFile :: String
   , _fileParser :: Parser (TaskFile a)
   , _taskParser :: Parser a
   , _scrollingMargin :: Int
@@ -186,3 +188,7 @@ currentTaskPtr f ctx =
       , i < length cv ->
           ctx & currentViewLens . ix i %%~ f
     _ -> pure ctx
+
+-- | Traversal to the current TaskFile at a given FilePath
+fileLens :: FilePath -> Traversal' (AppContext a) (TaskFile a)
+fileLens fp = appState . fileState . currentState . ix fp . success

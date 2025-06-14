@@ -67,7 +67,7 @@ removeLeadingSpaces = T.dropWhile isSpace
 parseTimeWith :: forall (m :: Type -> Type) t. (MonadFail m, ParseTime t) => String -> T.Text -> m t
 parseTimeWith format str = parseTimeM True defaultTimeLocale format (T.unpack str)
 
-editWithEditor :: T.Text -> IO (Maybe String)
+editWithEditor :: T.Text -> IO (Maybe T.Text)
 editWithEditor content = do
   editor <- fmap (fromMaybe "vim") (lookupEnv "EDITOR")
   (tempPath, tempHandle) <- openTempFile "/tmp" "edit.txt"
@@ -79,7 +79,7 @@ editWithEditor content = do
     ExitSuccess -> do
       newContent <- readFile tempPath >>= \c -> length c `seq` return c
       removeFile tempPath
-      return (Just newContent)
+      return (Just $ T.pack newContent)
     _ -> do
       removeFile tempPath
       return Nothing

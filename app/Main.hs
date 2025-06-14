@@ -34,7 +34,11 @@ main = do
     AppConfig
       { _taskParser = anyTaskparser
       , _fileParser = orgFileParser
-      , _files = ["./resources/Sample.org"]
+      , _files =
+          [ "./resources/Sample.org"
+          , "./resources/SampleInbox.org"
+          ]
+      , _inboxFile = "./resources/SampleInbox.org"
       , _scrollingMargin = 6
       , _keybindings = normalModeBindings
       , _keyTimeoutMs = 1000

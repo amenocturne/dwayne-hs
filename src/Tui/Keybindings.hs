@@ -22,9 +22,18 @@ import Control.Monad.IO.Class (liftIO)
 import Data.Char (isUpper, toLower)
 import Data.List.NonEmpty (NonEmpty (..), fromList)
 import qualified Data.Set as S
+import Data.Time (getZonedTime)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import qualified Data.Vector as V
 import qualified Model.LinearHistory as L
-import Model.OrgMode (Task, todoKeyword)
+import Model.OrgMode (
+  Task (..),
+  TaskFile,
+  content,
+  orgCreatedProperty,
+  orgDayTimeFormat,
+  todoKeyword,
+ )
 import Parser.Parser
 import Searcher.OrgSearcher ()
 import Searcher.Searcher
@@ -82,6 +91,61 @@ adjustViewport = do
       modify $ over compactViewLens (const newCompactView)
     _ -> return ()
 
+addNewTask :: GlobalAppState Task
+addNewTask = do
+  ctx <- get
+  let fp = view (config . inboxFile) ctx
+  case preview (fileLens fp) ctx of
+    Nothing -> return ()
+    Just tf -> do
+      now <- liftIO getZonedTime
+      let createdStr = T.pack $ "[" ++ formatTime defaultTimeLocale orgDayTimeFormat now ++ "]"
+          dummyTask =
+            Task
+              { _level = 1
+              , _todoKeyword = "INBOX"
+              , _priority = Nothing
+              , _title = "{{Title}}"
+              , _tags = []
+              , _scheduled = Nothing
+              , _deadline = Nothing
+              , _closed = Nothing
+              , _properties = [(orgCreatedProperty, createdStr)]
+              , _description = ""
+              }
+          initialContent = write dummyTask
+
+      suspendAndResume $ do
+        editedMaybe <- editWithEditor initialContent
+        case editedMaybe of
+          Nothing -> return ctx
+          Just editedStr ->
+            let (l, _, result) =
+                  runParser (view (config . taskParser) ctx) editedStr
+             in case result of
+                  ParserFailure err -> do
+                    -- show parse error
+                    _ <-
+                      writeBChan (view (appState . eventChannel) ctx) $
+                        Error (err ++ " at " ++ show (line l) ++ ":" ++ show (column l))
+                    return ctx
+                  ParserSuccess newTask
+                    | newTask == dummyTask -> do
+                        writeBChan (view (appState . eventChannel) ctx) $
+                          Error "No changes detected; task not added."
+                        return ctx
+                    | otherwise -> do
+                        -- append parsed task
+                        let oldTasks = tf ^. content
+                            idx = V.length oldTasks
+                            updatedTf = tf & content .~ V.snoc oldTasks newTask
+                            ptr = TaskPointer fp idx
+                            ctx1 = set (fileLens fp) updatedTf ctx
+                            ctx2 = over currentViewLens (`V.snoc` ptr) ctx1
+                            ctx3 = set cursorLens (Just idx) ctx2
+                        return ctx3
+      adjustViewport
+
 -- TODO: refactor
 editSelectedTaskInEditor :: (Writer a) => GlobalAppState a
 editSelectedTaskInEditor = do
@@ -95,7 +159,7 @@ editSelectedTaskInEditor = do
       case editedContent of
         Nothing -> return ctx
         Just editedStr -> do
-          let (l, _, result) = runParser (view (config . taskParser) ctx) (T.pack editedStr)
+          let (l, _, result) = runParser (view (config . taskParser) ctx) editedStr
           case result of
             ParserSuccess t -> do
               return $ set (fileStateLens . taskBy ptr) t ctx
@@ -345,7 +409,8 @@ normalModeBindings =
   , changeViewKeywordBinding "DONE" " ad"
   , changeViewKeywordBinding "TRASH" " ax"
   , -- Other
-    normalBinding Quit (toKey 'q') "Quit" quit
+    normalBinding AddTask 'a' "Add new task" $ saveForUndo addNewTask
+  , normalBinding Quit (toKey 'q') "Quit" quit
   , normalBinding EditInEditor (toKey KEnter) "Edit in editor" $ saveForUndo editSelectedTaskInEditor
   , -- Saving Files
     normalBinding SaveAll (withMod 's' MShift) "Save all" saveAll

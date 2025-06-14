@@ -19,7 +19,7 @@ instance (Writer a) => Writer (TaskFile a) where
   write (TaskFile maybeName tasks) = T.concat $ titleText ++ [T.intercalate "\n\n" tasksText]
    where
     titleText = case maybeName of
-      Just n -> ["#+TITLE: " <> n, "\n"]
+      Just n -> ["#+TITLE: " <> n, "\n\n"]
       Nothing -> []
     tasksText = map write (V.toList tasks) -- TODO: Rewrite function to accept Vector instead of list and avoid convertion
 

@@ -1,0 +1,6 @@
+#+TITLE: Sample2
+
+* INBOX Some title
+:PROPERTIES:
+:CREATED:  [2025-06-14 Sat 21:37]
+:END:
