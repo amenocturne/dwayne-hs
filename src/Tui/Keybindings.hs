@@ -6,14 +6,17 @@
 module Tui.Keybindings where
 
 import Control.Monad (when)
+import System.Process (callCommand)
 
 import Brick
 import qualified Brick.Types as BT
+import Control.Applicative ((<|>))
 import Control.Lens
 import qualified Data.Map.Strict as M
 import Data.Maybe (isJust)
 import qualified Data.Text as T
 import Graphics.Vty.Input.Events
+import Text.Regex.Posix ((=~))
 import Tui.Types
 import Writer.Writer
 
@@ -41,13 +44,38 @@ import TextUtils
 import Tui.Tui
 import Writer.OrgWriter ()
 
--- TODO: make a shortcut to open in a default browser first found link in a task (useful for music/articles)
 -- TODO: make a shortcut to download music from youtube/youtube music links
 -- TODO: make a shortcut to save note contents directly to obsidian vault and open obsidian with this file to continue editing
 -- TODO: make a shortcut to copy task to clipboard
 -- TODO: make selection mode for bulk actions
 
 -- Helper functions
+
+extractFirstUrl :: T.Text -> Maybe T.Text
+extractFirstUrl text =
+  let urlPattern = "https?://[^ \t\n]+"
+      matches = T.unpack text =~ ("(" ++ urlPattern ++ ")") :: [[String]]
+   in if null matches || length (head matches) < 2
+        then Nothing
+        else Just $ T.pack $ matches !! 0 !! 1
+
+openUrlInBrowser :: T.Text -> IO ()
+openUrlInBrowser url = callCommand $ "open " ++ T.unpack url
+
+openTaskUrl :: GlobalAppState Task
+openTaskUrl = do
+  ctx <- get
+  let ct = preview currentTaskLens ctx
+  case ct of
+    Just task -> do
+      let titleUrl = extractFirstUrl (_title task)
+          descUrl = extractFirstUrl (_description task)
+          firstUrl = titleUrl <|> descUrl
+      case firstUrl of
+        Just url -> do
+          liftIO $ openUrlInBrowser url
+        Nothing -> return ()
+    Nothing -> return ()
 
 adjustCursor :: (Int -> Int) -> GlobalAppState a
 adjustCursor f = do
@@ -204,7 +232,6 @@ jumpForward = over (appState . compactView) L.redo
 -- Needs to be specific type
 changeTodoKeyword :: T.Text -> AppContext Task -> AppContext Task
 changeTodoKeyword keyword = over (currentTaskLens . todoKeyword) (const keyword)
-
 
 abortCmd :: AppContext a -> AppContext a
 abortCmd = switchMode NormalMode . set (appState . cmdState) Nothing
@@ -422,4 +449,5 @@ normalModeBindings =
   , -- Other
     normalBinding AddTask 'a' "Add new task" $ saveForUndo addNewTask
   , normalBinding EditInEditor (toKey KEnter) "Edit in editor" $ saveForUndo editSelectedTaskInEditor
+  , normalBinding OpenUrl (toKeySeq "gx") "Open URL in task" openTaskUrl
   ]

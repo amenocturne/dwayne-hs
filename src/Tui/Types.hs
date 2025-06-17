@@ -42,6 +42,7 @@ data KeyEvent
   | CleanKeyState
   | SaveAll
   | AddTask
+  | OpenUrl
   | -- Error dialog
     ErrorDialogQuit
   | ErrorDialogAccept
