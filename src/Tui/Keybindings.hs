@@ -16,7 +16,7 @@ import qualified Data.Map.Strict as M
 import Data.Maybe (isJust)
 import qualified Data.Text as T
 import Graphics.Vty.Input.Events
-import Text.Regex.Posix ((=~))
+import Text.Regex
 import Tui.Types
 import Writer.Writer
 
@@ -52,12 +52,15 @@ import Writer.OrgWriter ()
 -- Helper functions
 
 extractFirstUrl :: T.Text -> Maybe T.Text
-extractFirstUrl text =
-  let urlPattern = "https?://[^ \t\n]+"
-      matches = T.unpack text =~ ("(" ++ urlPattern ++ ")") :: [[String]]
-   in if null matches || length (head matches) < 2
-        then Nothing
-        else Just $ T.pack $ matches !! 0 !! 1
+extractFirstUrl text = case (orgMatches, urlMatches) of
+  (Just (match : _), _) -> Just $ T.pack match
+  (_, Just (match : _)) -> Just $ T.pack match
+  _ -> Nothing
+ where
+  urlPattern = mkRegex "(https?://[^ \t\n]+)"
+  urlMatches = matchRegex urlPattern $ T.unpack text
+  orgPattern = mkRegex "\\[\\[(https?://[^ \t\n]+)\\]"
+  orgMatches = matchRegex orgPattern $ T.unpack text
 
 openUrlInBrowser :: T.Text -> IO ()
 openUrlInBrowser url = callCommand $ "open " ++ T.unpack url
@@ -289,6 +292,12 @@ executeCommand = do
               modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
             "q" -> quit
             "q!" -> forceQuit
+            "wq" -> do
+              forceWriteAll
+              let filesSavedCount = M.size $ view fileStateLens ctx
+              let msg = T.pack $ show filesSavedCount <> if filesSavedCount == 1 then " file written (forced)" else " files written (forced)"
+              modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
+              quit
             unknown -> do
               let msg = "E492: Not an editor command: " <> unknown
               modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
