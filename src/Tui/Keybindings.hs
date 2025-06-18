@@ -379,6 +379,7 @@ changeTodoKeywordBinding keyword bind =
     (saveForUndo $ modify (changeTodoKeyword keyword))
     (modeKeyContext NormalMode)
 
+-- FIX: when there are 0 tasks with that keyword it falls into error
 changeViewKeywordBinding :: T.Text -> String -> KeyBinding Task
 changeViewKeywordBinding keyword bind =
   normalBinding
