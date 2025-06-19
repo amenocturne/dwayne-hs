@@ -15,6 +15,7 @@ import Data.Bifunctor
 import Data.Char (isDigit, isLower)
 import Data.Foldable
 import Data.Maybe (catMaybes, fromMaybe)
+import qualified Data.Set as S
 import qualified Data.Text as T
 import Data.Time
 import qualified Data.Vector as V
@@ -144,7 +145,7 @@ propertyParser =
         <*> ( skipBlanksExceptNewLinesParser
                 *> charParser ':'
                 *> skipBlanksExceptNewLinesParser
-                *> failOnConditionParser tillTheEndOfStringParser (T.null) "Got empty property value"
+                *> failOnConditionParser tillTheEndOfStringParser T.null "Got empty property value"
             )
         <* charParser '\n'
 
@@ -194,7 +195,7 @@ properTaskParser =
           todoKeyword
           priority
           title
-          tags
+          (S.fromList tags)
           (findProp orgScheduledField propsList)
           (findProp orgDeadlineField propsList)
           (findProp orgClosedField propsList)
@@ -213,14 +214,14 @@ properTaskParser =
 
 brokenDescriptionTaskParser :: Parser Task
 brokenDescriptionTaskParser =
-  ( \level todoKeyword priority (title, tags) description properties description2->
+  ( \level todoKeyword priority (title, tags) description properties description2 ->
       let
        in Task
             level
             todoKeyword
             priority
             title
-            tags
+            (S.fromList tags)
             Nothing
             Nothing
             Nothing
@@ -246,7 +247,7 @@ noPropertiesTaskParser =
             todoKeyword
             priority
             title
-            tags
+            (S.fromList tags)
             Nothing
             Nothing
             Nothing

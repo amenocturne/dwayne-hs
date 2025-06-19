@@ -6,6 +6,7 @@ module Writer.OrgWriter where
 import Control.Lens (view)
 import Data.Char (ord)
 import Data.Maybe
+import qualified Data.Set as S
 import qualified Data.Text as T
 import Data.Time (defaultTimeLocale)
 import Data.Time.Format (formatTime)
@@ -42,7 +43,7 @@ instance Writer Task where
           , view todoKeyword task
           , renderPriorityText (view priority task)
           , view title task
-          , renderTagsText (view tags task)
+          , renderTagsText (S.toList $ view tags task)
           ]
 
     renderPriorityText :: Maybe Int -> T.Text

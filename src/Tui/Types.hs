@@ -37,6 +37,7 @@ data KeyEvent
   | Quit
   | EditInEditor
   | ChangeTodoKeyword T.Text
+  | AddTag T.Text
   | Undo
   | Redo
   | CleanKeyState

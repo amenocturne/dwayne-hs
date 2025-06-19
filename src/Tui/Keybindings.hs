@@ -35,6 +35,7 @@ import Model.OrgMode (
   content,
   orgCreatedProperty,
   orgDayTimeFormat,
+  tags,
   todoKeyword,
  )
 import Parser.Parser
@@ -137,7 +138,7 @@ addNewTask = do
               , _todoKeyword = "INBOX"
               , _priority = Nothing
               , _title = "{{Title}}"
-              , _tags = []
+              , _tags = S.empty
               , _scheduled = Nothing
               , _deadline = Nothing
               , _closed = Nothing
@@ -235,6 +236,10 @@ jumpForward = over (appState . compactView) L.redo
 -- Needs to be specific type
 changeTodoKeyword :: T.Text -> AppContext Task -> AppContext Task
 changeTodoKeyword keyword = over (currentTaskLens . todoKeyword) (const keyword)
+
+-- Needs to be specific type
+addTag :: T.Text -> AppContext Task -> AppContext Task
+addTag tag = over (currentTaskLens . tags) (S.insert tag)
 
 abortCmd :: AppContext a -> AppContext a
 abortCmd = switchMode NormalMode . set (appState . cmdState) Nothing
@@ -388,6 +393,15 @@ changeViewKeywordBinding keyword bind =
     (T.concat ["Show ", keyword, " tasks"])
     $ saveForJump (applyFilterToAllTasks (todoKeywordFilter keyword))
 
+addTagBinding :: T.Text -> String -> KeyBinding Task
+addTagBinding tag bind =
+  KeyBinding
+    (AddTag tag)
+    (toKey bind)
+    (T.concat ["Add tag `", tag, "` to the task"])
+    (saveForUndo $ modify (addTag tag))
+    (modeKeyContext NormalMode)
+
 class ToBinding k where
   toBinding :: AppMode a -> KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
 
@@ -444,6 +458,8 @@ normalModeBindings =
   , changeTodoKeywordBinding "TODO" "tt"
   , changeTodoKeywordBinding "DONE" "td"
   , changeTodoKeywordBinding "TRASH" "tx"
+  , -- Tags
+    addTagBinding "music" ",m"
   , -- Views
     normalBinding (View "all") (toKeySeq " aa") "Show all tasks" $ saveForJump $ applyFilterToAllTasks (const True)
   , changeViewKeywordBinding "INBOX" " ai"

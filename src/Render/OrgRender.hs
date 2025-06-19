@@ -10,6 +10,7 @@ import Control.Lens (view)
 import Data.Char (ord)
 import qualified Data.Map.Strict as M
 import Data.Maybe
+import qualified Data.Set as S
 import qualified Data.Text as T
 import Data.Time (defaultTimeLocale)
 import Data.Time.Format (formatTime)
@@ -32,7 +33,7 @@ instance RenderTask Task b where
             , Just $ view todoKeyword task -- TODO: colorcode them
             , view priority task >>= renderPriority
             , Just (view title task)
-            , renderTags (view tags task)
+            , renderTags (S.toList $ view tags task)
             ]
 
     renderPriority p
@@ -53,7 +54,7 @@ instance RenderTask Task b where
             Just p -> fmap (withAttr (priorityAttr p)) (renderPriorityWidget p)
             Nothing -> Nothing
         , Just $ txt $ view title task
-        , fmap (withAttr tagAttr) (renderTagsWidget (view tags task))
+        , fmap (withAttr tagAttr) (renderTagsWidget (S.toList $ view tags task))
         ]
    where
     renderPriorityWidget p
@@ -83,7 +84,7 @@ instance RenderTask Task b where
             , Just $ view todoKeyword task -- TODO: colorcode them
             , view priority task >>= renderPriority
             , Just $ view title task
-            , renderTags (view tags task)
+            , renderTags (S.toList $ view tags task)
             ]
     timeFieldsLine =
       txt $
@@ -157,7 +158,7 @@ instance RenderTask Task b where
             , Just $ view todoKeyword task
             , view priority task >>= renderPriorityText
             , Just $ view title task
-            , renderTagsText (view tags task)
+            , renderTagsText (S.toList $ view tags task)
             ]
      where
       renderPriorityText p

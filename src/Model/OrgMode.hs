@@ -1,18 +1,19 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
 
 module Model.OrgMode where
 
 import Control.Lens (makeLenses)
+import Data.List (sortBy)
+import qualified Data.Set as S
 import qualified Data.Text as T
 import Data.Time
 import Data.Vector as V
 import Model.Injection
-import Data.List (sortBy)
 
 -- Model
 
@@ -56,7 +57,7 @@ data Task = Task
   , _todoKeyword :: T.Text
   , _priority :: Maybe Int
   , _title :: T.Text
-  , _tags :: [T.Text]
+  , _tags :: S.Set T.Text
   , _scheduled :: Maybe OrgTime
   , _deadline :: Maybe OrgTime
   , _closed :: Maybe OrgTime
@@ -115,7 +116,6 @@ instance Injection Char (Maybe TimeUnit) where
   to 'y' = Just Year
   to _ = Nothing
 
-
 instance Injection RepeatType T.Text where
   to NextDate = "+"
   to NextFutureDate = "++"
@@ -137,12 +137,11 @@ allDelayTypes = sortInverseLength [minBound .. maxBound]
 allRepeatTypes :: [RepeatType]
 allRepeatTypes = sortInverseLength [minBound .. maxBound]
 
-sortInverseLength:: (Injection a T.Text) => [a] -> [a]
+sortInverseLength :: (Injection a T.Text) => [a] -> [a]
 sortInverseLength = sortBy compareLength
-  where
-    compareLength :: (Injection a T.Text) => a -> a -> Ordering
-    compareLength a b = compare (T.length (to b)) (T.length (to a))
-
+ where
+  compareLength :: (Injection a T.Text) => a -> a -> Ordering
+  compareLength a b = compare (T.length (to b)) (T.length (to a))
 
 -- Time fields
 
@@ -155,7 +154,7 @@ orgDeadlineField = TimeField "DEADLINE" AngleDelim
 orgClosedField :: TimeField
 orgClosedField = TimeField "CLOSED" BracketDelim
 
-orgCreatedProperty:: T.Text
+orgCreatedProperty :: T.Text
 orgCreatedProperty = "CREATED"
 
 orgTimeFields :: [TimeField]
