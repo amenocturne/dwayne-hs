@@ -241,6 +241,10 @@ changeTodoKeyword keyword = over (currentTaskLens . todoKeyword) (const keyword)
 addTag :: T.Text -> AppContext Task -> AppContext Task
 addTag tag = over (currentTaskLens . tags) (S.insert tag)
 
+-- Needs to be specific type
+deleteTag :: T.Text -> AppContext Task -> AppContext Task
+deleteTag tag = over (currentTaskLens . tags) (S.delete tag)
+
 abortCmd :: AppContext a -> AppContext a
 abortCmd = switchMode NormalMode . set (appState . cmdState) Nothing
 
@@ -402,6 +406,15 @@ addTagBinding tag bind =
     (saveForUndo $ modify (addTag tag))
     (modeKeyContext NormalMode)
 
+deleteTagBinding :: T.Text -> String -> KeyBinding Task
+deleteTagBinding tag bind =
+  KeyBinding
+    (DeleteTag tag)
+    (toKey bind)
+    (T.concat ["Delete tag `", tag, "` from the task"])
+    (saveForUndo $ modify (deleteTag tag))
+    (modeKeyContext NormalMode)
+
 class ToBinding k where
   toBinding :: AppMode a -> KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
 
@@ -458,8 +471,9 @@ normalModeBindings =
   , changeTodoKeywordBinding "TODO" "tt"
   , changeTodoKeywordBinding "DONE" "td"
   , changeTodoKeywordBinding "TRASH" "tx"
-  , -- Tags
-    addTagBinding "music" ",m"
+  , -- Tags addition
+    addTagBinding "music" "a,m"
+  , deleteTagBinding "music" "d,m"
   , -- Views
     normalBinding (View "all") (toKeySeq " aa") "Show all tasks" $ saveForJump $ applyFilterToAllTasks (const True)
   , changeViewKeywordBinding "INBOX" " ai"
@@ -473,7 +487,7 @@ normalModeBindings =
   , changeViewKeywordBinding "DONE" " ad"
   , changeViewKeywordBinding "TRASH" " ax"
   , -- Other
-    normalBinding AddTask 'a' "Add new task" $ saveForUndo addNewTask
+    normalBinding AddTask (toKeySeq "at") "Add new task" $ saveForUndo addNewTask
   , normalBinding EditInEditor (toKey KEnter) "Edit in editor" $ saveForUndo editSelectedTaskInEditor
   , normalBinding OpenUrl (toKeySeq "gx") "Open URL in task" openTaskUrl
   ]
