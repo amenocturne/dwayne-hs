@@ -45,6 +45,8 @@ data KeyEvent
   | SaveAll
   | AddTask
   | OpenUrl
+  -- Macros
+  | Macro T.Text
   | -- Error dialog
     ErrorDialogQuit
   | ErrorDialogAccept

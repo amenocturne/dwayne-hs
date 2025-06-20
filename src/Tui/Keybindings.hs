@@ -486,6 +486,11 @@ normalModeBindings =
   , changeViewKeywordBinding "TODO" " at"
   , changeViewKeywordBinding "DONE" " ad"
   , changeViewKeywordBinding "TRASH" " ax"
+  , -- Macros
+    normalBinding (Macro "Music") (toKeySeq "mm") "Macros for music entries" $
+      saveForUndo $
+        modify $
+          addTag "music" . addTag "download" . changeTodoKeyword "LIST"
   , -- Other
     normalBinding AddTask (toKeySeq "at") "Add new task" $ saveForUndo addNewTask
   , normalBinding EditInEditor (toKey KEnter) "Edit in editor" $ saveForUndo editSelectedTaskInEditor
