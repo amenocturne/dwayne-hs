@@ -86,7 +86,7 @@ drawCompactSearchView query ctx =
   fs = view fileStateLens ctx
   tasks = V.catMaybes $ fmap (\p -> preview (taskBy p) fs) cv
   searchResults = if T.null query then tasks else V.filter (matches query) tasks
-  displayedTasks = V.slice 0 (min (end - start + 1) (V.length searchResults)) searchResults
+  displayedTasks = V.take (min (end - start + 1) (V.length searchResults)) searchResults
   numberOfTasks = V.length searchResults
   scheme = view (config . colorScheme) ctx
   compactTasks =
@@ -107,11 +107,11 @@ drawCompactListView withPadding ctx =
   compView = view compactViewLens ctx
   start = view compactViewTaskStartIndex compView
   end = view compactViewTasksEndIndex compView
-  taskPointers = V.slice start (end - start + 1) (view currentViewLens ctx)
+  taskPointers = V.take (end - start + 1) $ V.drop start (view currentViewLens ctx)
   numberOfTasks = V.length (view currentViewLens ctx)
 
   fs = view fileStateLens ctx
-  padding = if withPadding then [padBottom Max (fill ' ')] else []
+  padding = [padBottom Max (fill ' ') | withPadding]
   compactTasks = vBox $ V.toList (V.mapMaybe renderTask taskPointers) ++ padding
   maybeFocusedTask = maybe emptyWidget (R.renderFullWithColors scheme) (preview currentTaskLens ctx)
   selectedTaskPtr = preview currentTaskPtr ctx
@@ -119,7 +119,7 @@ drawCompactListView withPadding ctx =
 
   renderTask ptr =
     if Just ptr == selectedTaskPtr
-      then fmap (\w -> withDefAttr highlightBgAttr $ padRight Max w) renderedTask
+      then fmap (withDefAttr highlightBgAttr . padRight Max) renderedTask
       else renderedTask
    where
     renderedTask = fmap (R.renderCompactWithColors scheme) (preview (taskBy ptr) fs)
