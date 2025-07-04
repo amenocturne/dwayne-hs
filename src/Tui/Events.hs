@@ -28,7 +28,7 @@ import Writer.Writer
 checkFilesUnmodified :: (Eq a) => AppContext a -> IO [FilePath]
 checkFilesUnmodified ctx = do
   let fps = view (config . files) ctx
-      parser = view (config . fileParser) ctx
+      parser = view (system . fileParser) ctx
       originalMap = view originalFileStateLens ctx
   pairs <- liftIO $ forM fps $ \fp -> do
     txt <- readFileExample fp
@@ -44,7 +44,7 @@ checkFilesUnmodified ctx = do
   return modified
 
 checkUnsavedChanges :: (Eq a) => AppContext a -> Bool
-checkUnsavedChanges ctx = 
+checkUnsavedChanges ctx =
   let currentState = view fileStateLens ctx
       originalState = view originalFileStateLens ctx
   in currentState /= originalState
@@ -78,7 +78,7 @@ handleNormalModeInput key mods = do
   case nonEmpty buffer of
     Nothing -> return ()
     Just l -> do
-      let keys = view (config . keybindings) ctx
+      let keys = view (system . keybindings) ctx
       let applicableKeys = filter (\k -> matchesSubsequence buffer k && view keyContext k ctx) keys
       case applicableKeys of
         [] -> cleanKeyState

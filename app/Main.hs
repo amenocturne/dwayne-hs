@@ -18,17 +18,19 @@ import Writer.OrgWriter ()
 
 main :: IO ()
 main = do
-  tui $
-    AppConfig
+  tui
+    SystemConfig
       { _taskParser = anyTaskparser
       , _fileParser = orgFileParser
-      , _files =
+      , _keybindings = normalModeBindings
+      }
+    AppConfig
+      { _files =
           [ "./resources/Sample.org"
           , "./resources/SampleInbox.org"
           ]
       , _inboxFile = "./resources/SampleInbox.org"
       , _scrollingMargin = 6
-      , _keybindings = normalModeBindings
       , _keyTimeoutMs = 1000
       , _autoSave = True
       , _colorScheme = "default"

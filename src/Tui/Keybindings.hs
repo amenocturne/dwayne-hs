@@ -154,7 +154,7 @@ addNewTask = do
           Nothing -> return ctx
           Just editedStr ->
             let (l, _, result) =
-                  runParser (view (config . taskParser) ctx) editedStr
+                  runParser (view (system . taskParser) ctx) editedStr
              in case result of
                   ParserFailure err -> do
                     -- show parse error
@@ -192,7 +192,7 @@ editSelectedTaskInEditor = do
       case editedContent of
         Nothing -> return ctx
         Just editedStr -> do
-          let (l, _, result) = runParser (view (config . taskParser) ctx) editedStr
+          let (l, _, result) = runParser (view (system . taskParser) ctx) editedStr
           case result of
             ParserSuccess t -> do
               return $ set (fileStateLens . taskBy ptr) t ctx

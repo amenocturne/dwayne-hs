@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -17,12 +18,15 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.Set (Set)
 import Data.Time (UTCTime)
 import qualified Data.Vector as V
+import Data.Yaml.Aeson (FromJSON)
+import GHC.Generics
 import Model.LinearHistory
 import Parser.Parser
 
 data AppContext a = AppContext
   { _appState :: AppState a
   , _config :: AppConfig a
+  , _system :: SystemConfig a
   }
 
 data KeyEvent
@@ -44,8 +48,8 @@ data KeyEvent
   | SaveAll
   | AddTask
   | OpenUrl
-  -- Macros
-  | Macro T.Text
+  | -- Macros
+    Macro T.Text
   | -- Error dialog
     ErrorDialogQuit
   | ErrorDialogAccept
@@ -66,13 +70,19 @@ type FileState a = M.Map String (ParserResult (TaskFile a))
 data AppConfig a = AppConfig
   { _files :: [String]
   , _inboxFile :: String
-  , _fileParser :: Parser (TaskFile a)
-  , _taskParser :: Parser a
   , _scrollingMargin :: Int
-  , _keybindings :: [KeyBinding a]
   , _keyTimeoutMs :: Int
   , _autoSave :: Bool
   , _colorScheme :: String
+  }
+  deriving (Generic)
+
+instance FromJSON (AppConfig a)
+
+data SystemConfig a = SystemConfig
+  { _fileParser :: Parser (TaskFile a)
+  , _taskParser :: Parser a
+  , _keybindings :: [KeyBinding a]
   }
 
 data AppState a = AppState
@@ -146,6 +156,7 @@ makeLenses ''TaskPointer
 makeLenses ''AppState
 makeLenses ''AppContext
 makeLenses ''AppConfig
+makeLenses ''SystemConfig
 makeLenses ''ErrorDialog
 makeLenses ''KeyBinding
 makeLenses ''KeyPress

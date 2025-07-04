@@ -45,11 +45,11 @@ getAllPointers fs = V.concatMap fun (V.fromList $ M.toList fs) -- TODO: optimize
 
 
 class Tui a where
-  tui :: AppConfig a -> IO ()
+  tui :: SystemConfig a -> AppConfig a -> IO ()
 
 instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a) => Tui a where
-  tui conf = do
-    parsedFiles <- mapM (\f -> fmap (f,) (readTasks (view fileParser conf) f)) (view files conf)
+  tui sysConf conf = do
+    parsedFiles <- mapM (\f -> fmap (f,) (readTasks (view fileParser sysConf) f)) (view files conf)
     eventChan <- newBChan 10 -- TODO: maybe use different event channel size
     let fState = M.fromList (fmap (\(a, (_, c)) -> (a, c)) parsedFiles)
     let parsingErrors = mapMaybe (\(f, (l, e)) -> fmap (f,l,) (errorToMaybe e)) parsedFiles
@@ -76,6 +76,7 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a) => Tui a where
           AppContext
             { _appState = state
             , _config = conf
+            , _system = sysConf
             }
     let app =
           App
