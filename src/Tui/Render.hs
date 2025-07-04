@@ -8,7 +8,7 @@ import Control.Lens
 import Graphics.Vty.Attributes
 import Render.Render
 import qualified Render.Render as R
-import Tui.ColorScheme (ColorScheme, defaultColor, descriptionAttr, descriptionColor, highlightBgAttr, highlightBgColor, levelAttr, levelColors, priorityAttr, priorityColors, propertyAttr, propertyColor, tagAttr, tagColor, timeFieldAttr, timeFieldColor, todoKeywordAttr, todoKeywordColors)
+import Tui.ColorScheme (ColorScheme, defaultColor, descriptionAttr, descriptionColor, highlightBgAttr, highlightBgColor, levelAttr, levelColors, priorityAttr, priorityColors, propertyAttr, propertyColor, tagAttr, tagColor, timeFieldAttr, timeFieldColor, todoKeywordAttr, todoKeywordColors, getColorScheme)
 import Tui.Types
 
 import Brick.Widgets.Border (vBorder)
@@ -93,7 +93,7 @@ drawCompactSearchView query ctx =
     if V.length displayedTasks == 0
       then fill ' '
       else
-        vBox $ V.toList (V.map (R.renderCompactWithColors scheme) displayedTasks) ++ [padBottom Max (fill ' ')]
+        vBox $ V.toList (V.map (R.renderCompactWithColors $ getColorScheme scheme) displayedTasks) ++ [padBottom Max (fill ' ')]
 
 drawCompactListView :: (RenderTask a Name) => Bool -> AppContext a -> Widget Name
 drawCompactListView withPadding ctx =
@@ -113,7 +113,7 @@ drawCompactListView withPadding ctx =
   fs = view fileStateLens ctx
   padding = [padBottom Max (fill ' ') | withPadding]
   compactTasks = vBox $ V.toList (V.mapMaybe renderTask taskPointers) ++ padding
-  maybeFocusedTask = maybe emptyWidget (R.renderFullWithColors scheme) (preview currentTaskLens ctx)
+  maybeFocusedTask = maybe emptyWidget (R.renderFullWithColors $ getColorScheme scheme) (preview currentTaskLens ctx)
   selectedTaskPtr = preview currentTaskPtr ctx
   scheme = view (config . colorScheme) ctx
 
@@ -122,7 +122,7 @@ drawCompactListView withPadding ctx =
       then fmap (withDefAttr highlightBgAttr . padRight Max) renderedTask
       else renderedTask
    where
-    renderedTask = fmap (R.renderCompactWithColors scheme) (preview (taskBy ptr) fs)
+    renderedTask = fmap (R.renderCompactWithColors $ getColorScheme scheme) (preview (taskBy ptr) fs)
 
 cmdTypeToPrefix :: CmdType -> T.Text
 cmdTypeToPrefix Command = ":"

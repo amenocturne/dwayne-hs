@@ -49,6 +49,7 @@ import Writer.OrgWriter ()
 -- TODO: make a shortcut to save note contents directly to obsidian vault and open obsidian with this file to continue editing
 -- TODO: make a shortcut to copy task to clipboard
 -- TODO: make selection mode for bulk actions
+-- TODO: Make sorting actions
 
 -- Helper functions
 
