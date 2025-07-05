@@ -21,6 +21,7 @@ import Model.OrgMode
 import Render.Render
 import Tui.ColorScheme (ColorScheme, descriptionAttr, levelAttr, priorityAttr, propertyAttr, tagAttr, timeFieldAttr, todoKeywordAttr)
 
+-- TODO: render pretty org-style links
 -- TODO: factor out common functions from it and Writer
 instance RenderTask Task b where
   renderCompact task = titleLine

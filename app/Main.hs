@@ -16,6 +16,8 @@ import Tui.Tui
 import Tui.Types
 import Writer.OrgWriter ()
 
+-- TODO: add cli tool to quickly add tasks and integrate with other apps
+
 main :: IO ()
 main =
   tui
