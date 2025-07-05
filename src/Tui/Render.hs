@@ -55,7 +55,7 @@ theAppAttrMap = createAttrMap
 drawUI :: (RenderTask a Name, Searcher a) => AppContext a -> [Widget Name]
 drawUI ctx =
   let mainLayers = case view (appState . appMode) ctx of
-        NormalMode -> [drawCompactListView True ctx]
+        NormalMode -> [drawCompactListView ctx]
         CmdMode ->
           let cmdW = case view (appState . cmdState) ctx of
                 Just (Typing t q) -> cmdWidget t q
@@ -63,7 +63,7 @@ drawUI ctx =
                 Nothing -> emptyWidget
               mainView = case view (appState . cmdState) ctx of
                 Just (Typing Search q) -> drawCompactSearchView q ctx
-                _ -> drawCompactListView False ctx
+                _ -> drawCompactListView ctx
            in [vBox [mainView, cmdW]]
    in case view (appState . errorDialog) ctx of
         Just dlg -> renderDialog (view edDialog dlg) (strWrap $ view edMessage dlg) : mainLayers
@@ -81,22 +81,22 @@ drawCompactSearchView query ctx =
   compView = view compactViewLens ctx
   start = view compactViewTaskStartIndex compView
   end = view compactViewTasksEndIndex compView
-
+  scheme = view (config . colorScheme) ctx
   cv = view currentViewLens ctx
   fs = view fileStateLens ctx
+  numberOfTasks = V.length searchResults
+
   tasks = V.catMaybes $ fmap (\p -> preview (taskBy p) fs) cv
   searchResults = if T.null query then tasks else V.filter (matches query) tasks
   displayedTasks = V.take (min (end - start + 1) (V.length searchResults)) searchResults
-  numberOfTasks = V.length searchResults
-  scheme = view (config . colorScheme) ctx
   compactTasks =
     if V.length displayedTasks == 0
       then fill ' '
       else
         vBox $ V.toList (V.map (R.renderCompactWithColors $ getColorScheme scheme) displayedTasks) ++ [padBottom Max (fill ' ')]
 
-drawCompactListView :: (RenderTask a Name) => Bool -> AppContext a -> Widget Name
-drawCompactListView withPadding ctx =
+drawCompactListView :: (RenderTask a Name) => AppContext a -> Widget Name
+drawCompactListView ctx =
   hBox
     [ padRight Max $ reportExtent CompactViewWidget compactTasks
     , hLimit 1 $ fill ' '
@@ -107,15 +107,16 @@ drawCompactListView withPadding ctx =
   compView = view compactViewLens ctx
   start = view compactViewTaskStartIndex compView
   end = view compactViewTasksEndIndex compView
-  taskPointers = V.take (end - start + 1) $ V.drop start (view currentViewLens ctx)
-  numberOfTasks = V.length (view currentViewLens ctx)
-
+  scheme = view (config . colorScheme) ctx
+  cv = view currentViewLens ctx
   fs = view fileStateLens ctx
-  padding = [padBottom Max (fill ' ') | withPadding]
-  compactTasks = vBox $ V.toList (V.mapMaybe renderTask taskPointers) ++ padding
+  numberOfTasks = V.length cv
+
+
+  taskPointers = V.take (end - start + 1) $ V.drop start cv
+  compactTasks = vBox $ V.toList (V.mapMaybe renderTask taskPointers)
   maybeFocusedTask = maybe emptyWidget (R.renderFullWithColors $ getColorScheme scheme) (preview currentTaskLens ctx)
   selectedTaskPtr = preview currentTaskPtr ctx
-  scheme = view (config . colorScheme) ctx
 
   renderTask ptr =
     if Just ptr == selectedTaskPtr
