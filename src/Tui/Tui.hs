@@ -17,6 +17,7 @@ import Graphics.Vty.CrossPlatform (mkVty)
 import Model.OrgMode
 import Render.Render
 
+import System.FilePath ((</>))
 import Tui.ColorScheme
 import Tui.Events
 import Tui.Render
@@ -33,6 +34,10 @@ import Parser.Parser
 import Searcher.Searcher
 import TextUtils
 import Control.Monad (guard)
+import Data.Yaml (ParseException)
+import Data.Yaml.Aeson (decodeFileEither)
+import System.Environment (lookupEnv)
+import System.Directory (getHomeDirectory)
 
 getAllPointers :: FileState a -> V.Vector TaskPointer
 getAllPointers fs = V.concatMap fun (V.fromList $ M.toList fs) -- TODO: optimize all this convertions
@@ -43,12 +48,28 @@ getAllPointers fs = V.concatMap fun (V.fromList $ M.toList fs) -- TODO: optimize
       (\taskFile -> (\(i, _) -> TaskPointer f i) <$> V.zip (V.fromList [0 ..]) (_content taskFile))
       (resultToMaybe result)
 
+getConfigPath :: IO FilePath
+getConfigPath = do
+  mConfigFile <- lookupEnv "DWAYNE_CONFIG"
+  mXdg <- lookupEnv "XDG_CONFIG_HOME"
+  home <- getHomeDirectory
+  let dwayneConfig = "dwayne" </> "config.yml"
+  return $ case (mConfigFile, mXdg) of
+    (Just configFile, _) -> configFile
+    (_, Just xdg) -> xdg </> dwayneConfig
+    _ -> home </> ".config" </> dwayneConfig
+
 
 class Tui a where
-  tui :: SystemConfig a -> AppConfig a -> IO ()
+  tui :: SystemConfig a -> IO ()
 
 instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a) => Tui a where
-  tui sysConf conf = do
+  tui sysConf = do
+    configFilePath <- getConfigPath
+    parsedConfig <- decodeFileEither configFilePath :: IO (Either ParseException (AppConfig a))
+    conf <- case parsedConfig of
+      Left err -> Prelude.error $ show err
+      Right conf -> return conf
     parsedFiles <- mapM (\f -> fmap (f,) (readTasks (view fileParser sysConf) f)) (view files conf)
     eventChan <- newBChan 10 -- TODO: maybe use different event channel size
     let fState = M.fromList (fmap (\(a, (_, c)) -> (a, c)) parsedFiles)
