@@ -13,7 +13,7 @@ import qualified Brick.Types as BT
 import Control.Applicative ((<|>))
 import Control.Lens
 import qualified Data.Map.Strict as M
-import Data.Maybe (isJust)
+import Data.Maybe (fromMaybe, isJust)
 import qualified Data.Text as T
 import Graphics.Vty.Input.Events
 import Text.Regex
@@ -24,8 +24,9 @@ import Brick.BChan
 import Control.Monad.IO.Class (liftIO)
 import Data.Char (isUpper, toLower)
 import Data.List.NonEmpty (NonEmpty (..), fromList)
+import Data.Ord (comparing)
 import qualified Data.Set as S
-import Data.Time (getZonedTime)
+import Data.Time (LocalTime, getZonedTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import qualified Data.Vector as V
 import qualified Model.LinearHistory as L
@@ -33,6 +34,7 @@ import Model.OrgMode (
   Task (..),
   TaskFile,
   content,
+  getCreatedTime,
   orgCreatedProperty,
   orgDayTimeFormat,
   tags,
@@ -63,6 +65,22 @@ extractFirstUrl text = case (orgMatches, urlMatches) of
   urlMatches = matchRegex urlPattern $ T.unpack text
   orgPattern = mkRegex "\\[\\[(https?://[^ \t\n]+)\\]"
   orgMatches = matchRegex orgPattern $ T.unpack text
+
+applySorter :: (Task -> Task -> Ordering) -> GlobalAppState Task
+applySorter sorter = do
+  modify $ set viewSorterLens sorter
+  adjustViewport
+
+veryOldTime :: LocalTime
+veryOldTime = read "1970-01-01 00:00:00"
+
+sortByCreatedAsc :: Task -> Task -> Ordering
+sortByCreatedAsc t1 t2 =
+  comparing (fromMaybe veryOldTime . getCreatedTime) t1 t2
+
+sortByCreatedDesc :: Task -> Task -> Ordering
+sortByCreatedDesc t1 t2 =
+  comparing (fromMaybe veryOldTime . getCreatedTime) t2 t1
 
 openUrlInBrowser :: T.Text -> IO ()
 openUrlInBrowser url = callCommand $ "open " ++ T.unpack url
@@ -460,6 +478,9 @@ orgKeyBindings =
   , changeViewKeywordBinding "TODO" " at"
   , changeViewKeywordBinding "DONE" " ad"
   , changeViewKeywordBinding "TRASH" " ax"
+  , -- Sorting
+    normalBinding SortCreatedAsc (toKeySeq "sca") "Sort by created (asc)" $ saveForJump (applySorter sortByCreatedAsc)
+  , normalBinding SortCreatedDesc (toKeySeq "scd") "Sort by created (desc)" $ saveForJump (applySorter sortByCreatedDesc)
   , -- Macros
     normalBinding (Macro "Music") (toKeySeq "mm") "Macros for music entries" $
       saveForUndo $

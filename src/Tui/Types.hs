@@ -54,6 +54,8 @@ data KeyEvent
   | SaveAll
   | AddTask
   | OpenUrl
+  | SortCreatedAsc
+  | SortCreatedDesc
   | -- Macros
     Macro T.Text
   | -- Error dialog

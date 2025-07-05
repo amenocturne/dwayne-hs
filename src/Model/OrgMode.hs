@@ -12,6 +12,7 @@ import Data.List (sortBy)
 import qualified Data.Set as S
 import qualified Data.Text as T
 import Data.Time
+import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Data.Vector as V
 import Model.Injection
 
@@ -97,6 +98,12 @@ data TimeField = TimeField
   }
 
 makeLenses ''Task
+
+getCreatedTime :: Task -> Maybe LocalTime
+getCreatedTime task = do
+  createdStr <- lookup orgCreatedProperty (_properties task)
+  let timeStr = T.unpack $ T.dropAround (\c -> c == '[' || c == ']') createdStr
+  parseTimeM True defaultTimeLocale orgDayTimeFormat timeStr
 
 allTimeUnits :: [TimeUnit]
 allTimeUnits = [minBound .. maxBound]
