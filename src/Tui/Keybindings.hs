@@ -179,7 +179,6 @@ addNewTask = do
                         return ctx3
       adjustViewport
 
--- TODO: refactor
 editSelectedTaskInEditor :: (Writer a) => GlobalAppState a
 editSelectedTaskInEditor = do
   ctx <- get
@@ -389,7 +388,6 @@ changeTodoKeywordBinding keyword bind =
     (saveForUndo $ modify (changeTodoKeyword keyword))
     (modeKeyContext NormalMode)
 
--- FIX: when there are 0 tasks with that keyword it falls into error
 changeViewKeywordBinding :: T.Text -> String -> KeyBinding Task
 changeViewKeywordBinding keyword bind =
   normalBinding
@@ -434,8 +432,8 @@ normalBinding = toBinding NormalMode
 cmdBinding :: (ToBinding k) => KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
 cmdBinding = toBinding CmdMode
 
-normalModeBindings :: [KeyBinding Task]
-normalModeBindings =
+orgKeyBindings :: [KeyBinding Task]
+orgKeyBindings =
   [ --------------------------------- Error Dialog -----------------------------
     KeyBinding ErrorDialogQuit (toKey KEsc) "Quit error dialog" proceedInErrorDialog errorDialogKeyContext
   , KeyBinding ErrorDialogAccept (toKey KEnter) "Accept selected option" proceedInErrorDialog errorDialogKeyContext

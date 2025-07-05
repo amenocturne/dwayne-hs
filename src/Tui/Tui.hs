@@ -26,18 +26,18 @@ import Tui.Types
 import Writer.Writer
 
 import Brick.BChan
+import Control.Monad (guard)
 import Data.List
 import qualified Data.Text as T
 import qualified Data.Vector as V
+import Data.Yaml (ParseException)
+import Data.Yaml.Aeson (decodeFileEither)
 import Model.LinearHistory (initLinearHistory)
 import Parser.Parser
 import Searcher.Searcher
-import TextUtils
-import Control.Monad (guard)
-import Data.Yaml (ParseException)
-import Data.Yaml.Aeson (decodeFileEither)
-import System.Environment (lookupEnv)
 import System.Directory (getHomeDirectory)
+import System.Environment (lookupEnv)
+import TextUtils
 
 getAllPointers :: FileState a -> V.Vector TaskPointer
 getAllPointers fs = V.concatMap fun (V.fromList $ M.toList fs) -- TODO: optimize all this convertions
@@ -47,18 +47,6 @@ getAllPointers fs = V.concatMap fun (V.fromList $ M.toList fs) -- TODO: optimize
       V.empty
       (\taskFile -> (\(i, _) -> TaskPointer f i) <$> V.zip (V.fromList [0 ..]) (_content taskFile))
       (resultToMaybe result)
-
-getConfigPath :: IO FilePath
-getConfigPath = do
-  mConfigFile <- lookupEnv "DWAYNE_CONFIG"
-  mXdg <- lookupEnv "XDG_CONFIG_HOME"
-  home <- getHomeDirectory
-  let dwayneConfig = "dwayne" </> "config.yml"
-  return $ case (mConfigFile, mXdg) of
-    (Just configFile, _) -> configFile
-    (_, Just xdg) -> xdg </> dwayneConfig
-    _ -> home </> ".config" </> dwayneConfig
-
 
 class Tui a where
   tui :: SystemConfig a -> IO ()
@@ -71,10 +59,14 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a) => Tui a where
       Left err -> Prelude.error $ show err
       Right conf -> return conf
     parsedFiles <- mapM (\f -> fmap (f,) (readTasks (view fileParser sysConf) f)) (view files conf)
-    eventChan <- newBChan 10 -- TODO: maybe use different event channel size
+    eventChan <- newBChan 10 -- maybe should use different event channel size
     let fState = M.fromList (fmap (\(a, (_, c)) -> (a, c)) parsedFiles)
     let parsingErrors = mapMaybe (\(f, (l, e)) -> fmap (f,l,) (errorToMaybe e)) parsedFiles
     let pointers = getAllPointers fState
+
+    -- NOTE: Safe bet that there will be less than 200 tasks on the screen as we don't
+    -- know the size of the viewport in the beginning
+    let maxEndIndex = 200
     let state =
           AppState
             { _eventChannel = eventChan
@@ -86,7 +78,7 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a) => Tui a where
                 initLinearHistory
                   CompactView
                     { _compactViewTaskStartIndex = 0
-                    , _compactViewTasksEndIndex = min (V.length pointers - 1) 200 -- NOTE: safe bet that there will be less than 200 tasks on the screen as we don't know the size of the viewport in the beginning
+                    , _compactViewTasksEndIndex = min (V.length pointers - 1) maxEndIndex
                     , _cursor = 0 <$ listToMaybe (V.toList pointers)
                     , _currentView = pointers
                     }
@@ -101,7 +93,7 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a) => Tui a where
             }
     let app =
           App
-            { appDraw = drawUI -- List in type signature because each element is a layer and thus you can put widgets on top of one another
+            { appDraw = drawUI
             , appChooseCursor = showFirstCursor
             , appHandleEvent = handleEvent
             , appStartEvent = return ()
@@ -119,13 +111,6 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a) => Tui a where
 
     void $ customMain initialVty buildVty (Just eventChan) app ctx
    where
-    -- NOTE: useful code below to save file
-    -- ParserSuccess (TaskFile name tasks) -> do
-    -- let wrote = write (TaskFile name tasks)
-    -- void $ writeFileExample "./resources/parsed.org" wrote
-    -- ParserFailure e -> simpleMain (ui (show e))
-    -- return ()
-
     readTasks :: Parser a -> FilePath -> IO (Location, ParserResult a)
     readTasks p f = do
       c <- readFileExample f

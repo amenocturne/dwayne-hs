@@ -30,7 +30,7 @@ instance RenderTask Task b where
         T.unwords $
           catMaybes
             [ Just $ T.replicate (view level task) "*"
-            , Just $ view todoKeyword task -- TODO: colorcode them
+            , Just $ view todoKeyword task
             , view priority task >>= renderPriority
             , Just (view title task)
             , renderTags (S.toList $ view tags task)
@@ -81,7 +81,7 @@ instance RenderTask Task b where
         T.unwords $
           catMaybes
             [ Just $ T.replicate (view level task) "*"
-            , Just $ view todoKeyword task -- TODO: colorcode them
+            , Just $ view todoKeyword task
             , view priority task >>= renderPriority
             , Just $ view title task
             , renderTags (S.toList $ view tags task)

@@ -11,7 +11,7 @@ module Main (main) where
 import Parser.OrgParser (anyTaskparser, orgFileParser)
 import Render.OrgRender ()
 import Searcher.OrgSearcher ()
-import Tui.Keybindings (normalModeBindings)
+import Tui.Keybindings (orgKeyBindings)
 import Tui.Tui
 import Tui.Types
 import Writer.OrgWriter ()
@@ -22,5 +22,5 @@ main =
     SystemConfig
       { _taskParser = anyTaskparser
       , _fileParser = orgFileParser
-      , _keybindings = normalModeBindings
+      , _keybindings = orgKeyBindings
       }

@@ -71,7 +71,6 @@ takeUntilDelimParser delim = splitParser $ splitByFirstDelimiter delim
 wordParser :: Parser T.Text
 wordParser = takeWhileParser (\c -> isLetter c || elem c ['_'])
 
--- NOTE: skips all white spaces except new lines
 skipBlanksExceptNewLinesParser :: Parser ()
 skipBlanksExceptNewLinesParser = void $ takeWhileParser isWhitespaceExceptNewline
 

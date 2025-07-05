@@ -16,20 +16,30 @@ import qualified Data.Text.IO as TIO
 import Data.Time (ParseTime, defaultTimeLocale)
 import Data.Time.Format (parseTimeM)
 import GHC.IO.Exception (ExitCode (..))
-import System.Directory (removeFile)
+import System.Directory (getHomeDirectory, removeFile)
 import System.Environment (lookupEnv)
+import System.FilePath ((</>))
 import System.IO
 import System.Process
-import System.Directory (getHomeDirectory)
-import System.FilePath ((</>))
+
+getConfigPath :: IO FilePath
+getConfigPath = do
+  mConfigFile <- lookupEnv "DWAYNE_CONFIG"
+  mXdg <- lookupEnv "XDG_CONFIG_HOME"
+  home <- getHomeDirectory
+  let dwayneConfig = "dwayne" </> "config.yml"
+  return $ case (mConfigFile, mXdg) of
+    (Just configFile, _) -> configFile
+    (_, Just xdg) -> xdg </> dwayneConfig
+    _ -> home </> ".config" </> dwayneConfig
 
 expandHome :: String -> IO String
-expandHome ('~':'/':rest) = do
+expandHome ('~' : '/' : rest) = do
   home <- getHomeDirectory
   return $ home </> rest
 expandHome path = return path
 
--- TODO: expand env variables
+-- TODO: expand env variables as well as ~
 readFileExample :: FilePath -> IO T.Text
 readFileExample f = do
   fp <- expandHome f
