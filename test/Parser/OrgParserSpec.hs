@@ -2,6 +2,7 @@
 
 module Parser.OrgParserSpec (spec) where
 
+import qualified Data.Set as S
 import Control.Lens
 import qualified Data.Text as T
 import Data.Time.Calendar (fromGregorian)
@@ -386,7 +387,7 @@ spec = do
           view todoKeyword task `shouldBe` "TODO"
           view priority task `shouldBe` Nothing
           view title task `shouldBe` "Minimal task"
-          view tags task `shouldBe` []
+          view tags task `shouldBe` (S.fromList [])
           view scheduled task `shouldBe` Nothing
           view deadline task `shouldBe` Nothing
           view closed task `shouldBe` Nothing
@@ -411,7 +412,7 @@ spec = do
           view todoKeyword task `shouldBe` "TODO"
           view priority task `shouldBe` Nothing
           view title task `shouldBe` ""
-          view tags task `shouldBe` []
+          view tags task `shouldBe` (S.fromList [])
           view scheduled task `shouldBe` Nothing
           view deadline task `shouldBe` Nothing
           view closed task `shouldBe` Nothing

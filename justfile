@@ -1,0 +1,11 @@
+run:
+  DWAYNE_CONFIG=./resources/config.yml cabal run
+
+build:
+  cabal build
+
+test:
+  cabal test
+
+install:
+  cabal install --overwrite-policy=always

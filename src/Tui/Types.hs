@@ -14,11 +14,13 @@ import Model.OrgMode
 
 import Brick.BChan
 import Brick.Widgets.Dialog (Dialog)
+import Data.Aeson (Options (..), defaultOptions)
+import Data.Aeson.Types (genericParseJSON)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Set (Set)
 import Data.Time (UTCTime)
 import qualified Data.Vector as V
-import Data.Yaml.Aeson (FromJSON)
+import Data.Yaml.Aeson (FromJSON (..))
 import GHC.Generics
 import Model.LinearHistory
 import Parser.Parser
@@ -75,9 +77,14 @@ data AppConfig a = AppConfig
   , _autoSave :: Bool
   , _colorScheme :: String
   }
-  deriving (Generic)
+  deriving (Generic, Show)
 
-instance FromJSON (AppConfig a)
+instance FromJSON (AppConfig a) where
+  parseJSON =
+    genericParseJSON
+      defaultOptions
+        { fieldLabelModifier = drop 1 -- drops the leading underscore
+        }
 
 data SystemConfig a = SystemConfig
   { _fileParser :: Parser (TaskFile a)

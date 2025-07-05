@@ -20,9 +20,20 @@ import System.Directory (removeFile)
 import System.Environment (lookupEnv)
 import System.IO
 import System.Process
+import System.Directory (getHomeDirectory)
+import System.FilePath ((</>))
 
+expandHome :: String -> IO String
+expandHome ('~':'/':rest) = do
+  home <- getHomeDirectory
+  return $ home </> rest
+expandHome path = return path
+
+-- TODO: expand env variables
 readFileExample :: FilePath -> IO T.Text
-readFileExample = TIO.readFile
+readFileExample f = do
+  fp <- expandHome f
+  TIO.readFile fp
 
 writeFileExample :: FilePath -> T.Text -> IO ()
 writeFileExample = TIO.writeFile
