@@ -45,6 +45,7 @@ readFileExample f = do
   fp <- expandHome f
   TIO.readFile fp
 
+-- TODO: expand env variables as well as ~
 writeFileExample :: FilePath -> T.Text -> IO ()
 writeFileExample = TIO.writeFile
 

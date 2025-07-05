@@ -8,7 +8,27 @@ import Control.Lens
 import Graphics.Vty.Attributes
 import Render.Render
 import qualified Render.Render as R
-import Tui.ColorScheme (ColorScheme, defaultColor, descriptionAttr, descriptionColor, highlightBgAttr, highlightBgColor, levelAttr, levelColors, priorityAttr, priorityColors, propertyAttr, propertyColor, tagAttr, tagColor, timeFieldAttr, timeFieldColor, todoKeywordAttr, todoKeywordColors, getColorScheme)
+import Tui.ColorScheme (
+  ColorScheme,
+  defaultColor,
+  descriptionAttr,
+  descriptionColor,
+  getColorScheme,
+  highlightBgAttr,
+  highlightBgColor,
+  levelAttr,
+  levelColors,
+  priorityAttr,
+  priorityColors,
+  propertyAttr,
+  propertyColor,
+  tagAttr,
+  tagColor,
+  timeFieldAttr,
+  timeFieldColor,
+  todoKeywordAttr,
+  todoKeywordColors,
+ )
 import Tui.Types
 
 import Brick.Widgets.Border (vBorder)
@@ -18,6 +38,7 @@ import Data.Maybe (maybeToList)
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Searcher.Searcher
+import System.Directory.Internal.Prelude (fromMaybe)
 
 -- Create attribute map from color scheme
 createAttrMap :: ColorScheme -> AttrMap
@@ -55,27 +76,33 @@ theAppAttrMap = createAttrMap
 drawUI :: (RenderTask a Name, Searcher a) => AppContext a -> [Widget Name]
 drawUI ctx =
   let mainLayers = case view (appState . appMode) ctx of
-        NormalMode -> [drawCompactListView ctx]
+        NormalMode -> [drawCompactView Nothing ctx]
         CmdMode ->
           let cmdW = case view (appState . cmdState) ctx of
                 Just (Typing t q) -> cmdWidget t q
                 Just (ShowingMessage m) -> messageWidget m
                 Nothing -> emptyWidget
               mainView = case view (appState . cmdState) ctx of
-                Just (Typing Search q) -> drawCompactSearchView q ctx
-                _ -> drawCompactListView ctx
+                Just (Typing Search q) -> drawCompactView (Just q) ctx
+                _ -> drawCompactView Nothing ctx
            in [vBox [mainView, cmdW]]
    in case view (appState . errorDialog) ctx of
         Just dlg -> renderDialog (view edDialog dlg) (strWrap $ view edMessage dlg) : mainLayers
         Nothing -> mainLayers
 
-drawCompactSearchView :: (RenderTask a Name, Searcher a) => T.Text -> AppContext a -> Widget Name
-drawCompactSearchView query ctx =
+drawCompactView :: (RenderTask a Name, Searcher a) => Maybe T.Text -> AppContext a -> Widget Name
+drawCompactView mQuery ctx =
   hBox
     [ padRight Max $ reportExtent CompactViewWidget compactTasks
     , hLimit 1 $ fill ' '
     , vBorder
-    , padRight Max $ vBox [str $ "Number of tasks in view: " ++ show numberOfTasks, vLimit 1 $ fill '-']
+    , padRight Max $
+        vBox
+          [ str $ "Number of tasks in view: " ++ show numberOfTasks
+          , str $ "Task file: " ++ maybeCurrentFile
+          , vLimit 1 $ fill '-'
+          , maybeFocusedTask
+          ]
     ]
  where
   compView = view compactViewLens ctx
@@ -84,46 +111,31 @@ drawCompactSearchView query ctx =
   scheme = view (config . colorScheme) ctx
   cv = view currentViewLens ctx
   fs = view fileStateLens ctx
-  numberOfTasks = V.length searchResults
 
-  tasks = V.catMaybes $ fmap (\p -> preview (taskBy p) fs) cv
-  searchResults = if T.null query then tasks else V.filter (matches query) tasks
-  displayedTasks = V.take (min (end - start + 1) (V.length searchResults)) searchResults
-  compactTasks =
-    if V.length displayedTasks == 0
-      then fill ' '
-      else
+  (compactTasks, maybeFocusedTask, numberOfTasks, maybeCurrentFile) = case mQuery of
+    Just query -> (compactTasks, emptyWidget, numberOfTasks, "-")
+     where
+      tasks = V.catMaybes $ fmap (\p -> preview (taskBy p) fs) cv
+      searchResults = if T.null query then tasks else V.filter (matches query) tasks
+      numberOfTasks = V.length searchResults
+      displayedTasks = V.take (min (end - start + 1) (V.length searchResults)) searchResults
+      compactTasks =
         vBox $ V.toList (V.map (R.renderCompactWithColors $ getColorScheme scheme) displayedTasks) ++ [padBottom Max (fill ' ')]
-
-drawCompactListView :: (RenderTask a Name) => AppContext a -> Widget Name
-drawCompactListView ctx =
-  hBox
-    [ padRight Max $ reportExtent CompactViewWidget compactTasks
-    , hLimit 1 $ fill ' '
-    , vBorder
-    , padRight Max $ vBox [str $ "Number of tasks in view: " ++ show numberOfTasks, vLimit 1 $ fill '-', maybeFocusedTask]
-    ]
- where
-  compView = view compactViewLens ctx
-  start = view compactViewTaskStartIndex compView
-  end = view compactViewTasksEndIndex compView
-  scheme = view (config . colorScheme) ctx
-  cv = view currentViewLens ctx
-  fs = view fileStateLens ctx
-  numberOfTasks = V.length cv
-
-
-  taskPointers = V.take (end - start + 1) $ V.drop start cv
-  compactTasks = vBox $ V.toList (V.mapMaybe renderTask taskPointers)
-  maybeFocusedTask = maybe emptyWidget (R.renderFullWithColors $ getColorScheme scheme) (preview currentTaskLens ctx)
-  selectedTaskPtr = preview currentTaskPtr ctx
-
-  renderTask ptr =
-    if Just ptr == selectedTaskPtr
-      then fmap (withDefAttr highlightBgAttr . padRight Max) renderedTask
-      else renderedTask
-   where
-    renderedTask = fmap (R.renderCompactWithColors $ getColorScheme scheme) (preview (taskBy ptr) fs)
+    Nothing -> (compactTasks, maybeFocusedTask, numberOfTasks, maybeCurrentFile)
+     where
+      numberOfTasks = V.length cv
+      selectedTaskPtr = preview currentTaskPtr ctx
+      taskPointers = V.take (end - start + 1) $ V.drop start cv
+      renderTask ptr =
+        if Just ptr == selectedTaskPtr
+          then fmap (withDefAttr highlightBgAttr . padRight Max) renderedTask
+          else renderedTask
+       where
+        renderedTask = fmap (R.renderCompactWithColors $ getColorScheme scheme) (preview (taskBy ptr) fs)
+      compactTasks = vBox $ V.toList (V.mapMaybe renderTask taskPointers)
+      maybeFocusedTask = maybe emptyWidget (R.renderFullWithColors $ getColorScheme scheme) (preview currentTaskLens ctx)
+      maybeCurrentFile :: String
+      maybeCurrentFile = fromMaybe "-" (preview (currentTaskPtr . file) ctx)
 
 cmdTypeToPrefix :: CmdType -> T.Text
 cmdTypeToPrefix Command = ":"
