@@ -39,15 +39,6 @@ import System.Directory (getHomeDirectory)
 import System.Environment (lookupEnv)
 import TextUtils
 
-getAllPointers :: FileState a -> V.Vector TaskPointer
-getAllPointers fs = V.concatMap fun (V.fromList $ M.toList fs) -- TODO: optimize all this convertions
- where
-  fun (f, result) =
-    maybe
-      V.empty
-      (\taskFile -> (\(i, _) -> TaskPointer f i) <$> V.zip (V.fromList [0 ..]) (_content taskFile))
-      (resultToMaybe result)
-
 class Tui a where
   tui :: SystemConfig a -> IO ()
 
@@ -80,7 +71,8 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a) => Tui a where
                     { _compactViewTaskStartIndex = 0
                     , _compactViewTasksEndIndex = min (V.length pointers - 1) maxEndIndex
                     , _cursor = 0 <$ listToMaybe (V.toList pointers)
-                    , _currentView = pointers
+                    , _cachedView = pointers
+                    , _viewSpec = ViewSpec{_vsFilters = [], _vsSorter = \_ _ -> EQ, _vsVersion = 0}
                     }
             , _fileState = initLinearHistory fState
             , _originalFileState = fState

@@ -124,7 +124,7 @@ drawCompactView mQuery ctx =
     Nothing -> (compactTasks, maybeFocusedTask, numberOfTasks, maybeCurrentFile)
      where
       numberOfTasks = V.length cv
-      selectedTaskPtr = preview currentTaskPtr ctx
+      selectedTaskPtr = view currentTaskPtr ctx
       taskPointers = V.take (end - start + 1) $ V.drop start cv
       renderTask ptr =
         if Just ptr == selectedTaskPtr
@@ -135,7 +135,7 @@ drawCompactView mQuery ctx =
       compactTasks = vBox $ V.toList (V.mapMaybe renderTask taskPointers)
       maybeFocusedTask = maybe emptyWidget (R.renderFullWithColors $ getColorScheme scheme) (preview currentTaskLens ctx)
       maybeCurrentFile :: String
-      maybeCurrentFile = fromMaybe "-" (preview (currentTaskPtr . file) ctx)
+      maybeCurrentFile = fromMaybe "-" (preview (currentTaskPtr . _Just . file) ctx)
 
 cmdTypeToPrefix :: CmdType -> T.Text
 cmdTypeToPrefix Command = ":"

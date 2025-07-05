@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 
 module Tui.Types where
 
@@ -14,14 +15,17 @@ import Model.OrgMode
 
 import Brick.BChan
 import Brick.Widgets.Dialog (Dialog)
+import Control.Monad.ST (runST)
 import Data.Aeson (Options (..), defaultOptions)
 import Data.Aeson.Types (genericParseJSON)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Set (Set)
 import Data.Time (UTCTime)
 import qualified Data.Vector as V
+import qualified Data.Vector.Algorithms as VA
+import qualified Data.Vector.Algorithms.Intro as VA
 import Data.Yaml.Aeson (FromJSON (..))
-import GHC.Generics
+import GHC.Generics hiding (to)
 import Model.LinearHistory
 import Parser.Parser
 
@@ -97,7 +101,7 @@ data AppState a = AppState
   , _keyState :: KeyState
   , _appMode :: AppMode a
   , _cmdState :: Maybe CmdState
-  , _compactView :: LinearHistory CompactView
+  , _compactView :: LinearHistory (CompactView a)
   , _fileState :: LinearHistory (FileState a)
   , _originalFileState :: FileState a
   }
@@ -111,14 +115,27 @@ data CmdState
 
 data AppMode a = NormalMode | CmdMode deriving (Eq)
 
--- TODO: store a function that rebuilds this view and map it to 'r'
-data CompactView = CompactView
+data ViewSpec a = ViewSpec
+  { _vsFilters :: [a -> Bool]
+  , _vsSorter :: a -> a -> Ordering
+  , _vsVersion :: Int
+  }
+
+-- NOTE: currently we don't care about comparing functions (needed for history)
+instance Eq (ViewSpec a) where
+  (==) (ViewSpec _ _ v1) (ViewSpec _ _ v2) = v1 == v2
+
+instance Show (ViewSpec a) where
+  show _ = "ViewSpec"
+
+data CompactView a = CompactView
   { _compactViewTaskStartIndex :: Int
   , _compactViewTasksEndIndex :: Int
   , _cursor :: Maybe Int -- Index of a currently focused task in a view
-  , _currentView :: V.Vector TaskPointer
+  , _cachedView :: V.Vector TaskPointer
+  , _viewSpec :: ViewSpec a
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 data KeyState
   = NoInput
@@ -168,15 +185,72 @@ makeLenses ''KeyBinding
 makeLenses ''KeyPress
 makeLenses ''CompactView
 makeLenses ''CmdState
+makeLenses ''ViewSpec
 
 cursorLens :: Lens' (AppContext a) (Maybe Int)
 cursorLens = appState . compactView . currentState . cursor
 
-currentViewLens :: Lens' (AppContext a) (V.Vector TaskPointer)
-currentViewLens = appState . compactView . currentState . currentView
+getAllPointers :: FileState a -> V.Vector TaskPointer
+getAllPointers fs = V.concatMap fun (V.fromList $ M.toList fs) -- TODO: optimize all this convertions
+ where
+  fun (f, result) =
+    maybe
+      V.empty
+      (\taskFile -> (\(i, _) -> TaskPointer f i) <$> V.zip (V.fromList [0 ..]) (_content taskFile))
+      (resultToMaybe result)
 
-compactViewLens :: Lens' (AppContext a) CompactView
+sortByVector :: (a -> a -> Ordering) -> V.Vector a -> V.Vector a
+sortByVector cmp vec = runST $ do
+  mvec <- V.thaw vec
+  VA.sortBy cmp mvec
+  V.freeze mvec
+
+currentViewLens :: Lens' (AppContext a) (V.Vector TaskPointer)
+currentViewLens = compactViewLens . cachedView
+
+compactViewLens :: Lens' (AppContext a) (CompactView a)
 compactViewLens = appState . compactView . currentState
+
+recomputeCurrentView :: AppContext a -> V.Vector TaskPointer
+recomputeCurrentView ctx =
+  let
+    fs = view fileStateLens ctx
+    allPtrs = getAllPointers fs
+    vs = view (compactViewLens . viewSpec) ctx
+    ptrsWithTasks = V.mapMaybe (\ptr -> fmap (ptr,) (fs ^? taskBy ptr)) allPtrs
+    filtered = V.filter (\(p, t) -> all (\ff -> ff t) (view vsFilters vs) ) ptrsWithTasks
+    sorted = sortByVector (\(_, a1) (_, a2) -> view vsSorter vs a1 a2) filtered
+   in
+    V.map fst sorted
+
+cachingViewSpecLens ::
+  -- | getter for the field (e.g., _vsFilter)
+  (ViewSpec a -> b) ->
+  -- | field setter (e.g., \vs f -> vs { _vsFilter = f })
+  (ViewSpec a -> b -> ViewSpec a) ->
+  Lens' (AppContext a) b
+cachingViewSpecLens getField setField =
+  lens
+    (\ctx -> getField (ctx ^. compactViewLens . viewSpec))
+    ( \ctx newVal ->
+        let oldVS = ctx ^. compactViewLens . viewSpec
+            newVer = oldVS ^. vsVersion + 1
+            -- set the field and bump version
+            newVS = setField oldVS newVal
+            newVS' = newVS{_vsVersion = newVer}
+            -- update context with new ViewSpec
+            newCtx = ctx & compactViewLens . viewSpec .~ newVS'
+            -- recompute cache
+            newCache = recomputeCurrentView newCtx
+         in newCtx
+              & compactViewLens . cachedView .~ newCache
+    )
+
+viewFilterLens :: Lens' (AppContext a) [a -> Bool]
+viewFilterLens = cachingViewSpecLens _vsFilters (\vs f -> vs{_vsFilters = f})
+
+viewSorterLens :: Lens' (AppContext a) (a -> a -> Ordering)
+viewSorterLens = cachingViewSpecLens _vsSorter (\vs s -> vs{_vsSorter = s})
 
 fileStateLens :: Lens' (AppContext a) (FileState a)
 fileStateLens = appState . fileState . currentState
@@ -210,14 +284,22 @@ currentTaskLens f ctx =
                 ptr
     _ -> pure ctx
 
-currentTaskPtr :: Traversal' (AppContext a) TaskPointer
-currentTaskPtr f ctx =
-  case (view cursorLens ctx, view currentViewLens ctx) of
-    (Just i, cv)
-      | i >= 0
-      , i < length cv ->
-          ctx & currentViewLens . ix i %%~ f
-    _ -> pure ctx
+currentTaskPtr :: Getter (AppContext a) (Maybe TaskPointer)
+currentTaskPtr = to $ \ctx ->
+  case view cursorLens ctx of
+    Just i ->
+      let cv = view currentViewLens ctx
+       in cv V.!? i
+    _ -> Nothing
+
+-- currentTaskPtr :: Traversal' (AppContext a) TaskPointer
+-- currentTaskPtr f ctx =
+--   case (view cursorLens ctx, view currentViewLens ctx) of
+--     (Just i, cv)
+--       | i >= 0
+--       , i < length cv ->
+--           ctx & currentViewLens . ix i %%~ f
+--     _ -> pure ctx
 
 -- | Traversal to the current TaskFile at a given FilePath
 fileLens :: FilePath -> Traversal' (AppContext a) (TaskFile a)

@@ -174,16 +174,15 @@ addNewTask = do
                             updatedTf = tf & content .~ V.snoc oldTasks newTask
                             ptr = TaskPointer fp idx
                             ctx1 = set (fileLens fp) updatedTf ctx
-                            ctx2 = over currentViewLens (`V.snoc` ptr) ctx1
-                            ctx3 = set cursorLens (Just idx) ctx2
-                        return ctx3
+                            ctx2 = set cursorLens (Just idx) ctx1
+                        return ctx2
       adjustViewport
 
 editSelectedTaskInEditor :: (Writer a) => GlobalAppState a
 editSelectedTaskInEditor = do
   ctx <- get
   let ct = preview currentTaskLens ctx
-  let maybePtr = preview currentTaskPtr ctx
+  let maybePtr = view currentTaskPtr ctx
   case (ct, maybePtr) of
     (Just task, Just ptr) -> suspendAndResume $ do
       editedContent <- editWithEditor (write task)
@@ -262,25 +261,6 @@ cmdDeleteChar ctx =
     _ ->
       (switchMode NormalMode . set (appState . cmdState) Nothing) ctx
 
-applySearch :: (Searcher a) => T.Text -> AppContext a -> AppContext a
-applySearch query ctx =
-  ( set currentViewLens newView
-      . set cursorLens newCurTask
-      . cleanCompactView
-  )
-    ctx
- where
-  compView = view compactViewLens ctx
-  start = view compactViewTaskStartIndex compView
-  end = view compactViewTasksEndIndex compView
-  cleanCompactView = set (compactViewLens . compactViewTaskStartIndex) 0 . set (compactViewLens . compactViewTasksEndIndex) (min (V.length newView - 1) (end - start + 1))
-  oldView = view currentViewLens ctx
-  fs = view fileStateLens ctx
-  ptrToMatch q ptr = maybe False (matches q) (preview (taskBy ptr) fs)
-  (newCurTask, newView) =
-    let nv = V.filter (ptrToMatch query) oldView
-     in if V.length nv > 0 then (Just 0, nv) else (Nothing, nv)
-
 executeCommand :: (Searcher a, Writer a, Show a) => GlobalAppState a
 executeCommand = do
   ctx <- get
@@ -310,20 +290,17 @@ executeCommand = do
             unknown -> do
               let msg = "E492: Not an editor command: " <> unknown
               modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
-        Search -> do
-          saveForJump $ modify (applySearch (T.strip cmd))
+        Search -> saveForJump $ do
+          ctx <- get
+          modify $ over viewFilterLens ((matches $ T.strip cmd) :)
+          adjustViewport
           modify $ switchMode NormalMode . set (appState . cmdState) Nothing
     _ -> return ()
 
 applyFilterToAllTasks :: (a -> Bool) -> GlobalAppState a
 applyFilterToAllTasks predicate = do
   ctx <- get
-  let fs = view fileStateLens ctx
-  let ptrToMatch ptr = maybe False predicate (preview (taskBy ptr) fs)
-  let newView = V.filter ptrToMatch (getAllPointers fs)
-  let newCurTask = if V.length newView > 0 then Just 0 else Nothing
-  modify $ over currentViewLens (const newView)
-  modify $ over cursorLens (const newCurTask)
+  modify $ set viewFilterLens [predicate]
   adjustViewport
 
 todoKeywordFilter :: T.Text -> Task -> Bool
@@ -335,8 +312,6 @@ saveAll = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ct
 forceWriteAll :: GlobalAppState a
 forceWriteAll = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ctx) ForceWriteAll
 
--- NOTE: this is a hack not to call `halt` immidiately so that it processes all
--- other events in the channel first, for e.g. saving files
 quit :: GlobalAppState a
 quit = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ctx) QuitApp
 

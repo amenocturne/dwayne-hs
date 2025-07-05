@@ -75,6 +75,7 @@ library
         lens >= 5.0,
         text >= 2.0.0,
         vector >= 0.13.2.0,
+        vector-algorithms,
         regex-compat >=0.95.2.1,
         containers,
         time,
