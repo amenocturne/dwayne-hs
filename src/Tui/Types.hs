@@ -74,7 +74,6 @@ data AppConfig a = AppConfig
   , _inboxFile :: String
   , _scrollingMargin :: Int
   , _keyTimeoutMs :: Int
-  , _autoSave :: Bool
   , _colorScheme :: String
   }
   deriving (Generic, Show)

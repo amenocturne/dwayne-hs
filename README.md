@@ -61,7 +61,6 @@ files:
 inboxFile: ./resources/SampleInbox.org
 scrollingMargin: 6
 keyTimeoutMs: 1000
-autoSave: false
 colorScheme: "default"
 ```
 
@@ -70,8 +69,6 @@ colorScheme: "default"
 - `scrollingMargin`: Number of lines from the top/bottom of the screen to start
   scrolling.
 - `keyTimeoutMs`: Timeout in milliseconds for multi-key sequences.
-- `autoSave`: Automatically save files on changes (e.g., when changing a TODO
-  state).
 - `colorScheme`: The color scheme to use (currently only "default" is
   supported).
 

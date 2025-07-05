@@ -47,7 +47,7 @@ checkUnsavedChanges :: (Eq a) => AppContext a -> Bool
 checkUnsavedChanges ctx =
   let currentState = view fileStateLens ctx
       originalState = view originalFileStateLens ctx
-  in currentState /= originalState
+   in currentState /= originalState
 
 matchesSubsequence :: [KeyPress] -> KeyBinding a -> Bool
 matchesSubsequence s = isPrefixOf s . view keyBinding
@@ -130,7 +130,7 @@ handleEvent (AppEvent event) = case event of
                 "Aborting save, external edits detected in: "
                   ++ intercalate ", " modified
             )
-      else when (view (config . autoSave) ctx) $ do
+      else do
         let files = M.toList $ view fileStateLens ctx
             saveFiles = traverse (uncurry writeTaskFile) files
         liftIO $ void saveFiles
@@ -138,12 +138,11 @@ handleEvent (AppEvent event) = case event of
         modify $ set originalFileStateLens (view fileStateLens ctx)
   ForceWriteAll -> do
     ctx <- get
-    when (view (config . autoSave) ctx) $ do
-      let files = M.toList $ view fileStateLens ctx
-          saveFiles = traverse (uncurry writeTaskFile) files
-      liftIO $ void saveFiles
-      -- Update original file state after successful save
-      modify $ set originalFileStateLens (view fileStateLens ctx)
+    let files = M.toList $ view fileStateLens ctx
+        saveFiles = traverse (uncurry writeTaskFile) files
+    liftIO $ void saveFiles
+    -- Update original file state after successful save
+    modify $ set originalFileStateLens (view fileStateLens ctx)
   QuitApp -> do
     ctx <- get
     if checkUnsavedChanges ctx
@@ -151,11 +150,11 @@ handleEvent (AppEvent event) = case event of
         -- Clear command state and return to normal mode before showing error
         modify $ switchMode NormalMode . set (appState . cmdState) Nothing
         -- alert user and abort quit
-        liftIO $ writeBChan
-          (view (appState . eventChannel) ctx)
-          ( Error $
-              "No write since last change (add ! to override)"
-          )
+        liftIO $
+          writeBChan
+            (view (appState . eventChannel) ctx)
+            ( Error "No write since last change (add ! to override)"
+            )
       else halt
   ForceQuit -> halt
 handleEvent _ = return ()

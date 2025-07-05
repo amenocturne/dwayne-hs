@@ -4,5 +4,4 @@ files:
 inboxFile: ./resources/SampleInbox.org
 scrollingMargin: 6
 keyTimeoutMs: 1000
-autoSave: false
 colorScheme: "default"
