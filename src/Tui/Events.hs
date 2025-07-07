@@ -103,6 +103,7 @@ handleEvent (VtyEvent (EvKey key mods)) = do
         (NormalMode, _) -> handleNormalModeInput key mods
         (CmdMode, KChar c) -> handleCmdInput c
         (CmdMode, _) -> handleNormalModeInput key mods
+        (SelectionMode, _) -> handleNormalModeInput key mods
 handleEvent (AppEvent event) = case event of
   Error msg -> do
     let dlg =

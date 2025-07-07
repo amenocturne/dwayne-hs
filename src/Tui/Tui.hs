@@ -29,6 +29,7 @@ import Brick.BChan
 import Control.Monad (guard)
 import Data.List
 import qualified Data.Text as T
+import qualified Data.Set as Set
 import qualified Data.Vector as V
 import Data.Yaml (ParseException)
 import Data.Yaml.Aeson (decodeFileEither)
@@ -77,6 +78,8 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a) => Tui a where
                     }
             , _fileState = initLinearHistory fState
             , _originalFileState = fState
+            , _selection = Set.empty
+            , _selectionAnchor = Nothing
             }
     let ctx =
           AppContext

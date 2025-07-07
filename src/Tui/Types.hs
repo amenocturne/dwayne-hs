@@ -56,6 +56,11 @@ data KeyEvent
   | OpenUrl
   | SortCreatedAsc
   | SortCreatedDesc
+  | -- Selection mode
+    EnterSelectionMode
+  | ToggleRangeSelection
+  | ToggleCurrentSelection
+  | ExitSelectionMode
   | -- Macros
     Macro T.Text
   | -- Error dialog
@@ -108,6 +113,8 @@ data AppState a = AppState
   , _compactView :: LinearHistory (CompactView a)
   , _fileState :: LinearHistory (FileState a)
   , _originalFileState :: FileState a
+  , _selection :: Set Int
+  , _selectionAnchor :: Maybe Int
   }
 
 data CmdType = Command | Search deriving (Eq, Show)
@@ -117,7 +124,7 @@ data CmdState
   | ShowingMessage T.Text
   deriving (Eq, Show)
 
-data AppMode a = NormalMode | CmdMode deriving (Eq)
+data AppMode a = NormalMode | CmdMode | SelectionMode deriving (Eq)
 
 data ViewSpec a = ViewSpec
   { _vsFilters :: [a -> Bool]
@@ -190,6 +197,12 @@ makeLenses ''KeyPress
 makeLenses ''CompactView
 makeLenses ''CmdState
 makeLenses ''ViewSpec
+
+selectionLens :: Lens' (AppContext a) (Set Int)
+selectionLens = appState . selection
+
+selectionAnchorLens :: Lens' (AppContext a) (Maybe Int)
+selectionAnchorLens = appState . selectionAnchor
 
 cursorLens :: Lens' (AppContext a) (Maybe Int)
 cursorLens = appState . compactView . currentState . cursor

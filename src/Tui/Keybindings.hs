@@ -13,7 +13,7 @@ import qualified Brick.Types as BT
 import Control.Applicative ((<|>))
 import Control.Lens
 import qualified Data.Map.Strict as M
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (fromMaybe, isJust, mapMaybe)
 import qualified Data.Text as T
 import Graphics.Vty.Input.Events
 import Text.Regex
@@ -26,6 +26,7 @@ import Data.Char (isUpper, toLower)
 import Data.List.NonEmpty (NonEmpty (..), fromList)
 import Data.Ord (comparing)
 import qualified Data.Set as S
+import qualified Data.Set as Set
 import Data.Time (LocalTime, getZonedTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import qualified Data.Vector as V
@@ -53,6 +54,104 @@ import Writer.OrgWriter ()
 -- TODO: make selection mode for bulk actions
 -- TODO: Make sorting actions
 
+-- Selection mode functions
+
+-- Enter selection mode and mark current cursor position
+enterSelectionMode :: GlobalAppState Task
+enterSelectionMode = do
+  ctx <- get
+  case view cursorLens ctx of
+    Just cursor -> do
+      modify $ switchMode SelectionMode
+      modify $ set selectionLens (Set.singleton cursor)
+      modify $ set selectionAnchorLens (Just cursor)
+    Nothing -> return ()
+
+-- Toggle range selection (Shift+V behavior)
+toggleRangeSelection :: GlobalAppState Task
+toggleRangeSelection = do
+  ctx <- get
+  case view cursorLens ctx of
+    Just cursor -> do
+      case view selectionAnchorLens ctx of
+        Just anchor -> do
+          let range = Set.fromList [min anchor cursor .. max anchor cursor]
+              currentSelection = view selectionLens ctx
+              newSelection = Set.union currentSelection range
+          modify $ set selectionLens newSelection
+          modify $ set selectionAnchorLens (Just cursor)
+        Nothing -> do
+          let currentSelection = view selectionLens ctx
+              newSelection = Set.insert cursor currentSelection
+          modify $ set selectionLens newSelection
+          modify $ set selectionAnchorLens (Just cursor)
+    Nothing -> return ()
+
+-- Toggle current item selection (V behavior)
+toggleCurrentSelection :: GlobalAppState Task
+toggleCurrentSelection = do
+  ctx <- get
+  case view cursorLens ctx of
+    Just cursor -> do
+      let currentSelection = view selectionLens ctx
+      let newSelection =
+            if Set.member cursor currentSelection
+              then Set.delete cursor currentSelection
+              else Set.insert cursor currentSelection
+      modify $ set selectionLens newSelection
+    Nothing -> return ()
+
+-- Exit selection mode
+exitSelectionMode :: GlobalAppState Task
+exitSelectionMode = do
+  modify $ switchMode NormalMode
+  modify $ set selectionLens Set.empty
+  modify $ set selectionAnchorLens Nothing
+
+
+-- Apply action to all selected tasks
+applyToSelection :: (Task -> Task) -> GlobalAppState Task
+applyToSelection action = do
+  ctx <- get
+  let selectedIndices = Set.toList $ view selectionLens ctx
+      cv = view currentViewLens ctx
+      selectedPtrs = mapMaybe (cv V.!?) selectedIndices
+
+  -- Apply action to each selected task
+  mapM_ (\ptr -> modify $ over (fileStateLens . taskBy ptr) action) selectedPtrs
+
+-- Smart apply: use selection if there are selected items, current task otherwise
+smartApplyTodoKeyword :: T.Text -> GlobalAppState Task
+smartApplyTodoKeyword keyword = do
+  ctx <- get
+  let selection = view selectionLens ctx
+  if Set.null selection
+    then modify (changeTodoKeyword keyword)
+    else applyToSelection (set todoKeyword keyword)
+
+smartApplyTagAction :: (S.Set T.Text -> S.Set T.Text) -> GlobalAppState Task
+smartApplyTagAction tagAction = do
+  ctx <- get
+  let selection = view selectionLens ctx
+  if Set.null selection
+    then modify (over (currentTaskLens . tags) tagAction)
+    else applyToSelection (over tags tagAction)
+
+-- Selection-aware movement that updates range if in range selection mode
+selectionAwareMove :: (Int -> Int) -> GlobalAppState Task
+selectionAwareMove moveFunc = do
+  ctx <- get
+  case view (appState . appMode) ctx of
+    SelectionMode -> do
+      adjustCursor moveFunc
+      newCtx <- get
+      case (view selectionAnchorLens newCtx, view cursorLens newCtx) of
+        (Just anchor, Just newCursor) -> do
+          let range = Set.fromList [min anchor newCursor .. max anchor newCursor]
+          modify $ set selectionLens range
+        _ -> return ()
+    _ -> adjustCursor moveFunc
+
 -- Helper functions
 
 extractFirstUrl :: T.Text -> Maybe T.Text
@@ -75,8 +174,7 @@ veryOldTime :: LocalTime
 veryOldTime = read "1970-01-01 00:00:00"
 
 sortByCreatedAsc :: Task -> Task -> Ordering
-sortByCreatedAsc t1 t2 =
-  comparing (fromMaybe veryOldTime . getCreatedTime) t1 t2
+sortByCreatedAsc = comparing (fromMaybe veryOldTime . getCreatedTime)
 
 sortByCreatedDesc :: Task -> Task -> Ordering
 sortByCreatedDesc t1 t2 =
@@ -344,6 +442,15 @@ errorDialogKeyContext = isJust . view (appState . errorDialog)
 modeKeyContext :: AppMode a -> AppContext a -> Bool
 modeKeyContext mode ctx = view (appState . appMode) ctx == mode && not (errorDialogKeyContext ctx)
 
+selectionModeKeyContext :: AppContext a -> Bool
+selectionModeKeyContext ctx = view (appState . appMode) ctx == SelectionMode && not (errorDialogKeyContext ctx)
+
+-- Operator to check if current context matches any of the provided modes
+anyModeKeyContext :: [AppMode a] -> AppContext a -> Bool
+anyModeKeyContext modes ctx =
+  let currentMode = view (appState . appMode) ctx
+   in currentMode `elem` modes && not (errorDialogKeyContext ctx)
+
 class WithMod a where
   withMod :: a -> Modifier -> NonEmpty KeyPress
 
@@ -369,6 +476,9 @@ instance ToBind String where
 instance ToBind T.Text where
   toKey s = toKey $ T.unpack s
 
+instance ToBind (NonEmpty KeyPress) where
+  toKey = id
+
 toKeySeq :: String -> NonEmpty KeyPress
 toKeySeq s = fromList s >>= toKey
 
@@ -378,8 +488,8 @@ changeTodoKeywordBinding keyword bind =
     (ChangeTodoKeyword keyword)
     (toKey bind)
     (T.concat ["Change todo keyword to ", keyword])
-    (saveForUndo $ modify (changeTodoKeyword keyword))
-    (modeKeyContext NormalMode)
+    (saveForUndo $ smartApplyTodoKeyword keyword)
+    normalOrSelectionContext
 
 changeViewKeywordBinding :: T.Text -> String -> KeyBinding Task
 changeViewKeywordBinding keyword bind =
@@ -389,41 +499,14 @@ changeViewKeywordBinding keyword bind =
     (T.concat ["Show ", keyword, " tasks"])
     $ saveForJump (applyFilterToAllTasks (todoKeywordFilter keyword))
 
-addTagBinding :: T.Text -> String -> KeyBinding Task
-addTagBinding tag bind =
-  KeyBinding
-    (AddTag tag)
-    (toKey bind)
-    (T.concat ["Add tag `", tag, "` to the task"])
-    (saveForUndo $ modify (addTag tag))
-    (modeKeyContext NormalMode)
+normalBinding :: (ToBind k) => KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
+normalBinding event bind desc action = KeyBinding event (toKey bind) desc action (modeKeyContext NormalMode)
 
-deleteTagBinding :: T.Text -> String -> KeyBinding Task
-deleteTagBinding tag bind =
-  KeyBinding
-    (DeleteTag tag)
-    (toKey bind)
-    (T.concat ["Delete tag `", tag, "` from the task"])
-    (saveForUndo $ modify (deleteTag tag))
-    (modeKeyContext NormalMode)
+cmdBinding :: (ToBind k) => KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
+cmdBinding event bind desc action = KeyBinding event (toKey bind) desc action (modeKeyContext CmdMode)
 
-class ToBinding k where
-  toBinding :: AppMode a -> KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
-
-instance ToBinding Char where
-  toBinding mode event bind desc action = KeyBinding event (toKey bind) desc action (modeKeyContext mode)
-
-instance ToBinding Key where
-  toBinding mode event bind desc action = KeyBinding event (toKey bind) desc action (modeKeyContext mode)
-
-instance ToBinding (NonEmpty KeyPress) where
-  toBinding mode event bind desc action = KeyBinding event bind desc action (modeKeyContext mode)
-
-normalBinding :: (ToBinding k) => KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
-normalBinding = toBinding NormalMode
-
-cmdBinding :: (ToBinding k) => KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
-cmdBinding = toBinding CmdMode
+normalOrSelectionContext :: AppContext a -> Bool
+normalOrSelectionContext = anyModeKeyContext [NormalMode, SelectionMode]
 
 orgKeyBindings :: [KeyBinding Task]
 orgKeyBindings =
@@ -434,25 +517,32 @@ orgKeyBindings =
     cmdBinding AbortCmd (toKey KEsc) "Abort command" $ modify abortCmd
   , cmdBinding CmdDeleteChar (toKey KBS) "Delete char" $ modify cmdDeleteChar
   , cmdBinding ApplyCmd (toKey KEnter) "Execute command" executeCommand
-  , --------------------------------- Normal Mode -----------------------------
-    -- Mode switching
-    normalBinding SwitchToSearchMode '/' "Switch to search mode" $ modify $ \ctx -> (switchMode CmdMode . set (appState . cmdState) (Just $ Typing Search T.empty)) ctx
-  , normalBinding SwitchToCmdMode ':' "Switch to command mode" $ modify $ \ctx -> (switchMode CmdMode . set (appState . cmdState) (Just $ Typing Command T.empty)) ctx
-  , -- Movement
-    normalBinding MoveUp 'k' "Move up" $ adjustCursor (\i -> i - 1)
-  , normalBinding MoveUp KUp "Move up" $ adjustCursor (\i -> i - 1)
-  , normalBinding MoveDown 'j' "Move down" $ adjustCursor (+ 1)
-  , normalBinding MoveDown KDown "Move down" $ adjustCursor (+ 1)
-  , normalBinding JumpEnd 'G' "Jump to the end" $ saveForJump $ adjustCursor (const maxBound)
-  , normalBinding JumpBeginning (toKeySeq "gg") "Jump to the end" $ saveForJump $ adjustCursor (const 0)
-  , normalBinding JumpBackward (withMod 'o' MCtrl) "Jump backward" $ modify jumpBack
-  , normalBinding JumpForward '\t' "Jump forward" $ modify jumpForward -- NOTE: Terminals translate Ctrl-i into TAB
+  , --------------------------------- Selection Mode ---------------------------
+    -- Enter/exit selection mode
+    normalBinding EnterSelectionMode (withMod 'v' MShift) "Enter selection mode" enterSelectionMode
+  , normalBinding ToggleCurrentSelection 'v' "Toggle current item selection" toggleCurrentSelection
+  , KeyBinding ExitSelectionMode (toKey KEsc) "Exit selection mode" exitSelectionMode selectionModeKeyContext
+  , KeyBinding ToggleRangeSelection (withMod 'v' MShift) "Toggle range selection" toggleRangeSelection selectionModeKeyContext
+  , KeyBinding ToggleCurrentSelection (toKey 'v') "Toggle current selection" toggleCurrentSelection selectionModeKeyContext
+  , ---------------------------------------- Normal Mode  ----------------------
+    normalBinding SwitchToSearchMode (toKey '/') "Switch to search mode" (modify $ \ctx -> (switchMode CmdMode . set (appState . cmdState) (Just $ Typing Search T.empty)) ctx)
+  , normalBinding SwitchToCmdMode (toKey ':') "Switch to command mode" (modify $ \ctx -> (switchMode CmdMode . set (appState . cmdState) (Just $ Typing Command T.empty)) ctx)
   , -- KeyBuffer
     normalBinding CleanKeyState KEsc "Clean key state" $ modify $ set (appState . keyState) NoInput
   , -- History
-    normalBinding Undo 'u' "Undo" $ modify undo
-  , normalBinding Redo (withMod 'r' MCtrl) "Redo" $ modify redo
-  , -- Todo Keywords
+    normalBinding Undo (toKey 'u') "Undo" (modify undo)
+  , normalBinding Redo (withMod 'r' MCtrl) "Redo" (modify redo)
+  , --------------------------------- Normal/Selection Mode (shared) -----------
+    -- Movement
+    KeyBinding MoveUp (toKey 'k') "Move up" (selectionAwareMove (\i -> i - 1)) normalOrSelectionContext
+  , KeyBinding MoveUp (toKey KUp) "Move up" (selectionAwareMove (\i -> i - 1)) normalOrSelectionContext
+  , KeyBinding MoveDown (toKey 'j') "Move down" (selectionAwareMove (+ 1)) normalOrSelectionContext
+  , KeyBinding MoveDown (toKey KDown) "Move down" (selectionAwareMove (+ 1)) normalOrSelectionContext
+  , KeyBinding JumpEnd (toKey 'G') "Jump to the end" (saveForJump $ selectionAwareMove (const maxBound)) normalOrSelectionContext
+  , KeyBinding JumpBeginning (toKeySeq "gg") "Jump to the beginning" (saveForJump $ selectionAwareMove (const 0)) normalOrSelectionContext
+  , KeyBinding JumpBackward (withMod 'o' MCtrl) "Jump backward" (modify jumpBack) normalOrSelectionContext
+  , KeyBinding JumpForward (toKey '\t') "Jump forward" (modify jumpForward) normalOrSelectionContext -- NOTE: Terminals translate Ctrl-i into TAB
+  , -- Todo Keywords (smart: apply to selection if in selection mode, current task if in normal mode)
     changeTodoKeywordBinding "INBOX" "ti"
   , changeTodoKeywordBinding "RELEVANT" "tr"
   , changeTodoKeywordBinding "SOMEDAY" "ts"
@@ -463,9 +553,15 @@ orgKeyBindings =
   , changeTodoKeywordBinding "TODO" "tt"
   , changeTodoKeywordBinding "DONE" "td"
   , changeTodoKeywordBinding "TRASH" "tx"
-  , -- Tags addition
-    addTagBinding "music" "a,m"
-  , deleteTagBinding "music" "d,m"
+  , -- Tags (smart: apply to selection if there are selected items, current task otherwise)
+    KeyBinding (AddTag "music") (toKeySeq "a,m") "Add music tag" (saveForUndo $ smartApplyTagAction (S.insert "music")) normalOrSelectionContext
+  , KeyBinding (DeleteTag "music") (toKeySeq "d,m") "Delete music tag" (saveForUndo $ smartApplyTagAction (S.delete "music")) normalOrSelectionContext
+  , -- Macros
+    KeyBinding (Macro "Music") (toKeySeq "mm") "Macros for music entries"
+      (saveForUndo $ do
+        smartApplyTagAction (S.insert "music")
+        smartApplyTagAction (S.insert "download")
+        smartApplyTodoKeyword "LIST") normalOrSelectionContext
   , -- Views
     normalBinding (View "all") (toKeySeq " aa") "Show all tasks" $ saveForJump $ applyFilterToAllTasks (const True)
   , changeViewKeywordBinding "INBOX" " ai"
@@ -481,11 +577,6 @@ orgKeyBindings =
   , -- Sorting
     normalBinding SortCreatedAsc (toKeySeq "sca") "Sort by created (asc)" $ saveForJump (applySorter sortByCreatedAsc)
   , normalBinding SortCreatedDesc (toKeySeq "scd") "Sort by created (desc)" $ saveForJump (applySorter sortByCreatedDesc)
-  , -- Macros
-    normalBinding (Macro "Music") (toKeySeq "mm") "Macros for music entries" $
-      saveForUndo $
-        modify $
-          addTag "music" . addTag "download" . changeTodoKeyword "LIST"
   , -- Other
     normalBinding AddTask (toKeySeq "at") "Add new task" $ saveForUndo addNewTask
   , normalBinding EditInEditor (toKey KEnter) "Edit in editor" $ saveForUndo editSelectedTaskInEditor

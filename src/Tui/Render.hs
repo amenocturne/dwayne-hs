@@ -30,12 +30,14 @@ import Tui.ColorScheme (
   todoKeywordAttr,
   todoKeywordColors,
  )
+
 import Tui.Types
 
 import Brick.Widgets.Border (vBorder)
 import Brick.Widgets.Dialog (renderDialog)
 import qualified Data.Map.Strict as M
 import Data.Maybe (maybeToList)
+import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Searcher.Searcher
@@ -78,6 +80,7 @@ drawUI :: (RenderTask a Name, Searcher a) => AppContext a -> [Widget Name]
 drawUI ctx =
   let mainLayers = case view (appState . appMode) ctx of
         NormalMode -> [drawCompactView Nothing ctx]
+        SelectionMode -> [drawCompactView Nothing ctx]
         CmdMode ->
           let cmdW = case view (appState . cmdState) ctx of
                 Just (Typing t q) -> cmdWidget t q
@@ -101,6 +104,7 @@ drawCompactView mQuery ctx =
         vBox
           [ str $ "Number of tasks in view: " ++ show numberOfTasks
           , str $ "Task file: " ++ maybeCurrentFile
+          , str modeIndicator
           , vLimit 1 $ fill '-'
           , maybeFocusedTask
           ]
@@ -112,6 +116,13 @@ drawCompactView mQuery ctx =
   scheme = view (config . colorScheme) ctx
   cv = view currentViewLens ctx
   fs = view fileStateLens ctx
+
+  modeIndicator = case view (appState . appMode) ctx of
+    NormalMode -> ""
+    CmdMode -> ""
+    SelectionMode ->
+      let selCount = Set.size (view selectionLens ctx)
+       in " -- SELECTION (" ++ show selCount ++ ") --"
 
   (compactTasks, maybeFocusedTask, numberOfTasks, maybeCurrentFile) = case mQuery of
     Just query -> (compactTasks, emptyWidget, numberOfTasks, "-")
@@ -135,14 +146,21 @@ drawCompactView mQuery ctx =
      where
       numberOfTasks = V.length cv
       selectedTaskPtr = view currentTaskPtr ctx
+      selection = view selectionLens ctx
       taskPointers = V.take (end - start + 1) $ V.drop start cv
-      renderTask ptr =
-        if Just ptr == selectedTaskPtr
-          then fmap (withDefAttr highlightBgAttr . padRight Max) renderedTask
-          else renderedTask
-       where
-        renderedTask = fmap (R.renderCompactWithColors $ getColorScheme scheme) (preview (taskBy ptr) fs)
-      compactTasks = vBox $ V.toList (V.mapMaybe renderTask taskPointers)
+      renderTask idx ptr =
+        let absoluteIdx = start + idx
+            isSelected = Set.member absoluteIdx selection
+            isCursor = Just ptr == selectedTaskPtr
+            baseWidget = fmap (R.renderCompactWithColors $ getColorScheme scheme) (preview (taskBy ptr) fs)
+         in case baseWidget of
+              Just widget ->
+                let styledWidget
+                      | isSelected || isCursor = withDefAttr highlightBgAttr widget
+                      | otherwise = widget
+                 in Just $ padRight Max styledWidget
+              Nothing -> Nothing
+      compactTasks = vBox $ V.toList (V.imapMaybe renderTask taskPointers)
       maybeFocusedTask = maybe emptyWidget (R.renderFullWithColors $ getColorScheme scheme) (preview currentTaskLens ctx)
       maybeCurrentFile :: String
       maybeCurrentFile = fromMaybe "-" (preview (currentTaskPtr . _Just . file) ctx)
