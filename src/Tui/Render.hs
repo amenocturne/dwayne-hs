@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module Tui.Render where
 
@@ -115,8 +116,17 @@ drawCompactView mQuery ctx =
   (compactTasks, maybeFocusedTask, numberOfTasks, maybeCurrentFile) = case mQuery of
     Just query -> (compactTasks, emptyWidget, numberOfTasks, "-")
      where
-      tasks = V.catMaybes $ fmap (\p -> preview (taskBy p) fs) cv
-      searchResults = if T.null query then tasks else V.filter (matches query) tasks
+      allPtrs = getAllPointers fs
+      vs = view (compactViewLens . viewSpec) ctx
+      ptrsWithTasks = V.mapMaybe (\ptr -> fmap (ptr,) (fs ^? taskBy ptr)) allPtrs
+      currentFilters = view vsFilters vs
+      searchFilter = matches query
+      effectiveFilters = if T.null query then currentFilters else searchFilter : currentFilters
+      filtered = V.filter (\(_, task) -> all (\f -> f task) effectiveFilters) ptrsWithTasks
+      sorter = view vsSorter vs
+      sorted = sortByVector (\(_, t1) (_, t2) -> sorter t1 t2) filtered
+      searchResults = V.map snd sorted
+
       numberOfTasks = V.length searchResults
       displayedTasks = V.take (min (end - start + 1) (V.length searchResults)) searchResults
       compactTasks =
