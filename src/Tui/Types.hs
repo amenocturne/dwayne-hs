@@ -95,6 +95,8 @@ data SystemConfig a = SystemConfig
   { _fileParser :: Parser (TaskFile a)
   , _taskParser :: Parser a
   , _keybindings :: [KeyBinding a]
+  , _defaultFilters :: [a -> Bool]
+  , _defaultSorter :: a -> a -> Ordering
   }
 
 data AppState a = AppState
@@ -213,17 +215,21 @@ currentViewLens = compactViewLens . cachedView
 compactViewLens :: Lens' (AppContext a) (CompactView a)
 compactViewLens = appState . compactView . currentState
 
-recomputeCurrentView :: AppContext a -> V.Vector TaskPointer
-recomputeCurrentView ctx =
+computeCurrentView :: M.Map String (ParserResult (TaskFile a)) -> V.Vector TaskPointer -> ViewSpec a -> V.Vector TaskPointer
+computeCurrentView fs allPtrs vs =
   let
-    fs = view fileStateLens ctx
-    allPtrs = getAllPointers fs
-    vs = view (compactViewLens . viewSpec) ctx
     ptrsWithTasks = V.mapMaybe (\ptr -> fmap (ptr,) (fs ^? taskBy ptr)) allPtrs
-    filtered = V.filter (\(p, t) -> all (\ff -> ff t) (view vsFilters vs) ) ptrsWithTasks
+    filtered = V.filter (\(p, t) -> all (\ff -> ff t) (view vsFilters vs)) ptrsWithTasks
     sorted = sortByVector (\(_, a1) (_, a2) -> view vsSorter vs a1 a2) filtered
    in
     V.map fst sorted
+
+recomputeCurrentView :: AppContext a -> V.Vector TaskPointer
+recomputeCurrentView ctx = computeCurrentView fs allPtrs vs
+ where
+  fs = view fileStateLens ctx
+  allPtrs = getAllPointers fs
+  vs = view (compactViewLens . viewSpec) ctx
 
 cachingViewSpecLens ::
   -- | getter for the field (e.g., _vsFilter)
@@ -293,15 +299,6 @@ currentTaskPtr = to $ \ctx ->
       let cv = view currentViewLens ctx
        in cv V.!? i
     _ -> Nothing
-
--- currentTaskPtr :: Traversal' (AppContext a) TaskPointer
--- currentTaskPtr f ctx =
---   case (view cursorLens ctx, view currentViewLens ctx) of
---     (Just i, cv)
---       | i >= 0
---       , i < length cv ->
---           ctx & currentViewLens . ix i %%~ f
---     _ -> pure ctx
 
 -- | Traversal to the current TaskFile at a given FilePath
 fileLens :: FilePath -> Traversal' (AppContext a) (TaskFile a)

@@ -58,6 +58,7 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a) => Tui a where
     -- NOTE: Safe bet that there will be less than 200 tasks on the screen as we don't
     -- know the size of the viewport in the beginning
     let maxEndIndex = 200
+    let viewSpec = ViewSpec{_vsFilters = view defaultFilters sysConf, _vsSorter = view defaultSorter sysConf, _vsVersion = 0}
     let state =
           AppState
             { _eventChannel = eventChan
@@ -71,8 +72,8 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a) => Tui a where
                     { _compactViewTaskStartIndex = 0
                     , _compactViewTasksEndIndex = min (V.length pointers - 1) maxEndIndex
                     , _cursor = 0 <$ listToMaybe (V.toList pointers)
-                    , _cachedView = pointers
-                    , _viewSpec = ViewSpec{_vsFilters = [], _vsSorter = \_ _ -> EQ, _vsVersion = 0}
+                    , _cachedView = computeCurrentView fState pointers viewSpec
+                    , _viewSpec = viewSpec
                     }
             , _fileState = initLinearHistory fState
             , _originalFileState = fState

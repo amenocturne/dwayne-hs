@@ -11,7 +11,7 @@ module Main (main) where
 import Parser.OrgParser (anyTaskparser, orgFileParser)
 import Render.OrgRender ()
 import Searcher.OrgSearcher ()
-import Tui.Keybindings (orgKeyBindings)
+import Tui.Keybindings (orgKeyBindings, sortByCreatedDesc, todoKeywordFilter)
 import Tui.Tui
 import Tui.Types
 import Writer.OrgWriter ()
@@ -25,4 +25,6 @@ main =
       { _taskParser = anyTaskparser
       , _fileParser = orgFileParser
       , _keybindings = orgKeyBindings
+      , _defaultFilters = [todoKeywordFilter "INBOX"]
+      , _defaultSorter = sortByCreatedDesc
       }
