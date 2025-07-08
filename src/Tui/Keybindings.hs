@@ -27,15 +27,16 @@ import Data.List.NonEmpty (NonEmpty (..), fromList)
 import Data.Ord (comparing)
 import qualified Data.Set as S
 import qualified Data.Set as Set
-import Data.Time (LocalTime, getZonedTime)
+import Data.Time (LocalTime (LocalTime), getZonedTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Data.Time.LocalTime (midnight)
 import qualified Data.Vector as V
 import qualified Model.LinearHistory as L
 import Model.OrgMode (
+  OrgTime (time),
   Task (..),
   TaskFile,
   content,
-  getCreatedTime,
   orgCreatedProperty,
   orgDayTimeFormat,
   tags,
@@ -161,11 +162,21 @@ veryOldTime :: LocalTime
 veryOldTime = read "1970-01-01 00:00:00"
 
 sortByCreatedAsc :: Task -> Task -> Ordering
-sortByCreatedAsc = comparing (fromMaybe veryOldTime . getCreatedTime)
+sortByCreatedAsc = comparing getCreated
+ where
+  getCreated t = case fmap time (_createdProp t) of
+    Nothing -> veryOldTime
+    Just (Left day) -> LocalTime day midnight
+    Just (Right lt) -> lt
 
 sortByCreatedDesc :: Task -> Task -> Ordering
 sortByCreatedDesc t1 t2 =
-  comparing (fromMaybe veryOldTime . getCreatedTime) t2 t1
+  comparing getCreated t2 t1
+ where
+  getCreated t = case fmap time (_createdProp t) of
+    Nothing -> veryOldTime
+    Just (Left day) -> LocalTime day midnight
+    Just (Right lt) -> lt
 
 openUrlInBrowser :: T.Text -> IO ()
 openUrlInBrowser url = callCommand $ "open " ++ T.unpack url
@@ -238,6 +249,7 @@ addNewTask = do
               , _tags = S.empty
               , _scheduled = Nothing
               , _deadline = Nothing
+              , _createdProp = Nothing
               , _closed = Nothing
               , _properties = [(orgCreatedProperty, createdStr)]
               , _description = ""

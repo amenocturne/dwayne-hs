@@ -189,6 +189,11 @@ properTaskParser =
   ( \level todoKeyword priority (title, tags) timeProp1 timeProp2 timeProp3 properties description ->
       let
         propsList = catMaybes [timeProp1, timeProp2, timeProp3]
+        mCreated = (snd <$> find (\p -> fst p == orgCreatedProperty) properties)
+        createdParser = charParser '[' *> dateTimeParserReimplemented <* charParser ']'
+        mCreatedProp = case fmap (runParser createdParser) mCreated of
+          Just (_, _, ParserSuccess t) -> Just t
+          _ -> Nothing
        in
         Task
           level
@@ -199,6 +204,7 @@ properTaskParser =
           (findProp orgScheduledField propsList)
           (findProp orgDeadlineField propsList)
           (findProp orgClosedField propsList)
+          mCreatedProp
           properties
           description
   )
@@ -225,6 +231,7 @@ brokenDescriptionTaskParser =
             Nothing
             Nothing
             Nothing
+            Nothing
             properties
             (T.unlines [description, description2])
   )
@@ -248,6 +255,7 @@ noPropertiesTaskParser =
             priority
             title
             (S.fromList tags)
+            Nothing
             Nothing
             Nothing
             Nothing
