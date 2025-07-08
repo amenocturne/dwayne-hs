@@ -36,7 +36,7 @@ import Tui.Types
 import Brick.Widgets.Border (vBorder)
 import Brick.Widgets.Dialog (renderDialog)
 import qualified Data.Map.Strict as M
-import Data.Maybe (maybeToList)
+import Data.Maybe (catMaybes, fromMaybe, maybeToList)
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -97,73 +97,77 @@ drawUI ctx =
 drawCompactView :: (RenderTask a Name, Searcher a) => Maybe T.Text -> AppContext a -> Widget Name
 drawCompactView mQuery ctx =
   hBox
-    [ padRight Max $ reportExtent CompactViewWidget compactTasks
-    , hLimit 1 $ fill ' '
+    [ hLimitPercent 50 $
+        maybe renderNormalView renderSearchView mQuery
     , vBorder
-    , padRight Max $
-        vBox
+    , renderRightPane
+    ]
+ where
+  fs = view fileStateLens ctx
+  scheme = view (config . colorScheme) ctx
+  cv = view currentViewLens ctx
+
+  renderSearchView query =
+    let allPtrs = getAllPointers fs
+        vs = view (compactViewLens . viewSpec) ctx
+        ptrsWithTasks = V.mapMaybe (\ptr -> fmap (ptr,) (fs ^? taskBy ptr)) allPtrs
+        currentFilters = view vsFilters vs
+        searchFilter = matches query
+        effectiveFilters = if T.null query then currentFilters else searchFilter : currentFilters
+        filtered = V.filter (\(_, task) -> all (\f -> f task) effectiveFilters) ptrsWithTasks
+        sorter = view vsSorter vs
+        sorted = sortByVector (\(_, t1) (_, t2) -> sorter t1 t2) filtered
+        searchResults = V.map snd sorted
+     in vBox $ V.toList (V.map (R.renderCompactWithColors $ getColorScheme scheme) searchResults) ++ [padBottom Max (fill ' ')]
+
+  renderNormalView =
+    Widget Fixed Greedy $ do
+      c <- getContext
+      let h = availHeight c
+          viewSize = V.length cv
+          v_start = view (compactViewLens . viewportStart) ctx
+
+      render $
+        if viewSize == 0
+          then emptyWidget
+          else
+            let taskPointers = V.slice v_start (min h (viewSize - v_start)) cv
+                selection = view selectionLens ctx
+                selectedTaskPtr = view currentTaskPtr ctx
+
+                renderTask idx ptr =
+                  let absoluteIdx = v_start + idx
+                      isSelected = Set.member absoluteIdx selection
+                      isCursor = Just ptr == selectedTaskPtr
+                      baseWidget = fmap (R.renderCompactWithColors $ getColorScheme scheme) (preview (taskBy ptr) fs)
+                   in case baseWidget of
+                        Just widget ->
+                          let styledWidget
+                                | isSelected || isCursor = withDefAttr highlightBgAttr widget
+                                | otherwise = widget
+                           in Just $ padRight Max styledWidget
+                        Nothing -> Nothing
+             in reportExtent CompactViewWidget $ vBox $ catMaybes $ V.toList (V.imap renderTask taskPointers)
+
+  renderRightPane =
+    let numberOfTasks = V.length cv
+        maybeCurrentFile = fromMaybe "-" (preview (currentTaskPtr . _Just . file) ctx)
+        modeIndicator = case view (appState . appMode) ctx of
+          NormalMode -> ""
+          CmdMode -> ""
+          SelectionMode ->
+            let selCount = Set.size (view selectionLens ctx)
+             in " -- SELECTION (" ++ show selCount ++ ") --"
+        maybeFocusedTask = case mQuery of
+          Just _ -> emptyWidget -- No focused task in search view
+          Nothing -> maybe emptyWidget (R.renderFullWithColors $ getColorScheme scheme) (preview currentTaskLens ctx)
+     in vBox
           [ str $ "Number of tasks in view: " ++ show numberOfTasks
           , str $ "Task file: " ++ maybeCurrentFile
           , str modeIndicator
           , vLimit 1 $ fill '-'
           , maybeFocusedTask
           ]
-    ]
- where
-  compView = view compactViewLens ctx
-  start = view compactViewTaskStartIndex compView
-  end = view compactViewTasksEndIndex compView
-  scheme = view (config . colorScheme) ctx
-  cv = view currentViewLens ctx
-  fs = view fileStateLens ctx
-
-  modeIndicator = case view (appState . appMode) ctx of
-    NormalMode -> ""
-    CmdMode -> ""
-    SelectionMode ->
-      let selCount = Set.size (view selectionLens ctx)
-       in " -- SELECTION (" ++ show selCount ++ ") --"
-
-  (compactTasks, maybeFocusedTask, numberOfTasks, maybeCurrentFile) = case mQuery of
-    Just query -> (compactTasks, emptyWidget, numberOfTasks, "-")
-     where
-      allPtrs = getAllPointers fs
-      vs = view (compactViewLens . viewSpec) ctx
-      ptrsWithTasks = V.mapMaybe (\ptr -> fmap (ptr,) (fs ^? taskBy ptr)) allPtrs
-      currentFilters = view vsFilters vs
-      searchFilter = matches query
-      effectiveFilters = if T.null query then currentFilters else searchFilter : currentFilters
-      filtered = V.filter (\(_, task) -> all (\f -> f task) effectiveFilters) ptrsWithTasks
-      sorter = view vsSorter vs
-      sorted = sortByVector (\(_, t1) (_, t2) -> sorter t1 t2) filtered
-      searchResults = V.map snd sorted
-
-      numberOfTasks = V.length searchResults
-      displayedTasks = V.take (min (end - start + 1) (V.length searchResults)) searchResults
-      compactTasks =
-        vBox $ V.toList (V.map (R.renderCompactWithColors $ getColorScheme scheme) displayedTasks) ++ [padBottom Max (fill ' ')]
-    Nothing -> (compactTasks, maybeFocusedTask, numberOfTasks, maybeCurrentFile)
-     where
-      numberOfTasks = V.length cv
-      selectedTaskPtr = view currentTaskPtr ctx
-      selection = view selectionLens ctx
-      taskPointers = V.take (end - start + 1) $ V.drop start cv
-      renderTask idx ptr =
-        let absoluteIdx = start + idx
-            isSelected = Set.member absoluteIdx selection
-            isCursor = Just ptr == selectedTaskPtr
-            baseWidget = fmap (R.renderCompactWithColors $ getColorScheme scheme) (preview (taskBy ptr) fs)
-         in case baseWidget of
-              Just widget ->
-                let styledWidget
-                      | isSelected || isCursor = withDefAttr highlightBgAttr widget
-                      | otherwise = widget
-                 in Just $ padRight Max styledWidget
-              Nothing -> Nothing
-      compactTasks = vBox $ V.toList (V.imapMaybe renderTask taskPointers)
-      maybeFocusedTask = maybe emptyWidget (R.renderFullWithColors $ getColorScheme scheme) (preview currentTaskLens ctx)
-      maybeCurrentFile :: String
-      maybeCurrentFile = fromMaybe "-" (preview (currentTaskPtr . _Just . file) ctx)
 
 cmdTypeToPrefix :: CmdType -> T.Text
 cmdTypeToPrefix Command = ":"

@@ -54,9 +54,6 @@ import Writer.OrgWriter ()
 -- TODO: make selection mode for bulk actions
 -- TODO: Make sorting actions
 
--- Selection mode functions
-
--- Enter selection mode and mark current cursor position
 enterSelectionMode :: GlobalAppState Task
 enterSelectionMode = do
   ctx <- get
@@ -67,7 +64,6 @@ enterSelectionMode = do
       modify $ set selectionAnchorLens (Just cursor)
     Nothing -> return ()
 
--- Toggle range selection (Shift+V behavior)
 toggleRangeSelection :: GlobalAppState Task
 toggleRangeSelection = do
   ctx <- get
@@ -87,7 +83,6 @@ toggleRangeSelection = do
           modify $ set selectionAnchorLens (Just cursor)
     Nothing -> return ()
 
--- Toggle current item selection (V behavior)
 toggleCurrentSelection :: GlobalAppState Task
 toggleCurrentSelection = do
   ctx <- get
@@ -101,26 +96,20 @@ toggleCurrentSelection = do
       modify $ set selectionLens newSelection
     Nothing -> return ()
 
--- Exit selection mode
 exitSelectionMode :: GlobalAppState Task
 exitSelectionMode = do
   modify $ switchMode NormalMode
   modify $ set selectionLens Set.empty
   modify $ set selectionAnchorLens Nothing
 
-
--- Apply action to all selected tasks
 applyToSelection :: (Task -> Task) -> GlobalAppState Task
 applyToSelection action = do
   ctx <- get
   let selectedIndices = Set.toList $ view selectionLens ctx
       cv = view currentViewLens ctx
       selectedPtrs = mapMaybe (cv V.!?) selectedIndices
-
-  -- Apply action to each selected task
   mapM_ (\ptr -> modify $ over (fileStateLens . taskBy ptr) action) selectedPtrs
 
--- Smart apply: use selection if there are selected items, current task otherwise
 smartApplyTodoKeyword :: T.Text -> GlobalAppState Task
 smartApplyTodoKeyword keyword = do
   ctx <- get
@@ -137,7 +126,6 @@ smartApplyTagAction tagAction = do
     then modify (over (currentTaskLens . tags) tagAction)
     else applyToSelection (over tags tagAction)
 
--- Selection-aware movement that updates range if in range selection mode
 selectionAwareMove :: (Int -> Int) -> GlobalAppState Task
 selectionAwareMove moveFunc = do
   ctx <- get
@@ -151,8 +139,6 @@ selectionAwareMove moveFunc = do
           modify $ set selectionLens range
         _ -> return ()
     _ -> adjustCursor moveFunc
-
--- Helper functions
 
 extractFirstUrl :: T.Text -> Maybe T.Text
 extractFirstUrl text = case (orgMatches, urlMatches) of
@@ -168,7 +154,8 @@ extractFirstUrl text = case (orgMatches, urlMatches) of
 applySorter :: (Task -> Task -> Ordering) -> GlobalAppState Task
 applySorter sorter = do
   modify $ set viewSorterLens sorter
-  adjustViewport
+  modify $ set cursorLens (Just 0)
+  modify $ set (compactViewLens . viewportStart) 0
 
 veryOldTime :: LocalTime
 veryOldTime = read "1970-01-01 00:00:00"
@@ -198,6 +185,31 @@ openTaskUrl = do
         Nothing -> return ()
     Nothing -> return ()
 
+adjustViewport :: GlobalAppState a
+adjustViewport = do
+  mExt <- lookupExtent CompactViewWidget
+  case mExt of
+    Nothing -> return ()
+    Just (Extent _ _ (w, h)) -> do
+      ctx <- get
+      let margin = view (config . scrollingMargin) ctx
+          viewSize = V.length $ view currentViewLens ctx
+          viewStartOld = view (compactViewLens . viewportStart) ctx
+
+      case view cursorLens ctx of
+        Nothing -> return ()
+        Just cursor -> do
+          let vStartNew
+                | cursor < viewStartOld + margin = max 0 (cursor - margin)
+                | cursor >= viewStartOld + h - margin = min (viewSize - h) (cursor - h + 1 + margin)
+                | otherwise = viewStartOld
+
+              vFinalStart = max 0 (min (viewSize - h) vStartNew)
+
+          when (vFinalStart /= viewStartOld) $
+            modify $
+              set (compactViewLens . viewportStart) vFinalStart
+
 adjustCursor :: (Int -> Int) -> GlobalAppState a
 adjustCursor f = do
   ctx <- get
@@ -207,38 +219,6 @@ adjustCursor f = do
   let newCursor = fmap modifyCursor currentCursor
   modify $ set cursorLens newCursor
   adjustViewport
-
-adjustViewport :: GlobalAppState a
-adjustViewport = do
-  ctx <- get
-  let curCursor = view cursorLens ctx
-  let marginVal = view (config . scrollingMargin) ctx
-  maybeExtent <- lookupExtent CompactViewWidget
-  case (curCursor, maybeExtent) of
-    (Just cur, Just extent) -> do
-      let compView = view compactViewLens ctx
-      let compStart = view compactViewTaskStartIndex compView
-      let compEnd = view compactViewTasksEndIndex compView
-      let curView = view currentViewLens ctx
-      let height = snd (BT.extentSize extent)
-      let clampPos i = min (max i 0) (V.length curView - 1)
-
-      let fromDesiredTop desiredTop
-            | desiredTop <= 0 = set compactViewTaskStartIndex 0 . set compactViewTasksEndIndex (clampPos height)
-            | otherwise = set compactViewTaskStartIndex desiredTop . set compactViewTasksEndIndex (clampPos $ desiredTop + height - 1)
-
-      let fromDesiredBottom desiredBottom
-            | desiredBottom >= V.length curView - 1 = set compactViewTaskStartIndex (clampPos $ V.length curView - height) . set compactViewTasksEndIndex (clampPos $ V.length curView - 1)
-            | otherwise = set compactViewTaskStartIndex (clampPos $ desiredBottom - height) . set compactViewTasksEndIndex desiredBottom
-
-      let newCompactView
-            | cur < compStart + marginVal =
-                fromDesiredTop (cur - marginVal) compView
-            | cur > compEnd - marginVal =
-                fromDesiredBottom (cur + marginVal) compView
-            | otherwise = compView
-      modify $ over compactViewLens (const newCompactView)
-    _ -> return ()
 
 addNewTask :: GlobalAppState Task
 addNewTask = do
@@ -273,7 +253,6 @@ addNewTask = do
                   runParser (view (system . taskParser) ctx) editedStr
              in case result of
                   ParserFailure err -> do
-                    -- show parse error
                     _ <-
                       writeBChan (view (appState . eventChannel) ctx) $
                         Error (err ++ " at " ++ show (line l) ++ ":" ++ show (column l))
@@ -284,7 +263,6 @@ addNewTask = do
                           Error "No changes detected; task not added."
                         return ctx
                     | otherwise -> do
-                        -- append parsed task
                         let oldTasks = tf ^. content
                             idx = V.length oldTasks
                             updatedTf = tf & content .~ V.snoc oldTasks newTask
@@ -292,7 +270,6 @@ addNewTask = do
                             ctx1 = set (fileLens fp) updatedTf ctx
                             ctx2 = set cursorLens (Just idx) ctx1
                         return ctx2
-      adjustViewport
 
 editSelectedTaskInEditor :: (Writer a) => GlobalAppState a
 editSelectedTaskInEditor = do
@@ -348,15 +325,12 @@ jumpBack = over (appState . compactView) L.undo
 jumpForward :: AppContext a -> AppContext a
 jumpForward = over (appState . compactView) L.redo
 
--- Needs to be specific type
 changeTodoKeyword :: T.Text -> AppContext Task -> AppContext Task
 changeTodoKeyword keyword = over (currentTaskLens . todoKeyword) (const keyword)
 
--- Needs to be specific type
 addTag :: T.Text -> AppContext Task -> AppContext Task
 addTag tag = over (currentTaskLens . tags) (S.insert tag)
 
--- Needs to be specific type
 deleteTag :: T.Text -> AppContext Task -> AppContext Task
 deleteTag tag = over (currentTaskLens . tags) (S.delete tag)
 
@@ -365,7 +339,7 @@ abortCmd = switchMode NormalMode . set (appState . cmdState) Nothing
 
 removeLastIfExists :: T.Text -> T.Text
 removeLastIfExists t
-  | T.null t = t -- Return unchanged if empty
+  | T.null t = t
   | otherwise = T.dropEnd 1 t
 
 cmdDeleteChar :: AppContext a -> AppContext a
@@ -409,7 +383,7 @@ executeCommand = do
         Search -> saveForJump $ do
           ctx <- get
           modify $ over viewFilterLens ((matches $ T.strip cmd) :)
-          adjustViewport
+          modify $ set cursorLens (Just 0)
           modify $ switchMode NormalMode . set (appState . cmdState) Nothing
     _ -> return ()
 
@@ -417,7 +391,8 @@ applyFilterToAllTasks :: (a -> Bool) -> GlobalAppState a
 applyFilterToAllTasks predicate = do
   ctx <- get
   modify $ set viewFilterLens [predicate]
-  adjustViewport
+  modify $ set cursorLens (Just 0)
+  modify $ set (compactViewLens . viewportStart) 0
 
 todoKeywordFilter :: T.Text -> Task -> Bool
 todoKeywordFilter keyword task = view todoKeyword task == keyword
@@ -445,7 +420,6 @@ modeKeyContext mode ctx = view (appState . appMode) ctx == mode && not (errorDia
 selectionModeKeyContext :: AppContext a -> Bool
 selectionModeKeyContext ctx = view (appState . appMode) ctx == SelectionMode && not (errorDialogKeyContext ctx)
 
--- Operator to check if current context matches any of the provided modes
 anyModeKeyContext :: [AppMode a] -> AppContext a -> Bool
 anyModeKeyContext modes ctx =
   let currentMode = view (appState . appMode) ctx
@@ -557,11 +531,16 @@ orgKeyBindings =
     KeyBinding (AddTag "music") (toKeySeq "a,m") "Add music tag" (saveForUndo $ smartApplyTagAction (S.insert "music")) normalOrSelectionContext
   , KeyBinding (DeleteTag "music") (toKeySeq "d,m") "Delete music tag" (saveForUndo $ smartApplyTagAction (S.delete "music")) normalOrSelectionContext
   , -- Macros
-    KeyBinding (Macro "Music") (toKeySeq "mm") "Macros for music entries"
-      (saveForUndo $ do
-        smartApplyTagAction (S.insert "music")
-        smartApplyTagAction (S.insert "download")
-        smartApplyTodoKeyword "LIST") normalOrSelectionContext
+    KeyBinding
+      (Macro "Music")
+      (toKeySeq "mm")
+      "Macros for music entries"
+      ( saveForUndo $ do
+          smartApplyTagAction (S.insert "music")
+          smartApplyTagAction (S.insert "download")
+          smartApplyTodoKeyword "LIST"
+      )
+      normalOrSelectionContext
   , -- Views
     normalBinding (View "all") (toKeySeq " aa") "Show all tasks" $ saveForJump $ applyFilterToAllTasks (const True)
   , changeViewKeywordBinding "INBOX" " ai"

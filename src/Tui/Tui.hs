@@ -26,10 +26,10 @@ import Tui.Types
 import Writer.Writer
 
 import Brick.BChan
-import Control.Monad (guard)
+import Control.Monad (guard, void)
 import Data.List
-import qualified Data.Text as T
 import qualified Data.Set as Set
+import qualified Data.Text as T
 import qualified Data.Vector as V
 import Data.Yaml (ParseException)
 import Data.Yaml.Aeson (decodeFileEither)
@@ -53,12 +53,9 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a) => Tui a where
     parsedFiles <- mapM (\f -> fmap (f,) (readTasks (view fileParser sysConf) f)) (view files conf)
     eventChan <- newBChan 10 -- maybe should use different event channel size
     let fState = M.fromList (fmap (\(a, (_, c)) -> (a, c)) parsedFiles)
-    let parsingErrors = mapMaybe (\(f, (l, e)) -> fmap (f,l,) (errorToMaybe e)) parsedFiles
+    let parsingErrors = mapMaybe (\(f, (l, e)) -> fmap (f, l,) (errorToMaybe e)) parsedFiles
     let pointers = getAllPointers fState
 
-    -- NOTE: Safe bet that there will be less than 200 tasks on the screen as we don't
-    -- know the size of the viewport in the beginning
-    let maxEndIndex = 200
     let viewSpec = ViewSpec{_vsFilters = view defaultFilters sysConf, _vsSorter = view defaultSorter sysConf, _vsVersion = 0}
     let state =
           AppState
@@ -70,11 +67,10 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a) => Tui a where
             , _compactView =
                 initLinearHistory
                   CompactView
-                    { _compactViewTaskStartIndex = 0
-                    , _compactViewTasksEndIndex = min (V.length pointers - 1) maxEndIndex
-                    , _cursor = 0 <$ listToMaybe (V.toList pointers)
+                    { _cursor = 0 <$ listToMaybe (V.toList pointers)
                     , _cachedView = computeCurrentView fState pointers viewSpec
                     , _viewSpec = viewSpec
+                    , _viewportStart = 0
                     }
             , _fileState = initLinearHistory fState
             , _originalFileState = fState

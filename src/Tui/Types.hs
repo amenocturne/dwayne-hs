@@ -140,9 +140,8 @@ instance Show (ViewSpec a) where
   show _ = "ViewSpec"
 
 data CompactView a = CompactView
-  { _compactViewTaskStartIndex :: Int
-  , _compactViewTasksEndIndex :: Int
-  , _cursor :: Maybe Int -- Index of a currently focused task in a view
+  { _cursor :: Maybe Int -- Index of a currently focused task in a view
+  , _viewportStart :: Int -- The index of the first visible task
   , _cachedView :: V.Vector TaskPointer
   , _viewSpec :: ViewSpec a
   }
