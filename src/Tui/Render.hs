@@ -108,17 +108,30 @@ drawCompactView mQuery ctx =
   cv = view currentViewLens ctx
 
   renderSearchView query =
-    let allPtrs = getAllPointers fs
-        vs = view (compactViewLens . viewSpec) ctx
-        ptrsWithTasks = V.mapMaybe (\ptr -> fmap (ptr,) (fs ^? taskBy ptr)) allPtrs
-        currentFilters = view vsFilters vs
-        searchFilter = matches query
-        effectiveFilters = if T.null query then currentFilters else searchFilter : currentFilters
-        filtered = V.filter (\(_, task) -> all (\f -> f task) effectiveFilters) ptrsWithTasks
-        sorter = view vsSorter vs
-        sorted = sortByVector (\(_, t1) (_, t2) -> sorter t1 t2) filtered
-        searchResults = V.map snd sorted
-     in vBox $ V.toList (V.map (R.renderCompactWithColors $ getColorScheme scheme) searchResults) ++ [padBottom Max (fill ' ')]
+    Widget Fixed Greedy $ do
+      c <- getContext
+      let h = availHeight c
+          allPtrs = getAllPointers fs
+          vs = view (compactViewLens . viewSpec) ctx
+          ptrsWithTasks = V.mapMaybe (\ptr -> fmap (ptr,) (fs ^? taskBy ptr)) allPtrs
+          currentFilters = view vsFilters vs
+          searchFilter = matches query
+          effectiveFilters = if T.null query then currentFilters else searchFilter : currentFilters
+          filtered = V.filter (\(_, task) -> all (\f -> f task) effectiveFilters) ptrsWithTasks
+          sorter = view vsSorter vs
+          sorted = sortByVector (\(_, t1) (_, t2) -> sorter t1 t2) filtered
+          searchResults = V.map snd sorted
+          searchResultsSize = V.length searchResults
+          v_start = 0 -- Always start from beginning in search view
+
+      render $
+        if searchResultsSize == 0
+          then emptyWidget
+          else
+            let visibleTasks = V.slice v_start (min h searchResultsSize) searchResults
+                renderTask task = R.renderCompactWithColors (getColorScheme scheme) task
+             in reportExtent CompactViewWidget $ 
+                vBox $ V.toList (V.map (padRight Max . renderTask) visibleTasks) ++ [padBottom Max (fill ' ')]
 
   renderNormalView =
     Widget Fixed Greedy $ do
