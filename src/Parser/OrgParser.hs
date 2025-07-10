@@ -196,17 +196,18 @@ properTaskParser =
           _ -> Nothing
        in
         Task
-          level
-          todoKeyword
-          priority
-          title
-          (S.fromList tags)
-          (findProp orgScheduledField propsList)
-          (findProp orgDeadlineField propsList)
-          (findProp orgClosedField propsList)
-          mCreatedProp
-          properties
-          description
+          { _level = level
+          , _todoKeyword = todoKeyword
+          , _priority = priority
+          , _title = title
+          , _tags = S.fromList tags
+          , _scheduled = findProp orgScheduledField propsList
+          , _deadline = findProp orgDeadlineField propsList
+          , _createdProp = mCreatedProp
+          , _closed = findProp orgClosedField propsList
+          , _properties = properties
+          , _description = description
+          }
   )
     <$> (skipBlanksParser *> taskLevelParser <* charParser ' ')
     <*> (skipBlanksExceptNewLinesParser *> todoKeyWordParser)
@@ -222,18 +223,25 @@ brokenDescriptionTaskParser :: Parser Task
 brokenDescriptionTaskParser =
   ( \level todoKeyword priority (title, tags) description properties description2 ->
       let
-       in Task
-            level
-            todoKeyword
-            priority
-            title
-            (S.fromList tags)
-            Nothing
-            Nothing
-            Nothing
-            Nothing
-            properties
-            (T.unlines [description, description2])
+        mCreated = (snd <$> find (\p -> fst p == orgCreatedProperty) properties)
+        createdParser = charParser '[' *> dateTimeParserReimplemented <* charParser ']'
+        mCreatedProp = case fmap (runParser createdParser) mCreated of
+          Just (_, _, ParserSuccess t) -> Just t
+          _ -> Nothing
+       in
+        Task
+          { _level = level
+          , _todoKeyword = todoKeyword
+          , _priority = priority
+          , _title = title
+          , _tags = S.fromList tags
+          , _scheduled = Nothing
+          , _deadline = Nothing
+          , _createdProp = mCreatedProp
+          , _closed = Nothing
+          , _properties = properties
+          , _description = T.unlines [description, description2]
+          }
   )
     <$> (skipBlanksParser *> taskLevelParser <* charParser ' ')
     <*> (skipBlanksExceptNewLinesParser *> todoKeyWordParser)
@@ -242,8 +250,6 @@ brokenDescriptionTaskParser =
     <*> brokenDescriptionParser
     <*> (skipBlanksParser *> propertiesParser)
     <*> descriptionParser
-
--- <*> (skipBlanksParser *> propertiesParser)
 
 noPropertiesTaskParser :: Parser Task
 noPropertiesTaskParser =
