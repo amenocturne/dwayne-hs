@@ -54,6 +54,13 @@ import Writer.OrgWriter ()
 -- TODO: make a shortcut to copy task to clipboard
 -- TODO: make selection mode for bulk actions
 -- TODO: Make sorting actions
+-- TODO: Should add an AI agent that would go through the processed tasks and tag them
+-- in the background, for it to be more consistent and accurate I can show a
+-- list of tags that are currently present and instruct to introduce new tags
+-- only if there are no corresponding ones. Also I can use searching functions
+-- to show him examples of tags that he chose for a particular task to double
+-- check his choices
+-- TODO: Support working with projects
 
 enterSelectionMode :: GlobalAppState Task
 enterSelectionMode = do
@@ -494,6 +501,10 @@ cmdBinding event bind desc action = KeyBinding event (toKey bind) desc action (m
 normalOrSelectionContext :: AppContext a -> Bool
 normalOrSelectionContext = anyModeKeyContext [NormalMode, SelectionMode]
 
+addTagKeybinding tag shortcut = KeyBinding (AddTag tag) (toKeySeq shortcut) (T.concat ["Add ", tag, " tag"]) (saveForUndo $ smartApplyTagAction (S.insert tag)) normalOrSelectionContext
+
+deleleTagKeybinding tag shortcut = KeyBinding (DeleteTag tag) (toKeySeq shortcut) (T.concat ["Delete ", tag, " tag"]) (saveForUndo $ smartApplyTagAction (S.delete tag)) normalOrSelectionContext
+
 orgKeyBindings :: [KeyBinding Task]
 orgKeyBindings =
   [ --------------------------------- Error Dialog -----------------------------
@@ -529,6 +540,7 @@ orgKeyBindings =
   , KeyBinding JumpBackward (withMod 'o' MCtrl) "Jump backward" (modify jumpBack) normalOrSelectionContext
   , KeyBinding JumpForward (toKey '\t') "Jump forward" (modify jumpForward) normalOrSelectionContext -- NOTE: Terminals translate Ctrl-i into TAB
   , -- Todo Keywords (smart: apply to selection if in selection mode, current task if in normal mode)
+  -- TODO: create a config field for specifying TODO keywords and their shortcuts
     changeTodoKeywordBinding "INBOX" "ti"
   , changeTodoKeywordBinding "RELEVANT" "tr"
   , changeTodoKeywordBinding "SOMEDAY" "ts"
@@ -540,8 +552,15 @@ orgKeyBindings =
   , changeTodoKeywordBinding "DONE" "td"
   , changeTodoKeywordBinding "TRASH" "tx"
   , -- Tags (smart: apply to selection if there are selected items, current task otherwise)
-    KeyBinding (AddTag "music") (toKeySeq "a,m") "Add music tag" (saveForUndo $ smartApplyTagAction (S.insert "music")) normalOrSelectionContext
-  , KeyBinding (DeleteTag "music") (toKeySeq "d,m") "Delete music tag" (saveForUndo $ smartApplyTagAction (S.delete "music")) normalOrSelectionContext
+  -- TODO: create a config field for specifying tags and their shortcuts
+    addTagKeybinding "music" "a,m"
+  , deleleTagKeybinding "music" "d,m"
+  , addTagKeybinding "cool" "a,c"
+  , deleleTagKeybinding "cool" "d,c"
+  , addTagKeybinding "software" "a,s"
+  , deleleTagKeybinding "software" "d,s"
+  , addTagKeybinding "book" "a,b"
+  , deleleTagKeybinding "book" "d,b"
   , -- Macros
     KeyBinding
       (Macro "Music")
