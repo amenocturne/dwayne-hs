@@ -54,14 +54,7 @@ import Writer.OrgWriter ()
 -- TODO: make a shortcut to download music from youtube/youtube music links
 -- TODO: make a shortcut to save note contents directly to obsidian vault and open obsidian with this file to continue editing
 -- TODO: make a shortcut to copy task to clipboard
--- TODO: make selection mode for bulk actions
--- TODO: Make sorting actions
--- TODO: Should add an AI agent that would go through the processed tasks and tag them
--- in the background, for it to be more consistent and accurate I can show a
--- list of tags that are currently present and instruct to introduce new tags
--- only if there are no corresponding ones. Also I can use searching functions
--- to show him examples of tags that he chose for a particular task to double
--- check his choices
+-- TODO: Should add an AI agent that would go through the processed tasks and tag them in the background, for it to be more consistent and accurate I can show a list of tags that are currently present and instruct to introduce new tags only if there are no corresponding ones. Also I can use searching functions to show him examples of tags that he chose for a particular task to double check his choices
 -- TODO: Support working with projects
 
 enterSelectionMode :: GlobalAppState Task
@@ -608,12 +601,12 @@ orgKeyBindings =
   , -- Views
     normalBinding (View "all") (toKeySeq " aa") "Show all tasks" $ saveForJump $ applyFilterToAllTasks (const True)
   , changeViewKeywordBinding "INBOX" " ai" $ Just sortByCreatedDesc
-  , changeViewKeywordBinding "RELEVANT" " ar" Nothing
+  , changeViewKeywordBinding "RELEVANT" " ar" $ Just sortByPriorityAsc
   , changeViewKeywordBinding "SOMEDAY" " as" Nothing
   , changeViewKeywordBinding "NOTES" " an" Nothing
   , changeViewKeywordBinding "LIST" " al" Nothing
-  , changeViewKeywordBinding "WAITING" " aw" Nothing
-  , changeViewKeywordBinding "PROJECTS" " ap" Nothing
+  , changeViewKeywordBinding "WAITING" " aw" $ Just sortByPriorityAsc
+  , changeViewKeywordBinding "PROJECTS" " ap" $ Just sortByPriorityAsc
   , changeViewKeywordBinding "TODO" " at" $ Just sortByPriorityAsc
   , changeViewKeywordBinding "DONE" " ad" Nothing
   , changeViewKeywordBinding "TRASH" " ax" Nothing
