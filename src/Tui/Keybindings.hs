@@ -365,14 +365,14 @@ addTag tag = over (currentTaskLens . tags) (S.insert tag)
 upPriority :: AppContext Task -> AppContext Task
 upPriority = over (currentTaskLens . priority) f
  where
-  f Nothing = Just 2
+  f Nothing = Just 1
   f (Just 0) = Nothing
   f (Just x) = Just (x - 1 `mod` 3)
 
 downPriority :: AppContext Task -> AppContext Task
 downPriority = over (currentTaskLens . priority) f
  where
-  f Nothing = Just 0
+  f Nothing = Just 1
   f (Just 2) = Nothing
   f (Just x) = Just (x + 1 `mod` 3)
 
