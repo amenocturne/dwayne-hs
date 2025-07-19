@@ -23,6 +23,7 @@ import Writer.Writer
 import Brick.BChan
 import Control.Monad.IO.Class (liftIO)
 import Data.Char (isUpper, toLower)
+import Data.Foldable (forM_)
 import Data.List.NonEmpty (NonEmpty (..), fromList)
 import Data.Ord (comparing)
 import qualified Data.Set as S
@@ -168,6 +169,16 @@ applySorter sorter = do
 
 veryOldTime :: LocalTime
 veryOldTime = read "1970-01-01 00:00:00"
+
+sortByPriorityAsc :: Task -> Task -> Ordering
+sortByPriorityAsc = comparing getPriority
+ where
+  getPriority t = fromMaybe maxBound (_priority t)
+
+sortByPriorityDesc :: Task -> Task -> Ordering
+sortByPriorityDesc t1 t2 = comparing getPriority t2 t1
+ where
+  getPriority t = fromMaybe maxBound (_priority t)
 
 sortByCreatedAsc :: Task -> Task -> Ordering
 sortByCreatedAsc = comparing getCreated
@@ -502,13 +513,15 @@ changeTodoKeywordBinding keyword bind =
     (saveForUndo $ smartApplyTodoKeyword keyword)
     normalOrSelectionContext
 
-changeViewKeywordBinding :: T.Text -> String -> KeyBinding Task
-changeViewKeywordBinding keyword bind =
+changeViewKeywordBinding :: T.Text -> String -> Maybe (Task -> Task -> Ordering) -> KeyBinding Task
+changeViewKeywordBinding keyword bind sorter =
   normalBinding
     (View keyword)
     (toKeySeq bind)
     (T.concat ["Show ", keyword, " tasks"])
-    $ saveForJump (applyFilterToAllTasks (todoKeywordFilter keyword))
+    $ do
+      saveForJump (applyFilterToAllTasks (todoKeywordFilter keyword))
+      forM_ sorter applySorter
 
 normalBinding :: (ToBind k) => KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
 normalBinding event bind desc action = KeyBinding event (toKey bind) desc action (modeKeyContext NormalMode)
@@ -594,19 +607,21 @@ orgKeyBindings =
       normalOrSelectionContext
   , -- Views
     normalBinding (View "all") (toKeySeq " aa") "Show all tasks" $ saveForJump $ applyFilterToAllTasks (const True)
-  , changeViewKeywordBinding "INBOX" " ai"
-  , changeViewKeywordBinding "RELEVANT" " ar"
-  , changeViewKeywordBinding "SOMEDAY" " as"
-  , changeViewKeywordBinding "NOTES" " an"
-  , changeViewKeywordBinding "LIST" " al"
-  , changeViewKeywordBinding "WAITING" " aw"
-  , changeViewKeywordBinding "PROJECTS" " ap"
-  , changeViewKeywordBinding "TODO" " at"
-  , changeViewKeywordBinding "DONE" " ad"
-  , changeViewKeywordBinding "TRASH" " ax"
+  , changeViewKeywordBinding "INBOX" " ai" $ Just sortByCreatedDesc
+  , changeViewKeywordBinding "RELEVANT" " ar" Nothing
+  , changeViewKeywordBinding "SOMEDAY" " as" Nothing
+  , changeViewKeywordBinding "NOTES" " an" Nothing
+  , changeViewKeywordBinding "LIST" " al" Nothing
+  , changeViewKeywordBinding "WAITING" " aw" Nothing
+  , changeViewKeywordBinding "PROJECTS" " ap" Nothing
+  , changeViewKeywordBinding "TODO" " at" $ Just sortByPriorityAsc
+  , changeViewKeywordBinding "DONE" " ad" Nothing
+  , changeViewKeywordBinding "TRASH" " ax" Nothing
   , -- Sorting
     normalBinding SortCreatedAsc (toKeySeq "sca") "Sort by created (asc)" $ saveForJump (applySorter sortByCreatedAsc)
   , normalBinding SortCreatedDesc (toKeySeq "scd") "Sort by created (desc)" $ saveForJump (applySorter sortByCreatedDesc)
+  , normalBinding SortPriorityAsc (toKeySeq "sca") "Sort by priority (asc)" $ saveForJump (applySorter sortByPriorityAsc)
+  , normalBinding SortPriorityDesc (toKeySeq "scd") "Sort by priority (desc)" $ saveForJump (applySorter sortByPriorityDesc)
   , -- Other
     normalBinding AddTask (toKeySeq "at") "Add new task" $ saveForUndo addNewTask
   , normalBinding EditInEditor (toKey KEnter) "Edit in editor" $ saveForUndo editSelectedTaskInEditor

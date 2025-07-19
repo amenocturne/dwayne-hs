@@ -56,6 +56,8 @@ data KeyEvent
   | OpenUrl
   | SortCreatedAsc
   | SortCreatedDesc
+  | SortPriorityAsc
+  | SortPriorityDesc
   | UpPriority
   | DownPriority
   | -- Selection mode
