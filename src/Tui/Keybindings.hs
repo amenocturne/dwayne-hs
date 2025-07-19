@@ -39,6 +39,7 @@ import Model.OrgMode (
   content,
   orgCreatedProperty,
   orgDayTimeFormat,
+  priority,
   tags,
   todoKeyword,
  )
@@ -350,6 +351,20 @@ changeTodoKeyword keyword = over (currentTaskLens . todoKeyword) (const keyword)
 addTag :: T.Text -> AppContext Task -> AppContext Task
 addTag tag = over (currentTaskLens . tags) (S.insert tag)
 
+upPriority :: AppContext Task -> AppContext Task
+upPriority = over (currentTaskLens . priority) f
+ where
+  f Nothing = Just 2
+  f (Just 0) = Nothing
+  f (Just x) = Just (x - 1 `mod` 3)
+
+downPriority :: AppContext Task -> AppContext Task
+downPriority = over (currentTaskLens . priority) f
+ where
+  f Nothing = Just 0
+  f (Just 2) = Nothing
+  f (Just x) = Just (x + 1 `mod` 3)
+
 deleteTag :: T.Text -> AppContext Task -> AppContext Task
 deleteTag tag = over (currentTaskLens . tags) (S.delete tag)
 
@@ -452,6 +467,9 @@ instance WithMod Char where
    where
     withShift = if isUpper c then S.fromList [MShift, m] else S.singleton m
 
+instance WithMod Key where
+  withMod c m = pure $ KeyPress c (S.singleton m)
+
 class ToBind a where
   toKey :: a -> NonEmpty KeyPress
 
@@ -529,6 +547,8 @@ orgKeyBindings =
   , -- History
     normalBinding Undo (toKey 'u') "Undo" (modify undo)
   , normalBinding Redo (withMod 'r' MCtrl) "Redo" (modify redo)
+  , normalBinding UpPriority (withMod KUp MShift) "Priority Up" (saveForUndo $ modify upPriority)
+  , normalBinding DownPriority (withMod KDown MShift) "Priority Down" (saveForUndo $ modify downPriority)
   , --------------------------------- Normal/Selection Mode (shared) -----------
     -- Movement
     KeyBinding MoveUp (toKey 'k') "Move up" (selectionAwareMove (\i -> i - 1)) normalOrSelectionContext
@@ -540,7 +560,7 @@ orgKeyBindings =
   , KeyBinding JumpBackward (withMod 'o' MCtrl) "Jump backward" (modify jumpBack) normalOrSelectionContext
   , KeyBinding JumpForward (toKey '\t') "Jump forward" (modify jumpForward) normalOrSelectionContext -- NOTE: Terminals translate Ctrl-i into TAB
   , -- Todo Keywords (smart: apply to selection if in selection mode, current task if in normal mode)
-  -- TODO: create a config field for specifying TODO keywords and their shortcuts
+    -- TODO: create a config field for specifying TODO keywords and their shortcuts
     changeTodoKeywordBinding "INBOX" "ti"
   , changeTodoKeywordBinding "RELEVANT" "tr"
   , changeTodoKeywordBinding "SOMEDAY" "ts"
@@ -552,7 +572,7 @@ orgKeyBindings =
   , changeTodoKeywordBinding "DONE" "td"
   , changeTodoKeywordBinding "TRASH" "tx"
   , -- Tags (smart: apply to selection if there are selected items, current task otherwise)
-  -- TODO: create a config field for specifying tags and their shortcuts
+    -- TODO: create a config field for specifying tags and their shortcuts
     addTagKeybinding "music" "a,m"
   , deleleTagKeybinding "music" "d,m"
   , addTagKeybinding "cool" "a,c"

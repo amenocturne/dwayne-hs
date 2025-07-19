@@ -56,6 +56,8 @@ data KeyEvent
   | OpenUrl
   | SortCreatedAsc
   | SortCreatedDesc
+  | UpPriority
+  | DownPriority
   | -- Selection mode
     EnterSelectionMode
   | ToggleRangeSelection
