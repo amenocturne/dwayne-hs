@@ -97,13 +97,14 @@ handleEvent (VtyEvent (EvKey key mods)) = do
   ctx <- get
   case view (appState . cmdState) ctx of
     Just (ShowingMessage _) ->
-      modify $ over (appState . appMode) (const NormalMode) . set (appState . cmdState) Nothing
-    _ ->
-      case (view (appState . appMode) ctx, key) of
-        (NormalMode, _) -> handleNormalModeInput key mods
-        (CmdMode, KChar c) -> handleCmdInput c
-        (CmdMode, _) -> handleNormalModeInput key mods
-        (SelectionMode, _) -> handleNormalModeInput key mods
+      modify $ switchMode NormalMode . set (appState . cmdState) Nothing
+    _ -> return ()
+  ctx' <- get
+  case (view (appState . appMode) ctx', key) of
+    (NormalMode, _) -> handleNormalModeInput key mods
+    (CmdMode, KChar c) -> handleCmdInput c
+    (CmdMode, _) -> handleNormalModeInput key mods
+    (SelectionMode, _) -> handleNormalModeInput key mods
 handleEvent (AppEvent event) = case event of
   Error msg -> do
     let dlg =
