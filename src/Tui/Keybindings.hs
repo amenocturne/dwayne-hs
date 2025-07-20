@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Tui.Keybindings where
@@ -12,11 +14,13 @@ import Brick
 import qualified Brick.Types as BT
 import Control.Applicative ((<|>))
 import Control.Lens
+import qualified Data.ByteString.Char8 as B
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe, isJust, mapMaybe)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
 import Graphics.Vty.Input.Events
-import Text.Regex
+import Text.Regex.Posix ((=~))
 import Tui.Types
 import Writer.Writer
 
@@ -144,15 +148,18 @@ selectionAwareMove moveFunc = do
     _ -> adjustCursor moveFunc
 
 extractFirstUrl :: T.Text -> Maybe T.Text
-extractFirstUrl text = case (orgMatches, urlMatches) of
-  (Just (match : _), _) -> Just $ T.pack match
-  (_, Just (match : _)) -> Just $ T.pack match
-  _ -> Nothing
- where
-  urlPattern = mkRegex "(https?://[^ \t\n]+)"
-  urlMatches = matchRegex urlPattern $ T.unpack text
-  orgPattern = mkRegex "\\[\\[(https?://[^ \t\n]+)\\]"
-  orgMatches = matchRegex orgPattern $ T.unpack text
+extractFirstUrl text =
+  let bs = TE.encodeUtf8 text
+      orgPattern, urlPattern :: B.ByteString
+      orgPattern = "\\[\\[(https?://[^ \t\n\\]]+)\\]\\]"
+      urlPattern = "(https?://[^ \t\n]+)"
+      orgMatches :: [[B.ByteString]] = bs =~ orgPattern
+      urlMatches :: [[B.ByteString]] = bs =~ urlPattern
+   in case orgMatches of
+        ((_ : url : _) : _) -> Just $ TE.decodeUtf8 url
+        _ -> case urlMatches of
+          ((url : _) : _) -> Just $ TE.decodeUtf8 url
+          _ -> Nothing
 
 applySorter :: (Task -> Task -> Ordering) -> GlobalAppState Task
 applySorter sorter = do
