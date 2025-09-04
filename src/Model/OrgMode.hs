@@ -189,7 +189,7 @@ orgTodoKeyWords =
   , "NOTES"
   , "LIST"
   , "WAITING"
-  , "PROJECTS"
+  , "PROJECT"
   , "TODO"
   , "DONE"
   , "TRASH"

@@ -39,7 +39,7 @@ defaultColorScheme =
           , ("NOTES", green)
           , ("LIST", blue)
           , ("WAITING", mauve)
-          , ("PROJECTS", green)
+          , ("PROJECT", green)
           , ("TODO", yellow)
           , ("DONE", surface2)
           , ("TRASH", surface2)

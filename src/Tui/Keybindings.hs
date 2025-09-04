@@ -476,7 +476,7 @@ getProjectSubtasks projectPtr fs =
 
 -- | Check if a task is a project (has PROJECT keyword)
 isProjectTask :: Task -> Bool
-isProjectTask = todoKeywordFilter "PROJECTS"
+isProjectTask = todoKeywordFilter "PROJECT"
 
 -- | Get all project pointers from all files
 getAllProjectPointers :: FileState Task -> [TaskPointer]
@@ -679,7 +679,7 @@ orgKeyBindings =
   , changeTodoKeywordBinding "NOTES" "tn"
   , changeTodoKeywordBinding "LIST" "tl"
   , changeTodoKeywordBinding "WAITING" "tw"
-  , changeTodoKeywordBinding "PROJECTS" "tp"
+  , changeTodoKeywordBinding "PROJECT" "tp"
   , changeTodoKeywordBinding "TODO" "tt"
   , changeTodoKeywordBinding "DONE" "td"
   , changeTodoKeywordBinding "TRASH" "tx"
@@ -712,7 +712,7 @@ orgKeyBindings =
   , changeViewKeywordBinding "NOTES" " an" Nothing
   , changeViewKeywordBinding "LIST" " al" Nothing
   , changeViewKeywordBinding "WAITING" " aw" $ Just sortByPriorityAsc
-  , changeViewKeywordBinding "PROJECTS" " ap" $ Just sortByPriorityAsc
+  , changeViewKeywordBinding "PROJECT" " ap" $ Just sortByPriorityAsc
   , changeViewKeywordBinding "TODO" " at" $ Just sortByPriorityAsc
   , changeViewKeywordBinding "DONE" " ad" Nothing
   , changeViewKeywordBinding "TRASH" " ax" Nothing

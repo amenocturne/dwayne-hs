@@ -1,6 +1,6 @@
 #+TITLE: Projects
 
-* PROJECTS Some project
+* PROJECT Some project
 :PROPERTIES:
 :CREATED:  [2024-10-06 Sun 11:51]
 :END:
@@ -17,7 +17,7 @@ some description
 :CREATED:  [2024-10-06 Sun 11:51]
 :END:
 
-** PROJECTS Some subproject
+** PROJECT Some subproject
 :PROPERTIES:
 :CREATED:  [2024-10-06 Sun 11:51]
 :END:
