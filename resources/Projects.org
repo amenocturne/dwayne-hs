@@ -16,3 +16,13 @@ some description
 :PROPERTIES:
 :CREATED:  [2024-10-06 Sun 11:51]
 :END:
+
+** PROJECTS Some subproject
+:PROPERTIES:
+:CREATED:  [2024-10-06 Sun 11:51]
+:END:
+
+*** TODO Sub-sub task
+:PROPERTIES:
+:CREATED:  [2024-10-06 Sun 11:51]
+:END:

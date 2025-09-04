@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -211,8 +210,7 @@ openTaskUrl = do
           descUrl = extractFirstUrl (_description task)
           firstUrl = titleUrl <|> descUrl
       case firstUrl of
-        Just url -> do
-          liftIO $ openUrlInBrowser url
+        Just url -> liftIO $ openUrlInBrowser url
         Nothing -> return ()
     Nothing -> return ()
 
@@ -317,8 +315,7 @@ editSelectedTaskInEditor = do
         Just editedStr -> do
           let (l, _, result) = runParser (view (system . taskParser) ctx) editedStr
           case result of
-            ParserSuccess t -> do
-              return $ set (fileStateLens . taskBy ptr) t ctx
+            ParserSuccess t -> return $ set (fileStateLens . taskBy ptr) t ctx
             ParserFailure e -> do
               _ <- writeBChan (view (appState . eventChannel) ctx) $ Error (e ++ " at " ++ show (line l) ++ ":" ++ show (column l))
               return ctx
@@ -461,7 +458,7 @@ getProjectForTask taskPtr fs =
                     | view level task < targetLevel && isProjectTask task ->
                         Just (idx - 1)
                   _ -> findProjectIndex (idx - 1)
-       in fmap (\projIdx -> TaskPointer (view file taskPtr) projIdx) (findProjectIndex taskIdx)
+       in fmap (TaskPointer (view file taskPtr)) (findProjectIndex taskIdx)
 
 -- | Get all subtasks that belong to a project
 getProjectSubtasks :: TaskPointer -> FileState Task -> [TaskPointer]
@@ -501,13 +498,30 @@ goToProjectView = do
         getProjectForTask currentPtr fs
   case maybeProjectPtr of
     Nothing -> return ()
-    Just projPtr -> 
+    Just projPtr ->
       saveForJump $ do
         let projectSubtasks = getProjectSubtasks projPtr fs
-            projectSubtaskFilter = \task -> 
-              any (\subtaskPtr -> 
-                maybe False (== task) (preview (taskBy subtaskPtr) fs)) projectSubtasks
-        modify $ set viewFilterLens [projectSubtaskFilter]
+            -- Custom sorter that puts project task first, then sorts subtasks normally
+            originalSorter = view viewSorterLens ctx
+            projectViewSorter task1 task2 =
+              case ( Just task1 == preview (taskBy projPtr) fs
+                   , Just task2 == preview (taskBy projPtr) fs
+                   ) of
+                (True, False) -> LT -- task1 is project, comes first
+                (False, True) -> GT -- task2 is project, comes first
+                _ -> originalSorter task1 task2
+            projectAndSubtasksFilter task =
+              -- Include the project task itself
+              (Just task == preview (taskBy projPtr) fs)
+                ||
+                -- Include all subtasks
+                any
+                  ( \subtaskPtr ->
+                      Just task == preview (taskBy subtaskPtr) fs
+                  )
+                  projectSubtasks
+        modify $ set viewFilterLens [projectAndSubtasksFilter]
+        modify $ set viewSorterLens projectViewSorter
         modify $ set cursorLens (Just 0)
         modify $ set (compactViewLens . viewportStart) 0
 
