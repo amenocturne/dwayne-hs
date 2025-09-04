@@ -488,6 +488,22 @@ getAllProjectPointers fs =
   , isProjectTask task
   ]
 
+-- | Open refile dialog to select a project
+openRefileDialog :: GlobalAppState Task
+openRefileDialog = do
+  ctx <- get
+  let fs = view fileStateLens ctx
+      allProjects = getAllProjectPointers fs
+  case allProjects of
+    [] -> return () -- No projects found
+    _ -> do
+      let dialog = RefileDialog
+            { _rdProjects = allProjects
+            , _rdSearchQuery = ""
+            , _rdSelectedIndex = 0
+            }
+      modify $ set (appState . refileDialog) (Just dialog)
+
 -- | Jump to project view for the current task
 goToProjectView :: GlobalAppState Task
 goToProjectView = do
@@ -710,4 +726,5 @@ orgKeyBindings =
   , normalBinding EditInEditor (toKey KEnter) "Edit in editor" $ saveForUndo editSelectedTaskInEditor
   , normalBinding OpenUrl (toKeySeq "gx") "Open URL in task" openTaskUrl
   , normalBinding GoToProject (toKeySeq "gp") "Go to project view" goToProjectView
+  , normalBinding Refile (toKeySeq "gr") "Refile task to project" openRefileDialog
   ]

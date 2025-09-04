@@ -20,6 +20,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Data.Time (diffUTCTime, getCurrentTime)
 import Data.Time.Clock (UTCTime)
+import Searcher.Searcher (Searcher, matches)
 import Parser.Parser
 import TextUtils (readFileExample)
 import Writer.OrgWriter ()
@@ -92,7 +93,45 @@ handleCmdInput c = modify $ over (appState . cmdState) (fmap appendC)
   appendC (Typing cmdType input) = Typing cmdType (input `T.snoc` c)
   appendC other = other
 
-handleEvent :: (Writer a, Show a, Eq a) => BrickEvent Name AppEvent -> GlobalAppState a
+handleRefileDialogInput :: (Searcher a) => Key -> [Modifier] -> GlobalAppState a
+handleRefileDialogInput key mods = do
+  case key of
+    KEsc -> modify $ set (appState . refileDialog) Nothing
+    KUp -> do
+      modify $ over (appState . refileDialog . _Just . rdSelectedIndex) (\idx -> max 0 (idx - 1))
+    KDown -> do
+      ctx <- get
+      case view (appState . refileDialog) ctx of
+        Just dialog -> do
+          let fs = view fileStateLens ctx
+              allProjects = view rdProjects dialog
+              searchQuery = view rdSearchQuery dialog
+              filteredProjects = if T.null searchQuery
+                then allProjects
+                else filter (\ptr -> case preview (taskBy ptr) fs of
+                  Just task -> matches searchQuery task
+                  Nothing -> False
+                ) allProjects
+              currentIdx = view rdSelectedIndex dialog
+              maxIdx = max 0 (length filteredProjects - 1)
+              newIdx = min maxIdx (currentIdx + 1)
+          modify $ set (appState . refileDialog . _Just . rdSelectedIndex) newIdx
+        Nothing -> return ()
+    KEnter -> do
+      -- TODO: Implement actual refile logic here
+      modify $ set (appState . refileDialog) Nothing
+    KBS -> do
+      modify $ over (appState . refileDialog . _Just) $ 
+        \d -> set rdSearchQuery (let q = view rdSearchQuery d in if T.null q then T.empty else T.dropEnd 1 q) $ 
+              set rdSelectedIndex 0 d
+    KChar c -> do
+      modify $ over (appState . refileDialog . _Just) $ 
+        \d -> set rdSearchQuery (view rdSearchQuery d `T.snoc` c) $
+              set rdSelectedIndex 0 d
+    _ -> return ()
+
+
+handleEvent :: (Writer a, Show a, Eq a, Searcher a) => BrickEvent Name AppEvent -> GlobalAppState a
 handleEvent (VtyEvent (EvKey key mods)) = do
   ctx <- get
   case view (appState . cmdState) ctx of
@@ -100,11 +139,14 @@ handleEvent (VtyEvent (EvKey key mods)) = do
       modify $ switchMode NormalMode . set (appState . cmdState) Nothing
     _ -> return ()
   ctx' <- get
-  case (view (appState . appMode) ctx', key) of
-    (NormalMode, _) -> handleNormalModeInput key mods
-    (CmdMode, KChar c) -> handleCmdInput c
-    (CmdMode, _) -> handleNormalModeInput key mods
-    (SelectionMode, _) -> handleNormalModeInput key mods
+  case view (appState . refileDialog) ctx' of
+    Just _ -> handleRefileDialogInput key mods
+    Nothing ->
+      case (view (appState . appMode) ctx', key) of
+        (NormalMode, _) -> handleNormalModeInput key mods
+        (CmdMode, KChar c) -> handleCmdInput c
+        (CmdMode, _) -> handleNormalModeInput key mods
+        (SelectionMode, _) -> handleNormalModeInput key mods
 handleEvent (AppEvent event) = case event of
   Error msg -> do
     let dlg =

@@ -61,6 +61,7 @@ data KeyEvent
   | UpPriority
   | DownPriority
   | GoToProject
+  | Refile
   | -- Selection mode
     EnterSelectionMode
   | ToggleRangeSelection
@@ -113,6 +114,7 @@ data SystemConfig a = SystemConfig
 data AppState a = AppState
   { _eventChannel :: BChan AppEvent
   , _errorDialog :: Maybe ErrorDialog
+  , _refileDialog :: Maybe RefileDialog
   , _keyState :: KeyState
   , _appMode :: AppMode a
   , _cmdState :: Maybe CmdState
@@ -165,6 +167,13 @@ data ErrorDialog = ErrorDialog
 instance Show ErrorDialog where
   show (ErrorDialog _ msg) = msg
 
+data RefileDialog = RefileDialog
+  { _rdProjects :: [TaskPointer]
+  , _rdSearchQuery :: T.Text
+  , _rdSelectedIndex :: Int
+  }
+  deriving (Show)
+
 data TaskPointer = TaskPointer
   { _file :: FilePath
   , _taskIndex :: Int
@@ -197,6 +206,7 @@ makeLenses ''AppContext
 makeLenses ''AppConfig
 makeLenses ''SystemConfig
 makeLenses ''ErrorDialog
+makeLenses ''RefileDialog
 makeLenses ''KeyBinding
 makeLenses ''KeyPress
 makeLenses ''CompactView

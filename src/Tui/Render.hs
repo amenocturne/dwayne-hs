@@ -34,7 +34,7 @@ import Tui.ColorScheme (
 import Tui.Types
 
 import Brick.Widgets.Border (vBorder)
-import Brick.Widgets.Dialog (renderDialog)
+import Brick.Widgets.Dialog (dialog, renderDialog)
 import qualified Data.Map.Strict as M
 import Data.Maybe (catMaybes, fromMaybe, maybeToList)
 import qualified Data.Set as Set
@@ -90,9 +90,14 @@ drawUI ctx =
                 Just (Typing Search q) -> drawCompactView (Just q) ctx
                 _ -> drawCompactView Nothing ctx
            in [vBox [mainView, cmdW]]
-   in case view (appState . errorDialog) ctx of
-        Just dlg -> renderDialog (view edDialog dlg) (strWrap $ view edMessage dlg) : mainLayers
-        Nothing -> mainLayers
+   in let maybeErrorDialog = view (appState . errorDialog) ctx
+          maybeRefileDialog = view (appState . refileDialog) ctx
+          
+          withRefileDialog dlg = renderRefileDialog dlg ctx : mainLayers
+          withErrorDialog dlg = renderDialog (view edDialog dlg) (strWrap $ view edMessage dlg) : mainLayers
+          
+          layersWithRefile = maybe mainLayers withRefileDialog maybeRefileDialog
+       in maybe layersWithRefile withErrorDialog maybeErrorDialog
 
 drawCompactView :: (RenderTask a Name, Searcher a) => Maybe T.Text -> AppContext a -> Widget Name
 drawCompactView mQuery ctx =
@@ -153,13 +158,11 @@ drawCompactView mQuery ctx =
                       isSelected = Set.member absoluteIdx selection
                       isCursor = Just ptr == selectedTaskPtr
                       baseWidget = fmap (R.renderCompactWithColors $ getColorScheme scheme) (preview (taskBy ptr) fs)
-                   in case baseWidget of
-                        Just widget ->
-                          let styledWidget
-                                | isSelected || isCursor = withDefAttr highlightBgAttr widget
-                                | otherwise = widget
-                           in Just $ padRight Max styledWidget
-                        Nothing -> Nothing
+                   in fmap (\widget ->
+                        let styledWidget
+                              | isSelected || isCursor = withDefAttr highlightBgAttr widget
+                              | otherwise = widget
+                         in padRight Max styledWidget) baseWidget
              in reportExtent CompactViewWidget $ vBox $ catMaybes $ V.toList (V.imap renderTask taskPointers)
 
   renderRightPane =
@@ -193,3 +196,42 @@ cmdWidget cmdType query =
 
 messageWidget :: T.Text -> Widget Name
 messageWidget msg = vLimit 1 $ txt msg
+
+renderRefileDialog :: (RenderTask a Name, Searcher a) => RefileDialog -> AppContext a -> Widget Name
+renderRefileDialog refileDialog ctx =
+  let fs = view fileStateLens ctx
+      allProjects = view rdProjects refileDialog
+      searchQuery = view rdSearchQuery refileDialog
+      selectedIdx = view rdSelectedIndex refileDialog
+      
+      -- Filter projects by search query using renderCompact
+      filteredProjects = if T.null searchQuery
+        then allProjects
+        else filter (\ptr -> maybe False (matches searchQuery) (preview (taskBy ptr) fs)) allProjects
+      
+      -- Render project list
+      renderProject idx ptr =
+        let isSelected = idx == selectedIdx
+            widget = maybe (txt "<missing task>") renderCompact (preview (taskBy ptr) fs)
+        in if isSelected
+           then withDefAttr highlightBgAttr widget
+           else widget
+      
+      projectWidgets = zipWith renderProject [0..] filteredProjects
+      projectList = vBox $ take 10 projectWidgets -- Limit to 10 visible items
+      
+      searchWidget = txt ("Search: " <> searchQuery <> "_")
+      
+      dialogContent = vBox
+        [ str "Refile to project:"
+        , vLimit 1 $ fill '-'
+        , searchWidget
+        , vLimit 1 $ fill '-'
+        , projectList
+        , vLimit 1 $ fill '-'
+        , str "Enter: Select  Escape: Cancel  Up/Down: Navigate"
+        ]
+        
+  in renderDialog 
+       (dialog (Just $ str "Refile") Nothing 60)
+       dialogContent

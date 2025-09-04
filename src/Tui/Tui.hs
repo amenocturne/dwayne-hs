@@ -63,6 +63,7 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a) => Tui a where
           AppState
             { _eventChannel = eventChan
             , _errorDialog = Nothing
+            , _refileDialog = Nothing
             , _keyState = NoInput
             , _appMode = NormalMode
             , _cmdState = Nothing
