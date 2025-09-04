@@ -1,6 +1,7 @@
 files:
   - ./resources/Sample.org
   - ./resources/SampleInbox.org
+  - ./resources/Projects.org
 inboxFile: ./resources/SampleInbox.org
 projectsFile: ./resources/Projects.org
 scrollingMargin: 6

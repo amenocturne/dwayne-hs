@@ -60,6 +60,7 @@ data KeyEvent
   | SortPriorityDesc
   | UpPriority
   | DownPriority
+  | GoToProject
   | -- Selection mode
     EnterSelectionMode
   | ToggleRangeSelection

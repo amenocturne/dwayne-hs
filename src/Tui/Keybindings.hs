@@ -491,6 +491,26 @@ getAllProjectPointers fs =
   , isProjectTask task
   ]
 
+-- | Jump to project view for the current task
+goToProjectView :: GlobalAppState Task
+goToProjectView = do
+  ctx <- get
+  let fs = view fileStateLens ctx
+      maybeProjectPtr = do
+        currentPtr <- view currentTaskPtr ctx
+        getProjectForTask currentPtr fs
+  case maybeProjectPtr of
+    Nothing -> return ()
+    Just projPtr -> 
+      saveForJump $ do
+        let projectSubtasks = getProjectSubtasks projPtr fs
+            projectSubtaskFilter = \task -> 
+              any (\subtaskPtr -> 
+                maybe False (== task) (preview (taskBy subtaskPtr) fs)) projectSubtasks
+        modify $ set viewFilterLens [projectSubtaskFilter]
+        modify $ set cursorLens (Just 0)
+        modify $ set (compactViewLens . viewportStart) 0
+
 saveAll :: GlobalAppState a
 saveAll = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ctx) SaveAllFiles
 
@@ -675,4 +695,5 @@ orgKeyBindings =
     normalBinding AddTask (toKeySeq "at") "Add new task" $ saveForUndo addNewTask
   , normalBinding EditInEditor (toKey KEnter) "Edit in editor" $ saveForUndo editSelectedTaskInEditor
   , normalBinding OpenUrl (toKeySeq "gx") "Open URL in task" openTaskUrl
+  , normalBinding GoToProject (toKeySeq "gp") "Go to project view" goToProjectView
   ]

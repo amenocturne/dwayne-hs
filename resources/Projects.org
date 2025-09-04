@@ -1,0 +1,18 @@
+#+TITLE: Projects
+
+* PROJECTS Some project
+:PROPERTIES:
+:CREATED:  [2024-10-06 Sun 11:51]
+:END:
+
+some description
+
+** INBOX [#A] Some project subtask
+:PROPERTIES:
+:CREATED:  [2024-10-06 Sun 11:51]
+:END:
+
+** INBOX [#A] Another project subtask
+:PROPERTIES:
+:CREATED:  [2024-10-06 Sun 11:51]
+:END:
