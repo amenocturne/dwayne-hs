@@ -18,6 +18,7 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+import qualified Data.Vector as V
 import Data.Time (diffUTCTime, getCurrentTime)
 import Data.Time.Clock (UTCTime)
 import Searcher.Searcher (Searcher, matches)
@@ -25,6 +26,8 @@ import Parser.Parser
 import TextUtils (readFileExample)
 import Writer.OrgWriter ()
 import Writer.Writer
+import Refile.Refileable (Refileable)
+import Refile.Refile (refileTaskToProject)
 
 checkFilesUnmodified :: (Eq a) => AppContext a -> IO [FilePath]
 checkFilesUnmodified ctx = do
@@ -93,7 +96,7 @@ handleCmdInput c = modify $ over (appState . cmdState) (fmap appendC)
   appendC (Typing cmdType input) = Typing cmdType (input `T.snoc` c)
   appendC other = other
 
-handleRefileDialogInput :: (Searcher a) => Key -> [Modifier] -> GlobalAppState a
+handleRefileDialogInput :: (Searcher a, Refileable a) => Key -> [Modifier] -> GlobalAppState a
 handleRefileDialogInput key mods = do
   case key of
     KEsc -> modify $ set (appState . refileDialog) Nothing
@@ -118,8 +121,31 @@ handleRefileDialogInput key mods = do
           modify $ set (appState . refileDialog . _Just . rdSelectedIndex) newIdx
         Nothing -> return ()
     KEnter -> do
-      -- TODO: Implement actual refile logic here
-      modify $ set (appState . refileDialog) Nothing
+      ctx <- get
+      case (view (appState . refileDialog) ctx, view currentTaskPtr ctx) of
+        (Just dialog, Just currentTask) -> do
+          let fs = view fileStateLens ctx
+              allProjects = view rdProjects dialog
+              searchQuery = view rdSearchQuery dialog
+              selectedIdx = view rdSelectedIndex dialog
+              
+              -- Get filtered projects (same logic as in render)
+              filteredProjects = if T.null searchQuery
+                then allProjects
+                else filter (\ptr -> maybe False (matches searchQuery) (preview (taskBy ptr) fs)) allProjects
+          
+          -- Check if we have a valid selection
+          if selectedIdx >= 0 && selectedIdx < length filteredProjects
+            then do
+              let selectedProject = filteredProjects !! selectedIdx
+              -- Only call refile for Task type - this is a type constraint issue
+              -- For now, we'll handle this in a type-safe way
+              -- Refile the current task to the selected project
+              refileTaskToProject currentTask selectedProject
+              modify $ set (appState . refileDialog) Nothing
+            else
+              modify $ set (appState . refileDialog) Nothing
+        _ -> modify $ set (appState . refileDialog) Nothing
     KBS -> do
       modify $ over (appState . refileDialog . _Just) $ 
         \d -> set rdSearchQuery (let q = view rdSearchQuery d in if T.null q then T.empty else T.dropEnd 1 q) $ 
@@ -131,7 +157,7 @@ handleRefileDialogInput key mods = do
     _ -> return ()
 
 
-handleEvent :: (Writer a, Show a, Eq a, Searcher a) => BrickEvent Name AppEvent -> GlobalAppState a
+handleEvent :: (Writer a, Show a, Eq a, Searcher a, Refileable a) => BrickEvent Name AppEvent -> GlobalAppState a
 handleEvent (VtyEvent (EvKey key mods)) = do
   ctx <- get
   case view (appState . cmdState) ctx of

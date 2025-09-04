@@ -15,6 +15,7 @@ import Tui.Keybindings (orgKeyBindings, sortByCreatedDesc, todoKeywordFilter)
 import Tui.Tui
 import Tui.Types
 import Writer.OrgWriter ()
+import Refile.OrgRefileable ()
 
 -- TODO: add cli tool to quickly add tasks and integrate with other apps
 

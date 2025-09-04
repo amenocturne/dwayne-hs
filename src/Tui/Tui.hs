@@ -19,7 +19,8 @@ import Render.Render
 
 import System.FilePath ((</>))
 import Tui.ColorScheme
-import Tui.Events
+import Tui.Events (handleEvent)
+import Refile.Refileable (Refileable)
 import Tui.Render
 import Tui.Types
 
@@ -43,7 +44,7 @@ import TextUtils
 class Tui a where
   tui :: SystemConfig a -> IO ()
 
-instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a) => Tui a where
+instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a, Refileable a) => Tui a where
   tui sysConf = do
     configFilePath <- getConfigPath
     parsedConfig <- decodeFileEither configFilePath :: IO (Either ParseException (AppConfig a))
