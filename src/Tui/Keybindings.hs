@@ -42,6 +42,7 @@ import Model.OrgMode (
   Task (..),
   TaskFile,
   content,
+  level,
   orgCreatedProperty,
   orgDayTimeFormat,
   priority,
@@ -441,6 +442,54 @@ applyFilterToAllTasks predicate = do
 
 todoKeywordFilter :: T.Text -> Task -> Bool
 todoKeywordFilter keyword task = view todoKeyword task == keyword
+
+-- Project hierarchy functions
+
+-- | Find the project that contains the given task
+getProjectForTask :: TaskPointer -> FileState Task -> Maybe TaskPointer
+getProjectForTask taskPtr fs =
+  case preview (ix (view file taskPtr) . success . content) fs of
+    Nothing -> Nothing
+    Just tasks ->
+      let taskIdx = view taskIndex taskPtr
+          targetLevel = maybe 0 (view level) (tasks V.!? taskIdx)
+          findProjectIndex idx
+            | idx <= 0 = Nothing
+            | otherwise =
+                case tasks V.!? (idx - 1) of
+                  Just task
+                    | view level task < targetLevel && isProjectTask task ->
+                        Just (idx - 1)
+                  _ -> findProjectIndex (idx - 1)
+       in fmap (\projIdx -> TaskPointer (view file taskPtr) projIdx) (findProjectIndex taskIdx)
+
+-- | Get all subtasks that belong to a project
+getProjectSubtasks :: TaskPointer -> FileState Task -> [TaskPointer]
+getProjectSubtasks projectPtr fs =
+  case preview (ix (view file projectPtr) . success . content) fs of
+    Nothing -> []
+    Just tasks ->
+      let projectIdx = view taskIndex projectPtr
+          projectLevel = maybe 0 (view level) (tasks V.!? projectIdx)
+          tasksAfterProject = V.drop (projectIdx + 1) tasks
+          subtaskIndices = V.takeWhile (\task -> view level task > projectLevel) tasksAfterProject
+       in [ TaskPointer (view file projectPtr) (projectIdx + 1 + i)
+          | i <- [0 .. V.length subtaskIndices - 1]
+          ]
+
+-- | Check if a task is a project (has PROJECT keyword)
+isProjectTask :: Task -> Bool
+isProjectTask = todoKeywordFilter "PROJECTS"
+
+-- | Get all project pointers from all files
+getAllProjectPointers :: FileState Task -> [TaskPointer]
+getAllProjectPointers fs =
+  [ TaskPointer fp idx
+  | (fp, result) <- M.toList fs
+  , taskFile <- maybe [] pure (resultToMaybe result)
+  , (idx, task) <- zip [0 ..] (V.toList $ view content taskFile)
+  , isProjectTask task
+  ]
 
 saveAll :: GlobalAppState a
 saveAll = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ctx) SaveAllFiles
