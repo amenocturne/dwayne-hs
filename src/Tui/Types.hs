@@ -87,6 +87,7 @@ type FileState a = M.Map String (ParserResult (TaskFile a))
 data AppConfig a = AppConfig
   { _files :: [String]
   , _inboxFile :: String
+  , _projectsFile :: String
   , _scrollingMargin :: Int
   , _keyTimeoutMs :: Int
   , _colorScheme :: String

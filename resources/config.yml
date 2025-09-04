@@ -2,6 +2,7 @@ files:
   - ./resources/Sample.org
   - ./resources/SampleInbox.org
 inboxFile: ./resources/SampleInbox.org
+projectsFile: ./resources/Projects.org
 scrollingMargin: 6
 keyTimeoutMs: 1000
 colorScheme: "default"
