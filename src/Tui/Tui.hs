@@ -50,9 +50,9 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a) => Tui a where
     conf <- case parsedConfig of
       Left err -> Prelude.error $ show err
       Right conf -> return conf
-    -- TODO: Auto-include inboxFile and projectsFile in files list and remove duplicates
-    -- This ensures the app works even if user forgets to add these files to the files list
-    parsedFiles <- mapM (\f -> fmap (f,) (readTasks (view fileParser sysConf) f)) (view files conf)
+    -- Auto-include inboxFile and projectsFile in files list and remove duplicates
+    let allFiles = nub $ view files conf ++ [view inboxFile conf, view projectsFile conf]
+    parsedFiles <- mapM (\f -> fmap (f,) (readTasks (view fileParser sysConf) f)) allFiles
     eventChan <- newBChan 10 -- maybe should use different event channel size
     let fState = M.fromList (fmap (\(a, (_, c)) -> (a, c)) parsedFiles)
     let parsingErrors = mapMaybe (\(f, (l, e)) -> fmap (f, l,) (errorToMaybe e)) parsedFiles
