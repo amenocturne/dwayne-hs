@@ -81,6 +81,7 @@ data KeyEvent
   | AbortCmd
   | CmdDeleteChar
   | ApplyCmd
+  | RefreshView
   | -- Views
     View T.Text
   deriving (Eq, Show, Ord)

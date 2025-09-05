@@ -655,6 +655,13 @@ showProjectView projPtr fs ctx = do
   modify $ set cursorLens (Just 0)
   modify $ set (compactViewLens . viewportStart) 0
 
+-- | Refresh the current view by recomputing the cached view without changing the ViewSpec
+refreshCurrentView :: GlobalAppState a
+refreshCurrentView = do
+  ctx <- get
+  let newCache = recomputeCurrentView ctx
+  modify $ set (compactViewLens . cachedView) newCache
+
 saveAll :: GlobalAppState a
 saveAll = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ctx) SaveAllFiles
 
@@ -847,4 +854,5 @@ orgKeyBindings =
   , normalBinding OpenUrl (toKeySeq "gx") "Open URL in task" openTaskUrl
   , normalBinding GoToProject (toKeySeq "gp") "Go to project view" goToProjectView
   , normalBinding Refile (toKeySeq "gr") "Refile task to project" openRefileDialog
+  , normalBinding RefreshView (toKey 'r') "Refresh current view" refreshCurrentView
   ]
