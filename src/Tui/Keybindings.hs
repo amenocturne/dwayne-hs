@@ -144,7 +144,6 @@ smartApplyTodoKeyword keyword = do
     else applyToSelection (set todoKeyword keyword)
     
   when (needsValidation || oldHasProject) $ do
-  when (needsValidation || oldHasProject) $ do
     newCtx <- get
     let issues = SV.validateSystem newCtx
     case issues of
