@@ -14,8 +14,9 @@ import Data.Maybe (listToMaybe, mapMaybe)
 import Graphics.Vty.Attributes (blue, brightBlue, brightCyan, brightGreen, brightMagenta, brightRed, brightWhite, brightYellow, cyan, green, magenta, red, rgbColor, white, yellow)
 import Graphics.Vty.Config (defaultConfig)
 import Graphics.Vty.CrossPlatform (mkVty)
-import Model.OrgMode
+import Model.OrgMode (Task)
 import Render.Render
+import qualified Validation.SystemValidation as SV
 
 import System.FilePath ((</>))
 import Tui.ColorScheme
@@ -27,7 +28,8 @@ import Tui.Types
 import Writer.Writer
 
 import Brick.BChan
-import Control.Monad (guard, void)
+import Brick.Widgets.Dialog (dialog)
+import Control.Monad (guard, void, when)
 import Data.List
 import qualified Data.Set as Set
 import qualified Data.Text as T
@@ -44,7 +46,7 @@ import TextUtils
 class Tui a where
   tui :: SystemConfig a -> IO ()
 
-instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a, Refileable a) => Tui a where
+instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a, Refileable a, SV.SystemValidator a) => Tui a where
   tui sysConf = do
     configFilePath <- getConfigPath
     parsedConfig <- decodeFileEither configFilePath :: IO (Either ParseException (AppConfig a))
@@ -65,6 +67,7 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a, Refileable a) =
             { _eventChannel = eventChan
             , _errorDialog = Nothing
             , _refileDialog = Nothing
+            , _validationDialog = Nothing
             , _keyState = NoInput
             , _appMode = NormalMode
             , _cmdState = Nothing
@@ -104,6 +107,9 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a, Refileable a) =
           Error $
             intercalate "\n" $
               fmap (\(f, l, e) -> "Error while parsing `" ++ f ++ "`: " ++ e ++ " at " ++ show (line l) ++ ":" ++ show (column l)) errs
+    
+    -- Check for system validation issues (only for Task instances) 
+    checkSystemValidation ctx eventChan
 
     void $ customMain initialVty buildVty (Just eventChan) app ctx
    where
@@ -112,3 +118,18 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a, Refileable a) =
       c <- readFileExample f
       let (l, _, tasks) = runParser p c
       return (l, tasks)
+
+-- Function to check system validation for any SystemValidator instance
+checkSystemValidation :: (SV.SystemValidator a) => AppContext a -> BChan AppEvent -> IO ()
+checkSystemValidation ctx eventChan = do
+  let issues = SV.validateSystem ctx
+  case issues of
+    [] -> return () -- No issues found
+    (issue:_) -> do -- Handle first issue (for now)
+      let message = T.unpack (SV.issueDescription issue)
+          dlg = ValidationDialog
+                { _vdDialog = dialog (Just $ str "System Validation") Nothing 60
+                , _vdMisplacedTasks = SV.affectedItems issue
+                , _vdMessage = message ++ " (Enter to accept, Esc to cancel)"
+                }
+      writeBChan eventChan $ ValidationDialogCreated dlg

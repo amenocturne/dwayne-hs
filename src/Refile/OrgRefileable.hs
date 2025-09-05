@@ -17,9 +17,13 @@ instance Refileable Task where
     let originalFile = view file originalTaskPtr
     in case preview (taskBy projectPtr) fs of
       Just project ->
-        -- Calculate new task level (project level + 1)
+        -- Calculate level adjustment: preserve relative hierarchy instead of flattening
         let projectLevel = view level project
-            adjustedTask = set level (projectLevel + 1) task
+            originalTaskLevel = view level task
+            -- For validation dialog moves, we want tasks to be direct children of project
+            -- But we need to preserve the relative hierarchy between moved tasks and their subtasks
+            levelAdjustment = (projectLevel + 1) - originalTaskLevel
+            adjustedTask = over level (+ levelAdjustment) task
         
         in -- Check if we're moving within the same file (projects file)
         if originalFile == projectsFilePath

@@ -54,7 +54,6 @@ testInsertTaskUnder :: Spec
 testInsertTaskUnder = do
   describe "Same-file refiling (projects.org)" $ do
     it "moves task to end of file maintaining correct order" $ do
-      -- Create test data: project at index 0, task to move at index 2
       let projectTask = createTestTask 1 "PROJECT" "Main Project"
           task1 = createTestTask 2 "TODO" "Task 1"
           taskToMove = createTestTask 2 "TODO" "Task to Move"
@@ -67,13 +66,11 @@ testInsertTaskUnder = do
           taskPtr = TaskPointer "/path/to/projects.org" 2
           projectsFilePath = "/path/to/projects.org"
 
-      -- Execute the refiling operation (pure function)
       let refileResult = insertTaskUnder projectPtr taskToMove taskPtr fileState projectsFilePath
           resultFileState = _newFileState refileResult
           wasTaskMoved = _wasTaskMoved refileResult
 
-      -- Verify the result
-      wasTaskMoved `shouldBe` True -- Same file, so task was moved
+      wasTaskMoved `shouldBe` True
       case preview (ix "/path/to/projects.org" . success . content) resultFileState of
         Just resultTasks -> do
           V.length resultTasks `shouldBe` 4

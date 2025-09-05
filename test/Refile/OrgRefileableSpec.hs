@@ -33,7 +33,7 @@ sampleProject :: Task
 sampleProject =
   Task
     { _level = 1
-    , _todoKeyword = "PROJECTS"
+    , _todoKeyword = "PROJECT"
     , _priority = Nothing
     , _title = "Sample Project"
     , _tags = mempty

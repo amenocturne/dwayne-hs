@@ -92,12 +92,15 @@ drawUI ctx =
            in [vBox [mainView, cmdW]]
    in let maybeErrorDialog = view (appState . errorDialog) ctx
           maybeRefileDialog = view (appState . refileDialog) ctx
+          maybeValidationDialog = view (appState . validationDialog) ctx
           
           withRefileDialog dlg = renderRefileDialog dlg ctx : mainLayers
           withErrorDialog dlg = renderDialog (view edDialog dlg) (strWrap $ view edMessage dlg) : mainLayers
+          withValidationDialog dlg = renderDialog (view vdDialog dlg) (strWrap $ view vdMessage dlg) : mainLayers
           
           layersWithRefile = maybe mainLayers withRefileDialog maybeRefileDialog
-       in maybe layersWithRefile withErrorDialog maybeErrorDialog
+          layersWithValidation = maybe layersWithRefile withValidationDialog maybeValidationDialog
+       in maybe layersWithValidation withErrorDialog maybeErrorDialog
 
 drawCompactView :: (RenderTask a Name, Searcher a) => Maybe T.Text -> AppContext a -> Widget Name
 drawCompactView mQuery ctx =
@@ -204,12 +207,10 @@ renderRefileDialog refileDialog ctx =
       searchQuery = view rdSearchQuery refileDialog
       selectedIdx = view rdSelectedIndex refileDialog
       
-      -- Filter projects by search query using renderCompact
       filteredProjects = if T.null searchQuery
         then allProjects
         else filter (\ptr -> maybe False (matches searchQuery) (preview (taskBy ptr) fs)) allProjects
       
-      -- Render project list
       renderProject idx ptr =
         let isSelected = idx == selectedIdx
             widget = maybe (txt "<missing task>") renderCompact (preview (taskBy ptr) fs)
@@ -218,7 +219,7 @@ renderRefileDialog refileDialog ctx =
            else widget
       
       projectWidgets = zipWith renderProject [0..] filteredProjects
-      projectList = vBox $ take 10 projectWidgets -- Limit to 10 visible items
+      projectList = vBox $ take 10 projectWidgets
       
       searchWidget = txt ("Search: " <> searchQuery <> "_")
       

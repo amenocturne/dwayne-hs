@@ -71,6 +71,8 @@ library
         Searcher.Searcher
         Searcher.OrgSearcher
         TextUtils
+        Validation.ProjectValidation
+        Validation.SystemValidation
 
     build-depends:
         base >=4.17.2.1 && < 4.19,

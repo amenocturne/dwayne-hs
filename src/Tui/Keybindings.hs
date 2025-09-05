@@ -22,6 +22,11 @@ import Graphics.Vty.Input.Events
 import Text.Regex.Posix ((=~))
 import Tui.Types
 import Writer.Writer
+import Model.OrgMode (Task)
+import Refile.Refile (refileTaskToProject)
+import Refile.OrgRefileable () -- Import Refileable instance for Task
+import qualified Validation.SystemValidation as SV
+import Brick.Widgets.Dialog (dialog, dialogSelection)
 
 import Brick.BChan
 import Control.Monad.IO.Class (liftIO)
@@ -121,9 +126,37 @@ smartApplyTodoKeyword :: T.Text -> GlobalAppState Task
 smartApplyTodoKeyword keyword = do
   ctx <- get
   let selection = view selectionLens ctx
+      needsValidation = keyword == T.pack "PROJECT"
+      getCurrentKeywords = if Set.null selection
+        then case view currentTaskPtr ctx of
+               Just ptr -> maybe [] (pure . view todoKeyword) $ preview (taskBy ptr) (view fileStateLens ctx)
+               Nothing -> []
+        else let selectedTasks = getSelectedTaskPointers ctx
+                 fs = view fileStateLens ctx
+             in mapMaybe (\ptr -> preview (taskBy ptr . todoKeyword) fs) selectedTasks
+      
+      oldKeywords = getCurrentKeywords
+      oldHasProject = T.pack "PROJECT" `elem` oldKeywords
+      newHasProject = keyword == T.pack "PROJECT"
+      
   if Set.null selection
     then modify (changeTodoKeyword keyword)
     else applyToSelection (set todoKeyword keyword)
+    
+  when (needsValidation || oldHasProject) $ do
+  when (needsValidation || oldHasProject) $ do
+    newCtx <- get
+    let issues = SV.validateSystem newCtx
+    case issues of
+      [] -> return ()
+      (issue:_) -> do
+        let message = T.unpack (SV.issueDescription issue)
+            dlg = ValidationDialog
+                  { _vdDialog = dialog (Just $ str "Validation") Nothing 60
+                  , _vdMisplacedTasks = SV.affectedItems issue
+                  , _vdMessage = message ++ " (Enter to accept, Esc to cancel)"
+                  }
+        liftIO $ writeBChan (view (appState . eventChannel) newCtx) $ ValidationDialogCreated dlg
 
 smartApplyTagAction :: (S.Set T.Text -> S.Set T.Text) -> GlobalAppState Task
 smartApplyTagAction tagAction = do
@@ -324,6 +357,67 @@ editSelectedTaskInEditor = do
 proceedInErrorDialog :: (Writer a) => GlobalAppState a
 proceedInErrorDialog = modify (over (appState . errorDialog) (const Nothing))
 
+acceptValidation :: GlobalAppState Task
+acceptValidation = do
+  ctx <- get
+  case view (appState . validationDialog) ctx of
+    Just dialog -> do
+      -- Accept validation: move PROJECT tasks with subtasks to projects file
+      let misplacedTasks = view vdMisplacedTasks dialog
+          projectsFilePath = view (config . projectsFile) ctx
+      
+      -- Move all misplaced PROJECT tasks with their subtasks to projects file
+      -- Process each PROJECT task separately to preserve their hierarchies
+      mapM_ (moveProjectTaskWithSubtasks projectsFilePath) misplacedTasks
+      
+      modify $ set (appState . validationDialog) Nothing
+    Nothing -> return ()
+
+-- | Move a PROJECT task and all its subtasks to the projects file, preserving hierarchy
+moveProjectTaskWithSubtasks :: FilePath -> TaskPointer -> GlobalAppState Task  
+moveProjectTaskWithSubtasks projectsFilePath taskPtr = do
+  ctx <- get
+  let fs = view fileStateLens ctx
+  case preview (taskBy taskPtr) fs of
+    Just projectTask -> do
+      -- Get all subtasks for this PROJECT task
+      let subtasks = SV.getProjectSubtasks taskPtr fs
+          allTasksToMove = taskPtr : subtasks
+          projectLevel = view level projectTask
+          
+      -- Calculate level adjustments to preserve relative hierarchy
+      -- All tasks will be adjusted so the PROJECT task becomes level 1 (top-level in projects file)
+      let levelAdjustment = 1 - projectLevel
+      
+      -- Apply level adjustment to all tasks and move them
+      case preview (ix projectsFilePath . success) fs of
+        Just projectTaskFile -> do
+          let currentTasks = view content projectTaskFile
+          
+          adjustedTasks <- mapM (\ptr -> do
+            currentCtx <- get
+            let currentFs = view fileStateLens currentCtx
+            case preview (taskBy ptr) currentFs of
+              Just task -> do
+                let adjustedTask = over level (+ levelAdjustment) task
+                when (view file ptr /= projectsFilePath) $ 
+                  modify $ over (fileStateLens . taskBy ptr . todoKeyword) (const (T.pack "TRASH"))
+                return $ Just adjustedTask
+              Nothing -> return Nothing
+            ) allTasksToMove
+          
+          let validTasks = mapMaybe id adjustedTasks
+              newTasks = currentTasks V.++ V.fromList validTasks
+              updatedProjectFile = set content newTasks projectTaskFile
+          
+          modify $ set (fileStateLens . ix projectsFilePath . success) updatedProjectFile
+          
+        Nothing -> return () -- Projects file not found
+    Nothing -> return ()
+
+rejectValidation :: (Writer a) => GlobalAppState a
+rejectValidation = modify (over (appState . validationDialog) (const Nothing))
+
 saveForUndo :: (Eq a) => GlobalAppState a -> GlobalAppState a
 saveForUndo f = do
   ctx <- get
@@ -474,6 +568,14 @@ getProjectSubtasks projectPtr fs =
           | i <- [0 .. V.length subtaskIndices - 1]
           ]
 
+-- Get pointers for currently selected tasks
+getSelectedTaskPointers :: AppContext Task -> [TaskPointer]
+getSelectedTaskPointers ctx =
+  let selection = view selectionLens ctx
+      cv = view currentViewLens ctx
+      selectedIndices = Set.toList selection
+  in mapMaybe (cv V.!?) selectedIndices
+
 -- | Check if a task is a project (has PROJECT keyword)
 isProjectTask :: Task -> Bool
 isProjectTask = todoKeywordFilter "PROJECT"
@@ -558,16 +660,19 @@ forceQuit = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) 
 errorDialogKeyContext :: AppContext a -> Bool
 errorDialogKeyContext = isJust . view (appState . errorDialog)
 
+validationDialogKeyContext :: AppContext a -> Bool
+validationDialogKeyContext = isJust . view (appState . validationDialog)
+
 modeKeyContext :: AppMode a -> AppContext a -> Bool
-modeKeyContext mode ctx = view (appState . appMode) ctx == mode && not (errorDialogKeyContext ctx)
+modeKeyContext mode ctx = view (appState . appMode) ctx == mode && not (errorDialogKeyContext ctx) && not (validationDialogKeyContext ctx)
 
 selectionModeKeyContext :: AppContext a -> Bool
-selectionModeKeyContext ctx = view (appState . appMode) ctx == SelectionMode && not (errorDialogKeyContext ctx)
+selectionModeKeyContext ctx = view (appState . appMode) ctx == SelectionMode && not (errorDialogKeyContext ctx) && not (validationDialogKeyContext ctx)
 
 anyModeKeyContext :: [AppMode a] -> AppContext a -> Bool
 anyModeKeyContext modes ctx =
   let currentMode = view (appState . appMode) ctx
-   in currentMode `elem` modes && not (errorDialogKeyContext ctx)
+   in currentMode `elem` modes && not (errorDialogKeyContext ctx) && not (validationDialogKeyContext ctx)
 
 class WithMod a where
   withMod :: a -> Modifier -> NonEmpty KeyPress
@@ -640,6 +745,9 @@ orgKeyBindings =
   [ --------------------------------- Error Dialog -----------------------------
     KeyBinding ErrorDialogQuit (toKey KEsc) "Quit error dialog" proceedInErrorDialog errorDialogKeyContext
   , KeyBinding ErrorDialogAccept (toKey KEnter) "Accept selected option" proceedInErrorDialog errorDialogKeyContext
+  , ----------------------------- Validation Dialog ---------------------------
+    KeyBinding ValidationDialogAccept (toKey KEnter) "Move PROJECT tasks to projects file" acceptValidation validationDialogKeyContext
+  , KeyBinding ValidationDialogReject (toKey KEsc) "Skip moving PROJECT tasks" rejectValidation validationDialogKeyContext
   , --------------------------------- Cmd Mode --------------------------------
     cmdBinding AbortCmd (toKey KEsc) "Abort command" $ modify abortCmd
   , cmdBinding CmdDeleteChar (toKey KBS) "Delete char" $ modify cmdDeleteChar

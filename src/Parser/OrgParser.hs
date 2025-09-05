@@ -57,15 +57,10 @@ splitToTitleAndTags input = fromMaybe (T.strip input, []) $ do
   let titlePart = T.dropWhileEnd isTagPartChar input
   let (nonTagPrefix, actualTagsPart) = T.breakOn ":" tagsPart
 
-  -- A tag string must have at least two characters, e.g., "::"
   guard (T.length actualTagsPart >= 2)
-
-  -- Must start and end with a colon
   guard (T.head actualTagsPart == ':' && T.last actualTagsPart == ':')
 
   let title = T.strip (titlePart <> nonTagPrefix)
-
-  -- All characters in tags must be valid tag characters
   let tags = filter (not . T.null) $ T.splitOn ":" actualTagsPart
   guard (all (T.all isTagChar) tags)
 

@@ -72,6 +72,9 @@ data KeyEvent
   | -- Error dialog
     ErrorDialogQuit
   | ErrorDialogAccept
+  | -- Validation dialog
+    ValidationDialogAccept
+  | ValidationDialogReject
   | -- Command/Search mode
     SwitchToSearchMode
   | SwitchToCmdMode
@@ -115,6 +118,7 @@ data AppState a = AppState
   { _eventChannel :: BChan AppEvent
   , _errorDialog :: Maybe ErrorDialog
   , _refileDialog :: Maybe RefileDialog
+  , _validationDialog :: Maybe ValidationDialog
   , _keyState :: KeyState
   , _appMode :: AppMode a
   , _cmdState :: Maybe CmdState
@@ -174,13 +178,31 @@ data RefileDialog = RefileDialog
   }
   deriving (Show)
 
+data ValidationDialog = ValidationDialog
+  { _vdDialog :: Dialog () Name  -- Simple dialog like ErrorDialog
+  , _vdMisplacedTasks :: [TaskPointer]
+  , _vdMessage :: String
+  }
+
+instance Show ValidationDialog where
+  show (ValidationDialog _ _ msg) = msg
+
 data TaskPointer = TaskPointer
   { _file :: FilePath
   , _taskIndex :: Int
   }
   deriving (Eq, Show)
 
-data AppEvent = Error String | SaveAllFiles | ForceWriteAll | QuitApp | ForceQuit deriving (Eq)
+data AppEvent = Error String | SaveAllFiles | ForceWriteAll | QuitApp | ForceQuit | ValidationDialogCreated ValidationDialog
+
+instance Eq AppEvent where
+  Error s1 == Error s2 = s1 == s2
+  SaveAllFiles == SaveAllFiles = True
+  ForceWriteAll == ForceWriteAll = True
+  QuitApp == QuitApp = True
+  ForceQuit == ForceQuit = True
+  ValidationDialogCreated _ == ValidationDialogCreated _ = True  -- Just check constructor
+  _ == _ = False
 
 data DialogResult = DialogOK deriving (Eq)
 
@@ -207,6 +229,7 @@ makeLenses ''AppConfig
 makeLenses ''SystemConfig
 makeLenses ''ErrorDialog
 makeLenses ''RefileDialog
+makeLenses ''ValidationDialog
 makeLenses ''KeyBinding
 makeLenses ''KeyPress
 makeLenses ''CompactView
@@ -260,9 +283,7 @@ recomputeCurrentView ctx = computeCurrentView fs allPtrs vs
   vs = view (compactViewLens . viewSpec) ctx
 
 cachingViewSpecLens ::
-  -- | getter for the field (e.g., _vsFilter)
   (ViewSpec a -> b) ->
-  -- | field setter (e.g., \vs f -> vs { _vsFilter = f })
   (ViewSpec a -> b -> ViewSpec a) ->
   Lens' (AppContext a) b
 cachingViewSpecLens getField setField =
@@ -271,12 +292,9 @@ cachingViewSpecLens getField setField =
     ( \ctx newVal ->
         let oldVS = ctx ^. compactViewLens . viewSpec
             newVer = oldVS ^. vsVersion + 1
-            -- set the field and bump version
             newVS = setField oldVS newVal
             newVS' = newVS{_vsVersion = newVer}
-            -- update context with new ViewSpec
             newCtx = ctx & compactViewLens . viewSpec .~ newVS'
-            -- recompute cache
             newCache = recomputeCurrentView newCtx
          in newCtx
               & compactViewLens . cachedView .~ newCache

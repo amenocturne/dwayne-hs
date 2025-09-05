@@ -8,7 +8,7 @@ import Graphics.Vty.Input.Events
 import Tui.Types
 
 import Brick.BChan (writeBChan)
-import Brick.Widgets.Dialog
+import Brick.Widgets.Dialog (dialogSelection, dialog)
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import Data.Char (isUpper, toLower)
@@ -28,6 +28,8 @@ import Writer.OrgWriter ()
 import Writer.Writer
 import Refile.Refileable (Refileable)
 import Refile.Refile (refileTaskToProject)
+import Validation.ProjectValidation
+import Model.OrgMode (Task)
 
 checkFilesUnmodified :: (Eq a) => AppContext a -> IO [FilePath]
 checkFilesUnmodified ctx = do
@@ -129,18 +131,13 @@ handleRefileDialogInput key mods = do
               searchQuery = view rdSearchQuery dialog
               selectedIdx = view rdSelectedIndex dialog
               
-              -- Get filtered projects (same logic as in render)
               filteredProjects = if T.null searchQuery
                 then allProjects
                 else filter (\ptr -> maybe False (matches searchQuery) (preview (taskBy ptr) fs)) allProjects
           
-          -- Check if we have a valid selection
           if selectedIdx >= 0 && selectedIdx < length filteredProjects
             then do
               let selectedProject = filteredProjects !! selectedIdx
-              -- Only call refile for Task type - this is a type constraint issue
-              -- For now, we'll handle this in a type-safe way
-              -- Refile the current task to the selected project
               refileTaskToProject currentTask selectedProject
               modify $ set (appState . refileDialog) Nothing
             else
@@ -156,6 +153,11 @@ handleRefileDialogInput key mods = do
               set rdSelectedIndex 0 d
     _ -> return ()
 
+handleValidationDialogInput :: Key -> [Modifier] -> GlobalAppState a
+handleValidationDialogInput key mods = do
+  case key of
+    _ -> return ()
+
 
 handleEvent :: (Writer a, Show a, Eq a, Searcher a, Refileable a) => BrickEvent Name AppEvent -> GlobalAppState a
 handleEvent (VtyEvent (EvKey key mods)) = do
@@ -165,14 +167,20 @@ handleEvent (VtyEvent (EvKey key mods)) = do
       modify $ switchMode NormalMode . set (appState . cmdState) Nothing
     _ -> return ()
   ctx' <- get
-  case view (appState . refileDialog) ctx' of
-    Just _ -> handleRefileDialogInput key mods
-    Nothing ->
-      case (view (appState . appMode) ctx', key) of
-        (NormalMode, _) -> handleNormalModeInput key mods
-        (CmdMode, KChar c) -> handleCmdInput c
-        (CmdMode, _) -> handleNormalModeInput key mods
-        (SelectionMode, _) -> handleNormalModeInput key mods
+  case view (appState . validationDialog) ctx' of
+    Just _ -> do
+      -- Handle validation dialog input, but also process key bindings
+      handleValidationDialogInput key mods
+      handleNormalModeInput key mods  -- Let key bindings work too
+    Nothing -> 
+      case view (appState . refileDialog) ctx' of
+        Just _ -> handleRefileDialogInput key mods
+        Nothing ->
+          case (view (appState . appMode) ctx', key) of
+            (NormalMode, _) -> handleNormalModeInput key mods
+            (CmdMode, KChar c) -> handleCmdInput c
+            (CmdMode, _) -> handleNormalModeInput key mods
+            (SelectionMode, _) -> handleNormalModeInput key mods
 handleEvent (AppEvent event) = case event of
   Error msg -> do
     let dlg =
@@ -185,14 +193,14 @@ handleEvent (AppEvent event) = case event of
             , _edMessage = msg
             }
     modify $ set (appState . errorDialog) (Just dlg)
+  ValidationDialogCreated dlg -> do
+    modify $ set (appState . validationDialog) (Just dlg)
   SaveAllFiles -> do
     ctx <- get
     modified <- liftIO $ checkFilesUnmodified ctx
     if not (null modified)
       then do
-        -- Clear command state and return to normal mode before showing error
         modify $ switchMode NormalMode . set (appState . cmdState) Nothing
-        -- alert user and abort
         liftIO $
           writeBChan
             (view (appState . eventChannel) ctx)
@@ -211,15 +219,12 @@ handleEvent (AppEvent event) = case event of
     let files = M.toList $ view fileStateLens ctx
         saveFiles = traverse (uncurry writeTaskFile) files
     liftIO $ void saveFiles
-    -- Update original file state after successful save
     modify $ set originalFileStateLens (view fileStateLens ctx)
   QuitApp -> do
     ctx <- get
     if checkUnsavedChanges ctx
       then do
-        -- Clear command state and return to normal mode before showing error
         modify $ switchMode NormalMode . set (appState . cmdState) Nothing
-        -- alert user and abort quit
         liftIO $
           writeBChan
             (view (appState . eventChannel) ctx)
