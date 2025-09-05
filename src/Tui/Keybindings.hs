@@ -615,13 +615,17 @@ goToProjectView = do
     Nothing -> return ()
     Just currentPtr -> do
       let maybeProjectPtr = getProjectForTask currentPtr fs
+          currentTask = preview (taskBy currentPtr) fs
       case maybeProjectPtr of
         -- If task has a parent project, show the parent project and its contents
         Just projPtr ->
           saveForJump $ showProjectView projPtr fs ctx
-        -- If task has no parent project, treat current task as project and show it with its contents
+        -- If task has no parent project, check if current task is a PROJECT task
         Nothing ->
-          saveForJump $ showProjectView currentPtr fs ctx
+          case currentTask of
+            Just task | isProjectTask task ->
+              saveForJump $ showProjectView currentPtr fs ctx
+            _ -> return () -- Do nothing if task is neither PROJECT nor has parent PROJECT
 
 -- | Helper function to show project view for a given project pointer
 showProjectView :: TaskPointer -> FileState Task -> AppContext Task -> GlobalAppState Task
