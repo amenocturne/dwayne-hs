@@ -1,6 +1,6 @@
 module Refile.Refile where
 
-import Brick (get)
+import Brick (get, modify)
 import Control.Lens
 
 import Refile.Refileable
@@ -11,14 +11,26 @@ refileTaskToProject :: (Refileable a) => TaskPointer -> TaskPointer -> GlobalApp
 refileTaskToProject taskPtr projectPtr = do
   ctx <- get
   let fs = view fileStateLens ctx
+      projectsFilePath = view (config . projectsFile) ctx
   
   -- Get the task to be refiled
   case preview (taskBy taskPtr) fs of
     Just task -> do
-      -- Insert the task under the selected project
-      insertTaskUnder projectPtr task taskPtr
+      -- Insert the task under the selected project (pure operation)
+      let refileResult = insertTaskUnder projectPtr task taskPtr fs projectsFilePath
+          newFs = _newFileState refileResult
+          wasTaskMoved = _wasTaskMoved refileResult
       
-      -- Mark original task for removal
-      markTaskForRemoval taskPtr
+      -- Update the file state with the result of insertion
+      modify $ set fileStateLens newFs
+      
+      -- Mark original task for removal only if it wasn't moved within the same file
+      if not wasTaskMoved
+        then do
+          updatedCtx <- get
+          let currentFs = view fileStateLens updatedCtx
+              finalFs = markTaskForRemoval taskPtr currentFs projectsFilePath
+          modify $ set fileStateLens finalFs
+        else return ()
     
     Nothing -> return () -- Task not found
