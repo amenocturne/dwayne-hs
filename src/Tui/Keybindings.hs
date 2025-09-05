@@ -610,37 +610,46 @@ goToProjectView :: GlobalAppState Task
 goToProjectView = do
   ctx <- get
   let fs = view fileStateLens ctx
-      maybeProjectPtr = do
-        currentPtr <- view currentTaskPtr ctx
-        getProjectForTask currentPtr fs
-  case maybeProjectPtr of
+      maybeCurrentPtr = view currentTaskPtr ctx
+  case maybeCurrentPtr of
     Nothing -> return ()
-    Just projPtr ->
-      saveForJump $ do
-        let projectSubtasks = getProjectSubtasks projPtr fs
-            -- Custom sorter that puts project task first, then sorts subtasks normally
-            originalSorter = view viewSorterLens ctx
-            projectViewSorter task1 task2 =
-              case ( Just task1 == preview (taskBy projPtr) fs
-                   , Just task2 == preview (taskBy projPtr) fs
-                   ) of
-                (True, False) -> LT -- task1 is project, comes first
-                (False, True) -> GT -- task2 is project, comes first
-                _ -> originalSorter task1 task2
-            projectAndSubtasksFilter task =
-              -- Include the project task itself
-              (Just task == preview (taskBy projPtr) fs)
-                ||
-                -- Include all subtasks
-                any
-                  ( \subtaskPtr ->
-                      Just task == preview (taskBy subtaskPtr) fs
-                  )
-                  projectSubtasks
-        modify $ set viewFilterLens [projectAndSubtasksFilter]
-        modify $ set viewSorterLens projectViewSorter
-        modify $ set cursorLens (Just 0)
-        modify $ set (compactViewLens . viewportStart) 0
+    Just currentPtr -> do
+      let maybeProjectPtr = getProjectForTask currentPtr fs
+      case maybeProjectPtr of
+        -- If task has a parent project, show the parent project and its contents
+        Just projPtr ->
+          saveForJump $ showProjectView projPtr fs ctx
+        -- If task has no parent project, treat current task as project and show it with its contents
+        Nothing ->
+          saveForJump $ showProjectView currentPtr fs ctx
+
+-- | Helper function to show project view for a given project pointer
+showProjectView :: TaskPointer -> FileState Task -> AppContext Task -> GlobalAppState Task
+showProjectView projPtr fs ctx = do
+  let projectSubtasks = getProjectSubtasks projPtr fs
+      -- Custom sorter that puts project task first, then sorts subtasks normally
+      originalSorter = view viewSorterLens ctx
+      projectViewSorter task1 task2 =
+        case ( Just task1 == preview (taskBy projPtr) fs
+             , Just task2 == preview (taskBy projPtr) fs
+             ) of
+          (True, False) -> LT -- task1 is project, comes first
+          (False, True) -> GT -- task2 is project, comes first
+          _ -> originalSorter task1 task2
+      projectAndSubtasksFilter task =
+        -- Include the project task itself
+        (Just task == preview (taskBy projPtr) fs)
+          ||
+          -- Include all subtasks
+          any
+            ( \subtaskPtr ->
+                Just task == preview (taskBy subtaskPtr) fs
+            )
+            projectSubtasks
+  modify $ set viewFilterLens [projectAndSubtasksFilter]
+  modify $ set viewSorterLens projectViewSorter
+  modify $ set cursorLens (Just 0)
+  modify $ set (compactViewLens . viewportStart) 0
 
 saveAll :: GlobalAppState a
 saveAll = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ctx) SaveAllFiles
