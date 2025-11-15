@@ -7,7 +7,8 @@
 module Tui.Keybindings where
 
 import Control.Monad (when)
-import System.Process (callCommand)
+import Control.Exception (catch, IOException)
+import System.Process (spawnProcess, waitForProcess)
 
 import Brick
 import qualified Brick.Types as BT
@@ -39,6 +40,7 @@ import qualified Data.Set as Set
 import Data.Time (LocalTime (LocalTime), getZonedTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (midnight)
+import Data.Time.Calendar (fromGregorian)
 import qualified Data.Vector as V
 import qualified Model.LinearHistory as L
 import Model.OrgMode (
@@ -200,7 +202,7 @@ applySorter sorter = do
   modify $ set (compactViewLens . viewportStart) 0
 
 veryOldTime :: LocalTime
-veryOldTime = read "1970-01-01 00:00:00"
+veryOldTime = LocalTime (fromGregorian 1970 1 1) midnight
 
 sortByPriorityAsc :: Task -> Task -> Ordering
 sortByPriorityAsc = comparing getPriority
@@ -229,9 +231,23 @@ sortByCreatedDesc t1 t2 =
     Just (Left day) -> LocalTime day midnight
     Just (Right lt) -> lt
 
-openUrlInBrowser :: T.Text -> IO ()
-openUrlInBrowser url = callCommand $ "open " ++ T.unpack url
+openUrlInBrowser :: T.Text -> IO (Either String ())
+openUrlInBrowser url = catch tryOpen handleError
+  where
+    tryOpen = do
+      -- Use spawnProcess to avoid shell injection - passes URL as argument directly
+      ph <- spawnProcess "open" [T.unpack url]
+      _ <- waitForProcess ph
+      return $ Right ()
 
+    handleError :: IOException -> IO (Either String ())
+    handleError e = return $ Left $ unlines
+      [ "Failed to open URL in browser"
+      , "URL: " ++ T.unpack url
+      , "Reason: " ++ show e
+      ]
+
+-- TODO: If task contains multiple URLs, show a popup menu to let user choose which one to open
 openTaskUrl :: GlobalAppState Task
 openTaskUrl = do
   ctx <- get
@@ -242,7 +258,11 @@ openTaskUrl = do
           descUrl = extractFirstUrl (_description task)
           firstUrl = titleUrl <|> descUrl
       case firstUrl of
-        Just url -> liftIO $ openUrlInBrowser url
+        Just url -> do
+          result <- liftIO $ openUrlInBrowser url
+          case result of
+            Left err -> liftIO $ writeBChan (view (appState . eventChannel) ctx) $ Error err
+            Right () -> return ()
         Nothing -> return ()
     Nothing -> return ()
 
@@ -260,12 +280,21 @@ adjustViewport = do
       case view cursorLens ctx of
         Nothing -> return ()
         Just cursor -> do
+          -- Calculate the maximum allowed viewport start position
+          -- If viewport is larger than content, maxViewStart is 0
+          let maxViewStart = max 0 (viewSize - h)
+
           let vStartNew
+                -- Scrolling up: keep cursor visible with margin from top
                 | cursor < viewStartOld + margin = max 0 (cursor - margin)
-                | cursor >= viewStartOld + h - margin = min (viewSize - h) (cursor - h + 1 + margin)
+                -- Scrolling down: keep cursor visible with margin from bottom
+                | cursor >= viewStartOld + h - margin =
+                    min maxViewStart (cursor - h + 1 + margin)
+                -- Cursor is within visible area with margin: don't scroll
                 | otherwise = viewStartOld
 
-              vFinalStart = max 0 (min (viewSize - h) vStartNew)
+              -- Ensure viewport start is within valid bounds
+              vFinalStart = max 0 (min maxViewStart vStartNew)
 
           when (vFinalStart /= viewStartOld) $
             modify $
@@ -275,9 +304,12 @@ adjustCursor :: (Int -> Int) -> GlobalAppState a
 adjustCursor f = do
   ctx <- get
   let cv = view currentViewLens ctx
-  let modifyCursor c = clamp 0 (length cv - 1) (f c)
   let currentCursor = view cursorLens ctx
-  let newCursor = fmap modifyCursor currentCursor
+  -- If view is empty, cursor should be Nothing
+  let newCursor =
+        if null cv
+        then Nothing
+        else fmap (\c -> clamp 0 (length cv - 1) (f c)) currentCursor
   modify $ set cursorLens newCursor
   adjustViewport
 
@@ -307,10 +339,13 @@ addNewTask = do
           initialContent = write dummyTask
 
       suspendAndResume $ do
-        editedMaybe <- editWithEditor initialContent
-        case editedMaybe of
-          Nothing -> return ctx
-          Just editedStr ->
+        editResult <- editWithEditor initialContent
+        case editResult of
+          Left err -> do
+            writeBChan (view (appState . eventChannel) ctx) $ Error err
+            return ctx
+          Right Nothing -> return ctx  -- User cancelled
+          Right (Just editedStr) ->
             let (l, _, result) =
                   runParser (view (system . taskParser) ctx) editedStr
              in case result of
@@ -340,11 +375,13 @@ editSelectedTaskInEditor = do
   let maybePtr = view currentTaskPtr ctx
   case (ct, maybePtr) of
     (Just task, Just ptr) -> suspendAndResume $ do
-      editedContent <- editWithEditor (write task)
-      when (null editedContent) $ return ()
-      case editedContent of
-        Nothing -> return ctx
-        Just editedStr -> do
+      editResult <- editWithEditor (write task)
+      case editResult of
+        Left err -> do
+          writeBChan (view (appState . eventChannel) ctx) $ Error err
+          return ctx
+        Right Nothing -> return ctx  -- User cancelled
+        Right (Just editedStr) -> do
           let (l, _, result) = runParser (view (system . taskParser) ctx) editedStr
           case result of
             ParserSuccess t -> return $ set (fileStateLens . taskBy ptr) t ctx

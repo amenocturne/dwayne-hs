@@ -45,12 +45,14 @@ instance Refileable Task where
                     projectLevel = view level project
                     findProjectEnd idx
                       | idx >= V.length tasksWithoutOriginal = idx
-                      | otherwise = 
-                          let task = tasksWithoutOriginal V.! idx
-                              taskLevel = view level task
-                          in if taskLevel > projectLevel
-                             then findProjectEnd (idx + 1)  -- Still in project subtasks
-                             else idx  -- Found end of project
+                      | otherwise =
+                          case tasksWithoutOriginal V.!? idx of
+                            Just task ->
+                              let taskLevel = view level task
+                              in if taskLevel > projectLevel
+                                 then findProjectEnd (idx + 1)  -- Still in project subtasks
+                                 else idx  -- Found end of project
+                            Nothing -> idx  -- Shouldn't happen due to guard, but handle gracefully
                     
                     insertionPoint = findProjectEnd (adjustedProjectIdx + 1)
                     

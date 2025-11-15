@@ -8,6 +8,7 @@
 
 module TextUtils where
 
+import Control.Exception (catch, IOException)
 import Data.Char (isSpace)
 import Data.Kind
 import Data.Maybe
@@ -18,6 +19,7 @@ import Data.Time.Format (parseTimeM)
 import GHC.IO.Exception (ExitCode (..))
 import System.Directory (getHomeDirectory, removeFile)
 import System.Environment (lookupEnv)
+import System.Exit (die)
 import System.FilePath ((</>))
 import System.IO
 import System.Process
@@ -43,11 +45,32 @@ expandHome path = return path
 readFileExample :: FilePath -> IO T.Text
 readFileExample f = do
   fp <- expandHome f
-  TIO.readFile fp
+  TIO.readFile fp `catch` handleIOError fp
+  where
+    handleIOError :: FilePath -> IOException -> IO T.Text
+    handleIOError expandedPath e = die $ unlines
+      [ "ERROR: Failed to read file"
+      , "File: " ++ f
+      , "Expanded path: " ++ expandedPath
+      , ""
+      , "Reason: " ++ show e
+      , ""
+      , "Please check that:"
+      , "  - The file exists"
+      , "  - You have read permissions"
+      , "  - The path is correct"
+      ]
 
 -- TODO: expand env variables as well as ~
-writeFileExample :: FilePath -> T.Text -> IO ()
-writeFileExample = TIO.writeFile
+writeFileExample :: FilePath -> T.Text -> IO (Either String ())
+writeFileExample path content = do
+  (TIO.writeFile path content >> return (Right ())) `catch` handleIOError
+  where
+    handleIOError :: IOException -> IO (Either String ())
+    handleIOError e = return $ Left $ unlines
+      [ "Failed to write file: " ++ path
+      , "Reason: " ++ show e
+      ]
 
 printExample :: T.Text -> IO ()
 printExample = TIO.putStrLn
@@ -70,8 +93,11 @@ splitByFirstDelimiter _ "" = ("", "")
 splitByFirstDelimiter delim input
   | delim `T.isPrefixOf` input = ("", input)
   | otherwise =
-      let (prefix, rest) = splitByFirstDelimiter delim (T.tail input)
-       in (T.cons (T.head input) prefix, rest)
+      case T.uncons input of
+        Nothing -> ("", "")  -- This case is already handled above, but being explicit
+        Just (c, rest) ->
+          let (prefix, remainder) = splitByFirstDelimiter delim rest
+           in (T.cons c prefix, remainder)
 
 split :: Char -> T.Text -> [T.Text]
 split _ "" = []
@@ -89,19 +115,32 @@ removeLeadingSpaces = T.dropWhile isSpace
 parseTimeWith :: forall (m :: Type -> Type) t. (MonadFail m, ParseTime t) => String -> T.Text -> m t
 parseTimeWith format str = parseTimeM True defaultTimeLocale format (T.unpack str)
 
-editWithEditor :: T.Text -> IO (Maybe T.Text)
-editWithEditor content = do
-  editor <- fmap (fromMaybe "vim") (lookupEnv "EDITOR")
-  (tempPath, tempHandle) <- openTempFile "/tmp" "edit.txt"
-  hPutStr tempHandle (T.unpack content)
-  hFlush tempHandle
-  hClose tempHandle
-  exitCode <- system (editor ++ " " ++ tempPath)
-  case exitCode of
-    ExitSuccess -> do
-      newContent <- readFile tempPath >>= \c -> length c `seq` return c
-      removeFile tempPath
-      return (Just $ T.pack newContent)
-    _ -> do
-      removeFile tempPath
-      return Nothing
+editWithEditor :: T.Text -> IO (Either String (Maybe T.Text))
+editWithEditor content = catch tryEdit handleError
+  where
+    tryEdit = do
+      editor <- fmap (fromMaybe "vim") (lookupEnv "EDITOR")
+      (tempPath, tempHandle) <- openTempFile "/tmp" "edit.txt"
+      hPutStr tempHandle (T.unpack content)
+      hFlush tempHandle
+      hClose tempHandle
+      exitCode <- system (editor ++ " " ++ tempPath)
+      case exitCode of
+        ExitSuccess -> do
+          newContent <- readFile tempPath >>= \c -> length c `seq` return c
+          removeFile tempPath
+          return $ Right (Just $ T.pack newContent)
+        _ -> do
+          removeFile tempPath
+          return $ Right Nothing  -- User cancelled
+
+    handleError :: IOException -> IO (Either String (Maybe T.Text))
+    handleError e = return $ Left $ unlines
+      [ "Failed to open editor"
+      , "Reason: " ++ show e
+      , ""
+      , "Please check that:"
+      , "  - Your EDITOR environment variable is set correctly"
+      , "  - The /tmp directory exists and is writable"
+      , "  - You have permissions to create temporary files"
+      ]
