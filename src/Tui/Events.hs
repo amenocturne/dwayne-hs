@@ -14,10 +14,12 @@ import Control.Monad.IO.Class (liftIO)
 import Data.Char (isUpper, toLower)
 import Data.List (find, intercalate)
 import Data.List.NonEmpty (isPrefixOf, nonEmpty, toList)
+import Data.Maybe (listToMaybe)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+import Control.Exception (catch, IOException)
 import qualified Data.Vector as V
 import Data.Time (diffUTCTime, getCurrentTime)
 import Data.Time.Clock (UTCTime)
@@ -134,13 +136,12 @@ handleRefileDialogInput key mods = do
               filteredProjects = if T.null searchQuery
                 then allProjects
                 else filter (\ptr -> maybe False (matches searchQuery) (preview (taskBy ptr) fs)) allProjects
-          
-          if selectedIdx >= 0 && selectedIdx < length filteredProjects
-            then do
-              let selectedProject = filteredProjects !! selectedIdx
+
+          case listToMaybe (drop selectedIdx filteredProjects) of
+            Just selectedProject -> do
               refileTaskToProject currentTask selectedProject
               modify $ set (appState . refileDialog) Nothing
-            else
+            Nothing ->
               modify $ set (appState . refileDialog) Nothing
         _ -> modify $ set (appState . refileDialog) Nothing
     KBS -> do
@@ -210,16 +211,30 @@ handleEvent (AppEvent event) = case event of
             )
       else do
         let files = M.toList $ view fileStateLens ctx
-            saveFiles = traverse (uncurry writeTaskFile) files
-        liftIO $ void saveFiles
-        -- Update original file state after successful save
-        modify $ set originalFileStateLens (view fileStateLens ctx)
+        results <- liftIO $ traverse (uncurry writeTaskFile) files
+        let errors = [err | Left err <- results]
+        if null errors
+          then do
+            -- Update original file state after successful save
+            modify $ set originalFileStateLens (view fileStateLens ctx)
+          else do
+            liftIO $
+              writeBChan
+                (view (appState . eventChannel) ctx)
+                (Error $ "Failed to save some files:\n" ++ intercalate "\n" errors)
   ForceWriteAll -> do
     ctx <- get
     let files = M.toList $ view fileStateLens ctx
-        saveFiles = traverse (uncurry writeTaskFile) files
-    liftIO $ void saveFiles
-    modify $ set originalFileStateLens (view fileStateLens ctx)
+    results <- liftIO $ traverse (uncurry writeTaskFile) files
+    let errors = [err | Left err <- results]
+    if null errors
+      then do
+        modify $ set originalFileStateLens (view fileStateLens ctx)
+      else do
+        liftIO $
+          writeBChan
+            (view (appState . eventChannel) ctx)
+            (Error $ "Failed to save some files:\n" ++ intercalate "\n" errors)
   QuitApp -> do
     ctx <- get
     if checkUnsavedChanges ctx
@@ -234,7 +249,14 @@ handleEvent (AppEvent event) = case event of
   ForceQuit -> halt
 handleEvent _ = return ()
 
-writeTaskFile :: (Writer a) => FilePath -> ParserResult a -> IO ()
+writeTaskFile :: (Writer a) => FilePath -> ParserResult a -> IO (Either String ())
 writeTaskFile path file = case file of
-  ParserSuccess a -> TIO.writeFile path (write a)
-  ParserFailure _ -> return ()
+  ParserSuccess a ->
+    (TIO.writeFile path (write a) >> return (Right ())) `catch` handleIOError
+    where
+      handleIOError :: IOException -> IO (Either String ())
+      handleIOError e = return $ Left $ unlines
+        [ "Failed to write file: " ++ path
+        , "Reason: " ++ show e
+        ]
+  ParserFailure _ -> return (Right ())

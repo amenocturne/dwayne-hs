@@ -14,6 +14,7 @@ module Parser.StandardParsers where
 import Data.Char (digitToInt, isDigit, isLetter, isSpace)
 import Data.Foldable
 import Data.Functor (void, ($>))
+import Data.List (find)
 import Data.Maybe (mapMaybe)
 import qualified Data.Text as T
 import GHC.Base
@@ -144,8 +145,12 @@ tryAllWith selector parsers = Parser $ \input@(modLoc, _) ->
       ss = mapMaybe (\(_, _, c) -> resultToMaybe c) results
    in case selector ss of
         Just val ->
-          let (bestModLoc, bestInput, bestRes) = head $ filter (\(_, _, c) -> Just val == resultToMaybe c) results
-           in ((bestModLoc . modLoc, bestInput), bestRes)
+          case find (\(_, _, c) -> Just val == resultToMaybe c) results of
+            Just (bestModLoc, bestInput, bestRes) ->
+              ((bestModLoc . modLoc, bestInput), bestRes)
+            Nothing ->
+              -- This should be impossible: selector returned a value not in the input list
+              (input, ParserFailure "Internal error: selector returned invalid value")
         _ -> (input, ParserFailure "No valid selection")
 
 -- Turn a parser to a parser that does not consume input string or modifies location
