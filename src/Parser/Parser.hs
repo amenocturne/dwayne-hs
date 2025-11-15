@@ -20,8 +20,11 @@ import GHC.Base
 data Location = Location {line :: Int, column :: Int} deriving (Show, Eq)
 
 type ParserInput = (Location -> Location, T.Text)
+
 type ParserError = String
+
 data ParserResult a = ParserSuccess {_success :: a} | ParserFailure {_error :: ParserError} deriving (Functor, Show, Eq)
+
 newtype Parser a = Parser (ParserInput -> (ParserInput, ParserResult a)) deriving (Functor)
 
 makeLenses ''ParserResult

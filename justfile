@@ -13,3 +13,6 @@ install:
 profile:
   cabal configure --enable-profiling
   cabal run dwayne -- +RTS -p -RTS
+
+format:
+  ormolu --mode inplace $(find src app test -name "*.hs" -type f)

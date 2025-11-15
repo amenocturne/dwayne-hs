@@ -8,7 +8,7 @@
 
 module TextUtils where
 
-import Control.Exception (catch, IOException)
+import Control.Exception (IOException, catch)
 import Data.Char (isSpace)
 import Data.Kind
 import Data.Maybe
@@ -48,18 +48,20 @@ readFileExample f = do
   TIO.readFile fp `catch` handleIOError fp
   where
     handleIOError :: FilePath -> IOException -> IO T.Text
-    handleIOError expandedPath e = die $ unlines
-      [ "ERROR: Failed to read file"
-      , "File: " ++ f
-      , "Expanded path: " ++ expandedPath
-      , ""
-      , "Reason: " ++ show e
-      , ""
-      , "Please check that:"
-      , "  - The file exists"
-      , "  - You have read permissions"
-      , "  - The path is correct"
-      ]
+    handleIOError expandedPath e =
+      die $
+        unlines
+          [ "ERROR: Failed to read file",
+            "File: " ++ f,
+            "Expanded path: " ++ expandedPath,
+            "",
+            "Reason: " ++ show e,
+            "",
+            "Please check that:",
+            "  - The file exists",
+            "  - You have read permissions",
+            "  - The path is correct"
+          ]
 
 -- TODO: expand env variables as well as ~
 writeFileExample :: FilePath -> T.Text -> IO (Either String ())
@@ -67,10 +69,13 @@ writeFileExample path content = do
   (TIO.writeFile path content >> return (Right ())) `catch` handleIOError
   where
     handleIOError :: IOException -> IO (Either String ())
-    handleIOError e = return $ Left $ unlines
-      [ "Failed to write file: " ++ path
-      , "Reason: " ++ show e
-      ]
+    handleIOError e =
+      return $
+        Left $
+          unlines
+            [ "Failed to write file: " ++ path,
+              "Reason: " ++ show e
+            ]
 
 printExample :: T.Text -> IO ()
 printExample = TIO.putStrLn
@@ -78,12 +83,12 @@ printExample = TIO.putStrLn
 splitBy :: Char -> T.Text -> [T.Text]
 splitBy _ "" = []
 splitBy delimiterChar inputString = T.foldr f [T.pack ""] inputString
- where
-  f :: Char -> [T.Text] -> [T.Text]
-  f _ [] = []
-  f currentChar allStrings@(partialString : handledStrings)
-    | currentChar == delimiterChar = "" : allStrings
-    | otherwise = T.cons currentChar partialString : handledStrings
+  where
+    f :: Char -> [T.Text] -> [T.Text]
+    f _ [] = []
+    f currentChar allStrings@(partialString : handledStrings)
+      | currentChar == delimiterChar = "" : allStrings
+      | otherwise = T.cons currentChar partialString : handledStrings
 
 isWhitespaceExceptNewline :: Char -> Bool
 isWhitespaceExceptNewline c = isSpace c && c /= '\n' && c /= '\r'
@@ -94,7 +99,7 @@ splitByFirstDelimiter delim input
   | delim `T.isPrefixOf` input = ("", input)
   | otherwise =
       case T.uncons input of
-        Nothing -> ("", "")  -- This case is already handled above, but being explicit
+        Nothing -> ("", "") -- This case is already handled above, but being explicit
         Just (c, rest) ->
           let (prefix, remainder) = splitByFirstDelimiter delim rest
            in (T.cons c prefix, remainder)
@@ -132,15 +137,17 @@ editWithEditor content = catch tryEdit handleError
           return $ Right (Just $ T.pack newContent)
         _ -> do
           removeFile tempPath
-          return $ Right Nothing  -- User cancelled
-
+          return $ Right Nothing -- User cancelled
     handleError :: IOException -> IO (Either String (Maybe T.Text))
-    handleError e = return $ Left $ unlines
-      [ "Failed to open editor"
-      , "Reason: " ++ show e
-      , ""
-      , "Please check that:"
-      , "  - Your EDITOR environment variable is set correctly"
-      , "  - The /tmp directory exists and is writable"
-      , "  - You have permissions to create temporary files"
-      ]
+    handleError e =
+      return $
+        Left $
+          unlines
+            [ "Failed to open editor",
+              "Reason: " ++ show e,
+              "",
+              "Please check that:",
+              "  - Your EDITOR environment variable is set correctly",
+              "  - The /tmp directory exists and is writable",
+              "  - You have permissions to create temporary files"
+            ]

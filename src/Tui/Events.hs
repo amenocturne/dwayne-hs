@@ -3,35 +3,34 @@
 module Tui.Events where
 
 import Brick
-import Control.Lens
-import Graphics.Vty.Input.Events
-import Tui.Types
-
 import Brick.BChan (writeBChan)
-import Brick.Widgets.Dialog (dialogSelection, dialog)
+import Brick.Widgets.Dialog (dialog, dialogSelection)
+import Control.Exception (IOException, catch)
+import Control.Lens
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import Data.Char (isUpper, toLower)
 import Data.List (find, intercalate)
 import Data.List.NonEmpty (isPrefixOf, nonEmpty, toList)
-import Data.Maybe (listToMaybe)
 import qualified Data.Map as M
+import Data.Maybe (listToMaybe)
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import Control.Exception (catch, IOException)
-import qualified Data.Vector as V
 import Data.Time (diffUTCTime, getCurrentTime)
 import Data.Time.Clock (UTCTime)
-import Searcher.Searcher (Searcher, matches)
+import qualified Data.Vector as V
+import Graphics.Vty.Input.Events
+import Model.OrgMode (Task)
 import Parser.Parser
+import Refile.Refile (refileTaskToProject)
+import Refile.Refileable (Refileable)
+import Searcher.Searcher (Searcher, matches)
 import TextUtils (readFileExample)
+import Tui.Types
+import Validation.ProjectValidation
 import Writer.OrgWriter ()
 import Writer.Writer
-import Refile.Refileable (Refileable)
-import Refile.Refile (refileTaskToProject)
-import Validation.ProjectValidation
-import Model.OrgMode (Task)
 
 checkFilesUnmodified :: (Eq a) => AppContext a -> IO [FilePath]
 checkFilesUnmodified ctx = do
@@ -44,8 +43,8 @@ checkFilesUnmodified ctx = do
     return (fp, newRes)
   let modified =
         [ fp
-        | (fp, newRes) <- pairs
-        , case M.lookup fp originalMap of
+        | (fp, newRes) <- pairs,
+          case M.lookup fp originalMap of
             Just originalRes -> originalRes /= newRes
             Nothing -> True
         ]
@@ -68,8 +67,8 @@ cleanKeyState = modify $ set (appState . keyState) NoInput
 
 makeKeyPress :: Key -> [Modifier] -> KeyPress
 makeKeyPress (KChar c) mods = KeyPress (KChar $ toLower c) (S.fromList withShift)
- where
-  withShift = if isUpper c then MShift : mods else mods
+  where
+    withShift = if isUpper c then MShift : mods else mods
 makeKeyPress k mods = KeyPress k (S.fromList mods)
 
 handleNormalModeInput :: Key -> [Modifier] -> GlobalAppState a
@@ -96,9 +95,9 @@ handleNormalModeInput key mods = do
 
 handleCmdInput :: Char -> GlobalAppState a
 handleCmdInput c = modify $ over (appState . cmdState) (fmap appendC)
- where
-  appendC (Typing cmdType input) = Typing cmdType (input `T.snoc` c)
-  appendC other = other
+  where
+    appendC (Typing cmdType input) = Typing cmdType (input `T.snoc` c)
+    appendC other = other
 
 handleRefileDialogInput :: (Searcher a, Refileable a) => Key -> [Modifier] -> GlobalAppState a
 handleRefileDialogInput key mods = do
@@ -113,12 +112,16 @@ handleRefileDialogInput key mods = do
           let fs = view fileStateLens ctx
               allProjects = view rdProjects dialog
               searchQuery = view rdSearchQuery dialog
-              filteredProjects = if T.null searchQuery
-                then allProjects
-                else filter (\ptr -> case preview (taskBy ptr) fs of
-                  Just task -> matches searchQuery task
-                  Nothing -> False
-                ) allProjects
+              filteredProjects =
+                if T.null searchQuery
+                  then allProjects
+                  else
+                    filter
+                      ( \ptr -> case preview (taskBy ptr) fs of
+                          Just task -> matches searchQuery task
+                          Nothing -> False
+                      )
+                      allProjects
               currentIdx = view rdSelectedIndex dialog
               maxIdx = max 0 (length filteredProjects - 1)
               newIdx = min maxIdx (currentIdx + 1)
@@ -132,10 +135,11 @@ handleRefileDialogInput key mods = do
               allProjects = view rdProjects dialog
               searchQuery = view rdSearchQuery dialog
               selectedIdx = view rdSelectedIndex dialog
-              
-              filteredProjects = if T.null searchQuery
-                then allProjects
-                else filter (\ptr -> maybe False (matches searchQuery) (preview (taskBy ptr) fs)) allProjects
+
+              filteredProjects =
+                if T.null searchQuery
+                  then allProjects
+                  else filter (\ptr -> maybe False (matches searchQuery) (preview (taskBy ptr) fs)) allProjects
 
           case listToMaybe (drop selectedIdx filteredProjects) of
             Just selectedProject -> do
@@ -145,12 +149,16 @@ handleRefileDialogInput key mods = do
               modify $ set (appState . refileDialog) Nothing
         _ -> modify $ set (appState . refileDialog) Nothing
     KBS -> do
-      modify $ over (appState . refileDialog . _Just) $ 
-        \d -> set rdSearchQuery (let q = view rdSearchQuery d in if T.null q then T.empty else T.dropEnd 1 q) $ 
+      modify $
+        over (appState . refileDialog . _Just) $
+          \d ->
+            set rdSearchQuery (let q = view rdSearchQuery d in if T.null q then T.empty else T.dropEnd 1 q) $
               set rdSelectedIndex 0 d
     KChar c -> do
-      modify $ over (appState . refileDialog . _Just) $ 
-        \d -> set rdSearchQuery (view rdSearchQuery d `T.snoc` c) $
+      modify $
+        over (appState . refileDialog . _Just) $
+          \d ->
+            set rdSearchQuery (view rdSearchQuery d `T.snoc` c) $
               set rdSelectedIndex 0 d
     _ -> return ()
 
@@ -158,7 +166,6 @@ handleValidationDialogInput :: Key -> [Modifier] -> GlobalAppState a
 handleValidationDialogInput key mods = do
   case key of
     _ -> return ()
-
 
 handleEvent :: (Writer a, Show a, Eq a, Searcher a, Refileable a) => BrickEvent Name AppEvent -> GlobalAppState a
 handleEvent (VtyEvent (EvKey key mods)) = do
@@ -172,8 +179,8 @@ handleEvent (VtyEvent (EvKey key mods)) = do
     Just _ -> do
       -- Handle validation dialog input, but also process key bindings
       handleValidationDialogInput key mods
-      handleNormalModeInput key mods  -- Let key bindings work too
-    Nothing -> 
+      handleNormalModeInput key mods -- Let key bindings work too
+    Nothing ->
       case view (appState . refileDialog) ctx' of
         Just _ -> handleRefileDialogInput key mods
         Nothing ->
@@ -190,8 +197,8 @@ handleEvent (AppEvent event) = case event of
                 dialog
                   (Just $ str "Error")
                   Nothing
-                  50
-            , _edMessage = msg
+                  50,
+              _edMessage = msg
             }
     modify $ set (appState . errorDialog) (Just dlg)
   ValidationDialogCreated dlg -> do
@@ -243,8 +250,7 @@ handleEvent (AppEvent event) = case event of
         liftIO $
           writeBChan
             (view (appState . eventChannel) ctx)
-            ( Error "No write since last change (add ! to override)"
-            )
+            (Error "No write since last change (add ! to override)")
       else halt
   ForceQuit -> halt
 handleEvent _ = return ()
@@ -255,8 +261,11 @@ writeTaskFile path file = case file of
     (TIO.writeFile path (write a) >> return (Right ())) `catch` handleIOError
     where
       handleIOError :: IOException -> IO (Either String ())
-      handleIOError e = return $ Left $ unlines
-        [ "Failed to write file: " ++ path
-        , "Reason: " ++ show e
-        ]
+      handleIOError e =
+        return $
+          Left $
+            unlines
+              [ "Failed to write file: " ++ path,
+                "Reason: " ++ show e
+              ]
   ParserFailure _ -> return (Right ())
