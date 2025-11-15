@@ -181,17 +181,48 @@ orgDayTimeFormat = "%Y-%m-%d %a %H:%M"
 orgTimeFormat :: String
 orgTimeFormat = "%H:%M"
 
+-- | Individual TODO keyword constants
+orgInboxKeyword :: T.Text
+orgInboxKeyword = "INBOX"
+
+orgRelevantKeyword :: T.Text
+orgRelevantKeyword = "RELEVANT"
+
+orgSomedayKeyword :: T.Text
+orgSomedayKeyword = "SOMEDAY"
+
+orgNotesKeyword :: T.Text
+orgNotesKeyword = "NOTES"
+
+orgListKeyword :: T.Text
+orgListKeyword = "LIST"
+
+orgWaitingKeyword :: T.Text
+orgWaitingKeyword = "WAITING"
+
+orgProjectKeyword :: T.Text
+orgProjectKeyword = "PROJECT"
+
+orgTodoKeyword :: T.Text
+orgTodoKeyword = "TODO"
+
+orgDoneKeyword :: T.Text
+orgDoneKeyword = "DONE"
+
+orgTrashKeyword :: T.Text
+orgTrashKeyword = "TRASH"
+
 orgTodoKeyWords :: [T.Text]
 orgTodoKeyWords =
-  [ "INBOX"
-  , "RELEVANT"
-  , "SOMEDAY"
-  , "NOTES"
-  , "LIST"
-  , "WAITING"
-  , "PROJECT"
-  , "TODO"
-  , "DONE"
-  , "TRASH"
+  [ orgInboxKeyword
+  , orgRelevantKeyword
+  , orgSomedayKeyword
+  , orgNotesKeyword
+  , orgListKeyword
+  , orgWaitingKeyword
+  , orgProjectKeyword
+  , orgTodoKeyword
+  , orgDoneKeyword
+  , orgTrashKeyword
   , "" -- for tasks without todo keyword
   ]

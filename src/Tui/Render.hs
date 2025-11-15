@@ -6,6 +6,7 @@ module Tui.Render where
 
 import Brick
 import Control.Lens
+import Core.Types (TaskPointer, file)
 import Graphics.Vty.Attributes
 import Render.Render
 import qualified Render.Render as R

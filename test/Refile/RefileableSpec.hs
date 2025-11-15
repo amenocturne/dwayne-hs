@@ -11,11 +11,11 @@ import qualified Data.Vector as V
 import Test.Hspec
 
 -- Import the modules we're testing
+import Core.Types (TaskPointer (..), FileState)
 import Model.OrgMode
 import Parser.Parser (ParserResult(..), success)
 import Refile.OrgRefileable ()
 import Refile.Refileable
-import Tui.Types
 
 spec :: Spec
 spec = do

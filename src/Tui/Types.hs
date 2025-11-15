@@ -8,6 +8,7 @@ module Tui.Types where
 
 import Brick
 import Control.Lens
+import Core.Types (TaskPointer (..), FileState, file, taskIndex)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Graphics.Vty.Input.Events as E
@@ -87,8 +88,6 @@ data KeyEvent
   deriving (Eq, Show, Ord)
 
 data Name = CompactViewWidget | CmdWidget deriving (Eq, Ord, Show)
-
-type FileState a = M.Map String (ParserResult (TaskFile a))
 
 data AppConfig a = AppConfig
   { _files :: [String]
@@ -188,12 +187,6 @@ data ValidationDialog = ValidationDialog
 instance Show ValidationDialog where
   show (ValidationDialog _ _ msg) = msg
 
-data TaskPointer = TaskPointer
-  { _file :: FilePath
-  , _taskIndex :: Int
-  }
-  deriving (Eq, Show)
-
 data AppEvent = Error String | SaveAllFiles | ForceWriteAll | QuitApp | ForceQuit | ValidationDialogCreated ValidationDialog
 
 instance Eq AppEvent where
@@ -223,7 +216,6 @@ data KeyPress = KeyPress {_key :: E.Key, _mods :: Set E.Modifier} deriving (Eq, 
 
 --------------------------------- Optics ---------------------------------------
 
-makeLenses ''TaskPointer
 makeLenses ''AppState
 makeLenses ''AppContext
 makeLenses ''AppConfig

@@ -3,7 +3,7 @@
 module Refile.Refileable where
 
 import Control.Lens
-import Tui.Types
+import Core.Types (TaskPointer, FileState)
 import qualified Data.Map as M
 
 -- | Result of a refile operation

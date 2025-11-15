@@ -23,11 +23,16 @@ import Graphics.Vty.Input.Events
 import Text.Regex.Posix ((=~))
 import Tui.Types
 import Writer.Writer
-import Model.OrgMode (Task)
+import qualified Core.Operations as Ops
+import Core.Types (TaskPointer (..), FileState, file)
+import Model.OrgMode (Task, orgProjectKeyword, orgTrashKeyword, orgInboxKeyword, orgDoneKeyword, orgTodoKeyword, orgRelevantKeyword, orgSomedayKeyword, orgNotesKeyword, orgListKeyword, orgWaitingKeyword)
 import Refile.Refile (refileTaskToProject)
 import Refile.OrgRefileable () -- Import Refileable instance for Task
 import qualified Validation.SystemValidation as SV
 import Brick.Widgets.Dialog (dialog, dialogSelection)
+import qualified Commands.Command as Cmd
+import qualified Commands.Registry as Registry
+import qualified Commands.Projects as CmdProjects
 
 import Brick.BChan
 import Control.Monad.IO.Class (liftIO)
@@ -116,6 +121,14 @@ exitSelectionMode = do
   modify $ set selectionLens Set.empty
   modify $ set selectionAnchorLens Nothing
 
+-- Get pointers for currently selected tasks
+getSelectedTaskPointers :: AppContext Task -> [TaskPointer]
+getSelectedTaskPointers ctx =
+  let selection = view selectionLens ctx
+      cv = view currentViewLens ctx
+      selectedIndices = Set.toList selection
+  in mapMaybe (cv V.!?) selectedIndices
+
 applyToSelection :: (Task -> Task) -> GlobalAppState Task
 applyToSelection action = do
   ctx <- get
@@ -128,7 +141,7 @@ smartApplyTodoKeyword :: T.Text -> GlobalAppState Task
 smartApplyTodoKeyword keyword = do
   ctx <- get
   let selection = view selectionLens ctx
-      needsValidation = keyword == T.pack "PROJECT"
+      needsValidation = keyword == orgProjectKeyword
       getCurrentKeywords = if Set.null selection
         then case view currentTaskPtr ctx of
                Just ptr -> maybe [] (pure . view todoKeyword) $ preview (taskBy ptr) (view fileStateLens ctx)
@@ -138,8 +151,8 @@ smartApplyTodoKeyword keyword = do
              in mapMaybe (\ptr -> preview (taskBy ptr . todoKeyword) fs) selectedTasks
       
       oldKeywords = getCurrentKeywords
-      oldHasProject = T.pack "PROJECT" `elem` oldKeywords
-      newHasProject = keyword == T.pack "PROJECT"
+      oldHasProject = orgProjectKeyword `elem` oldKeywords
+      newHasProject = keyword == orgProjectKeyword
       
   if Set.null selection
     then modify (changeTodoKeyword keyword)
@@ -325,7 +338,7 @@ addNewTask = do
           dummyTask =
             Task
               { _level = 1
-              , _todoKeyword = "INBOX"
+              , _todoKeyword = orgInboxKeyword
               , _priority = Nothing
               , _title = "{{Title}}"
               , _tags = S.empty
@@ -410,14 +423,14 @@ acceptValidation = do
     Nothing -> return ()
 
 -- | Move a PROJECT task and all its subtasks to the projects file, preserving hierarchy
-moveProjectTaskWithSubtasks :: FilePath -> TaskPointer -> GlobalAppState Task  
+moveProjectTaskWithSubtasks :: FilePath -> TaskPointer -> GlobalAppState Task
 moveProjectTaskWithSubtasks projectsFilePath taskPtr = do
   ctx <- get
   let fs = view fileStateLens ctx
   case preview (taskBy taskPtr) fs of
     Just projectTask -> do
       -- Get all subtasks for this PROJECT task
-      let subtasks = SV.getProjectSubtasks taskPtr fs
+      let subtasks = Ops.getProjectSubtasks taskPtr fs
           allTasksToMove = taskPtr : subtasks
           projectLevel = view level projectTask
           
@@ -437,7 +450,7 @@ moveProjectTaskWithSubtasks projectsFilePath taskPtr = do
               Just task -> do
                 let adjustedTask = over level (+ levelAdjustment) task
                 when (view file ptr /= projectsFilePath) $ 
-                  modify $ over (fileStateLens . taskBy ptr . todoKeyword) (const (T.pack "TRASH"))
+                  modify $ over (fileStateLens . taskBy ptr . todoKeyword) (const orgTrashKeyword)
                 return $ Just adjustedTask
               Nothing -> return Nothing
             ) allTasksToMove
@@ -468,15 +481,6 @@ undo = over (appState . fileState) L.undo
 
 redo :: AppContext a -> AppContext a
 redo = over (appState . fileState) L.redo
-
-saveForJump :: GlobalAppState a -> GlobalAppState a
-saveForJump f = do
-  ctx <- get
-  let oldHist = view (appState . compactView) ctx
-  f
-  newCtx <- get
-  let newState = view compactViewLens newCtx
-  when (newState /= view L.currentState oldHist) $ modify $ over (appState . compactView) (const $ L.append newState oldHist)
 
 jumpBack :: AppContext a -> AppContext a
 jumpBack = over (appState . compactView) L.undo
@@ -553,7 +557,7 @@ executeCommand = do
             unknown -> do
               let msg = "E492: Not an editor command: " <> unknown
               modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
-        Search -> saveForJump $ do
+        Search -> CmdProjects.saveForJump $ do
           ctx <- get
           modify $ over viewFilterLens ((matches $ T.strip cmd) :)
           modify $ set cursorLens (Just 0)
@@ -570,68 +574,12 @@ applyFilterToAllTasks predicate = do
 todoKeywordFilter :: T.Text -> Task -> Bool
 todoKeywordFilter keyword task = view todoKeyword task == keyword
 
--- Project hierarchy functions
-
--- | Find the project that contains the given task
-getProjectForTask :: TaskPointer -> FileState Task -> Maybe TaskPointer
-getProjectForTask taskPtr fs =
-  case preview (ix (view file taskPtr) . success . content) fs of
-    Nothing -> Nothing
-    Just tasks ->
-      let taskIdx = view taskIndex taskPtr
-          targetLevel = maybe 0 (view level) (tasks V.!? taskIdx)
-          findProjectIndex idx
-            | idx <= 0 = Nothing
-            | otherwise =
-                case tasks V.!? (idx - 1) of
-                  Just task
-                    | view level task < targetLevel && isProjectTask task ->
-                        Just (idx - 1)
-                  _ -> findProjectIndex (idx - 1)
-       in fmap (TaskPointer (view file taskPtr)) (findProjectIndex taskIdx)
-
--- | Get all subtasks that belong to a project
-getProjectSubtasks :: TaskPointer -> FileState Task -> [TaskPointer]
-getProjectSubtasks projectPtr fs =
-  case preview (ix (view file projectPtr) . success . content) fs of
-    Nothing -> []
-    Just tasks ->
-      let projectIdx = view taskIndex projectPtr
-          projectLevel = maybe 0 (view level) (tasks V.!? projectIdx)
-          tasksAfterProject = V.drop (projectIdx + 1) tasks
-          subtaskIndices = V.takeWhile (\task -> view level task > projectLevel) tasksAfterProject
-       in [ TaskPointer (view file projectPtr) (projectIdx + 1 + i)
-          | i <- [0 .. V.length subtaskIndices - 1]
-          ]
-
--- Get pointers for currently selected tasks
-getSelectedTaskPointers :: AppContext Task -> [TaskPointer]
-getSelectedTaskPointers ctx =
-  let selection = view selectionLens ctx
-      cv = view currentViewLens ctx
-      selectedIndices = Set.toList selection
-  in mapMaybe (cv V.!?) selectedIndices
-
--- | Check if a task is a project (has PROJECT keyword)
-isProjectTask :: Task -> Bool
-isProjectTask = todoKeywordFilter "PROJECT"
-
--- | Get all project pointers from all files
-getAllProjectPointers :: FileState Task -> [TaskPointer]
-getAllProjectPointers fs =
-  [ TaskPointer fp idx
-  | (fp, result) <- M.toList fs
-  , taskFile <- maybe [] pure (resultToMaybe result)
-  , (idx, task) <- zip [0 ..] (V.toList $ view content taskFile)
-  , isProjectTask task
-  ]
-
 -- | Open refile dialog to select a project
 openRefileDialog :: GlobalAppState Task
 openRefileDialog = do
   ctx <- get
   let fs = view fileStateLens ctx
-      allProjects = getAllProjectPointers fs
+      allProjects = Ops.getAllProjects fs
   case allProjects of
     [] -> return () -- No projects found
     _ -> do
@@ -641,56 +589,6 @@ openRefileDialog = do
             , _rdSelectedIndex = 0
             }
       modify $ set (appState . refileDialog) (Just dialog)
-
--- | Jump to project view for the current task
-goToProjectView :: GlobalAppState Task
-goToProjectView = do
-  ctx <- get
-  let fs = view fileStateLens ctx
-      maybeCurrentPtr = view currentTaskPtr ctx
-  case maybeCurrentPtr of
-    Nothing -> return ()
-    Just currentPtr -> do
-      let maybeProjectPtr = getProjectForTask currentPtr fs
-          currentTask = preview (taskBy currentPtr) fs
-      case maybeProjectPtr of
-        -- If task has a parent project, show the parent project and its contents
-        Just projPtr ->
-          saveForJump $ showProjectView projPtr fs ctx
-        -- If task has no parent project, check if current task is a PROJECT task
-        Nothing ->
-          case currentTask of
-            Just task | isProjectTask task ->
-              saveForJump $ showProjectView currentPtr fs ctx
-            _ -> return () -- Do nothing if task is neither PROJECT nor has parent PROJECT
-
--- | Helper function to show project view for a given project pointer
-showProjectView :: TaskPointer -> FileState Task -> AppContext Task -> GlobalAppState Task
-showProjectView projPtr fs ctx = do
-  let projectSubtasks = getProjectSubtasks projPtr fs
-      -- Custom sorter that puts project task first, then sorts subtasks normally
-      originalSorter = view viewSorterLens ctx
-      projectViewSorter task1 task2 =
-        case ( Just task1 == preview (taskBy projPtr) fs
-             , Just task2 == preview (taskBy projPtr) fs
-             ) of
-          (True, False) -> LT -- task1 is project, comes first
-          (False, True) -> GT -- task2 is project, comes first
-          _ -> originalSorter task1 task2
-      projectAndSubtasksFilter task =
-        -- Include the project task itself
-        (Just task == preview (taskBy projPtr) fs)
-          ||
-          -- Include all subtasks
-          any
-            ( \subtaskPtr ->
-                Just task == preview (taskBy subtaskPtr) fs
-            )
-            projectSubtasks
-  modify $ set viewFilterLens [projectAndSubtasksFilter]
-  modify $ set viewSorterLens projectViewSorter
-  modify $ set cursorLens (Just 0)
-  modify $ set (compactViewLens . viewportStart) 0
 
 -- | Refresh the current view by recomputing the cached view without changing the ViewSpec
 refreshCurrentView :: GlobalAppState a
@@ -780,7 +678,7 @@ changeViewKeywordBinding keyword bind sorter =
     (toKeySeq bind)
     (T.concat ["Show ", keyword, " tasks"])
     $ do
-      saveForJump (applyFilterToAllTasks (todoKeywordFilter keyword))
+      CmdProjects.saveForJump (applyFilterToAllTasks (todoKeywordFilter keyword))
       forM_ sorter applySorter
 
 normalBinding :: (ToBind k) => KeyEvent -> k -> T.Text -> GlobalAppState a -> KeyBinding a
@@ -795,6 +693,16 @@ normalOrSelectionContext = anyModeKeyContext [NormalMode, SelectionMode]
 addTagKeybinding tag shortcut = KeyBinding (AddTag tag) (toKeySeq shortcut) (T.concat ["Add ", tag, " tag"]) (saveForUndo $ smartApplyTagAction (S.insert tag)) normalOrSelectionContext
 
 deleleTagKeybinding tag shortcut = KeyBinding (DeleteTag tag) (toKeySeq shortcut) (T.concat ["Delete ", tag, " tag"]) (saveForUndo $ smartApplyTagAction (S.delete tag)) normalOrSelectionContext
+
+-- | Convert a Command to a KeyBinding
+commandToKeyBinding :: Cmd.Command Task -> KeyBinding Task
+commandToKeyBinding cmd =
+  KeyBinding
+    (Cmd.cmdKeyEvent cmd)
+    (Cmd.cmdTuiKeybinding cmd)
+    (Cmd.cmdTuiDescription cmd)
+    (Cmd.cmdAction cmd)
+    (Cmd.cmdContext cmd)
 
 orgKeyBindings :: [KeyBinding Task]
 orgKeyBindings =
@@ -831,22 +739,22 @@ orgKeyBindings =
   , KeyBinding MoveUp (toKey KUp) "Move up" (selectionAwareMove (\i -> i - 1)) normalOrSelectionContext
   , KeyBinding MoveDown (toKey 'j') "Move down" (selectionAwareMove (+ 1)) normalOrSelectionContext
   , KeyBinding MoveDown (toKey KDown) "Move down" (selectionAwareMove (+ 1)) normalOrSelectionContext
-  , KeyBinding JumpEnd (toKey 'G') "Jump to the end" (saveForJump $ selectionAwareMove (const maxBound)) normalOrSelectionContext
-  , KeyBinding JumpBeginning (toKeySeq "gg") "Jump to the beginning" (saveForJump $ selectionAwareMove (const 0)) normalOrSelectionContext
+  , KeyBinding JumpEnd (toKey 'G') "Jump to the end" (CmdProjects.saveForJump $ selectionAwareMove (const maxBound)) normalOrSelectionContext
+  , KeyBinding JumpBeginning (toKeySeq "gg") "Jump to the beginning" (CmdProjects.saveForJump $ selectionAwareMove (const 0)) normalOrSelectionContext
   , KeyBinding JumpBackward (withMod 'o' MCtrl) "Jump backward" (modify jumpBack) normalOrSelectionContext
   , KeyBinding JumpForward (toKey '\t') "Jump forward" (modify jumpForward) normalOrSelectionContext -- NOTE: Terminals translate Ctrl-i into TAB
   , -- Todo Keywords (smart: apply to selection if in selection mode, current task if in normal mode)
     -- TODO: create a config field for specifying TODO keywords and their shortcuts
-    changeTodoKeywordBinding "INBOX" "ti"
-  , changeTodoKeywordBinding "RELEVANT" "tr"
-  , changeTodoKeywordBinding "SOMEDAY" "ts"
-  , changeTodoKeywordBinding "NOTES" "tn"
-  , changeTodoKeywordBinding "LIST" "tl"
-  , changeTodoKeywordBinding "WAITING" "tw"
-  , changeTodoKeywordBinding "PROJECT" "tp"
-  , changeTodoKeywordBinding "TODO" "tt"
-  , changeTodoKeywordBinding "DONE" "td"
-  , changeTodoKeywordBinding "TRASH" "tx"
+    changeTodoKeywordBinding orgInboxKeyword "ti"
+  , changeTodoKeywordBinding orgRelevantKeyword "tr"
+  , changeTodoKeywordBinding orgSomedayKeyword "ts"
+  , changeTodoKeywordBinding orgNotesKeyword "tn"
+  , changeTodoKeywordBinding orgListKeyword "tl"
+  , changeTodoKeywordBinding orgWaitingKeyword "tw"
+  , changeTodoKeywordBinding orgProjectKeyword "tp"
+  , changeTodoKeywordBinding orgTodoKeyword "tt"
+  , changeTodoKeywordBinding orgDoneKeyword "td"
+  , changeTodoKeywordBinding orgTrashKeyword "tx"
   , -- Tags (smart: apply to selection if there are selected items, current task otherwise)
     -- TODO: create a config field for specifying tags and their shortcuts
     addTagKeybinding "music" "a,m"
@@ -869,27 +777,28 @@ orgKeyBindings =
       )
       normalOrSelectionContext
   , -- Views
-    normalBinding (View "all") (toKeySeq " aa") "Show all tasks" $ saveForJump $ applyFilterToAllTasks (const True)
-  , changeViewKeywordBinding "INBOX" " ai" $ Just sortByCreatedDesc
-  , changeViewKeywordBinding "RELEVANT" " ar" $ Just sortByPriorityAsc
-  , changeViewKeywordBinding "SOMEDAY" " as" Nothing
-  , changeViewKeywordBinding "NOTES" " an" Nothing
-  , changeViewKeywordBinding "LIST" " al" Nothing
-  , changeViewKeywordBinding "WAITING" " aw" $ Just sortByPriorityAsc
-  , changeViewKeywordBinding "PROJECT" " ap" $ Just sortByPriorityAsc
-  , changeViewKeywordBinding "TODO" " at" $ Just sortByPriorityAsc
-  , changeViewKeywordBinding "DONE" " ad" Nothing
-  , changeViewKeywordBinding "TRASH" " ax" Nothing
+    normalBinding (View "all") (toKeySeq " aa") "Show all tasks" $ CmdProjects.saveForJump $ applyFilterToAllTasks (const True)
+  , changeViewKeywordBinding orgInboxKeyword " ai" $ Just sortByCreatedDesc
+  , changeViewKeywordBinding orgRelevantKeyword " ar" $ Just sortByPriorityAsc
+  , changeViewKeywordBinding orgSomedayKeyword " as" Nothing
+  , changeViewKeywordBinding orgNotesKeyword " an" Nothing
+  , changeViewKeywordBinding orgListKeyword " al" Nothing
+  , changeViewKeywordBinding orgWaitingKeyword " aw" $ Just sortByPriorityAsc
+  , changeViewKeywordBinding orgProjectKeyword " ap" $ Just sortByPriorityAsc
+  , changeViewKeywordBinding orgTodoKeyword " at" $ Just sortByPriorityAsc
+  , changeViewKeywordBinding orgDoneKeyword " ad" Nothing
+  , changeViewKeywordBinding orgTrashKeyword " ax" Nothing
   , -- Sorting
-    normalBinding SortCreatedAsc (toKeySeq "sca") "Sort by created (asc)" $ saveForJump (applySorter sortByCreatedAsc)
-  , normalBinding SortCreatedDesc (toKeySeq "scd") "Sort by created (desc)" $ saveForJump (applySorter sortByCreatedDesc)
-  , normalBinding SortPriorityAsc (toKeySeq "sca") "Sort by priority (asc)" $ saveForJump (applySorter sortByPriorityAsc)
-  , normalBinding SortPriorityDesc (toKeySeq "scd") "Sort by priority (desc)" $ saveForJump (applySorter sortByPriorityDesc)
+    normalBinding SortCreatedAsc (toKeySeq "sca") "Sort by created (asc)" $ CmdProjects.saveForJump (applySorter sortByCreatedAsc)
+  , normalBinding SortCreatedDesc (toKeySeq "scd") "Sort by created (desc)" $ CmdProjects.saveForJump (applySorter sortByCreatedDesc)
+  , normalBinding SortPriorityAsc (toKeySeq "sca") "Sort by priority (asc)" $ CmdProjects.saveForJump (applySorter sortByPriorityAsc)
+  , normalBinding SortPriorityDesc (toKeySeq "scd") "Sort by priority (desc)" $ CmdProjects.saveForJump (applySorter sortByPriorityDesc)
   , -- Other
     normalBinding AddTask (toKeySeq "at") "Add new task" $ saveForUndo addNewTask
   , normalBinding EditInEditor (toKey KEnter) "Edit in editor" $ saveForUndo editSelectedTaskInEditor
   , normalBinding OpenUrl (toKeySeq "gx") "Open URL in task" openTaskUrl
-  , normalBinding GoToProject (toKeySeq "gp") "Go to project view" goToProjectView
   , normalBinding Refile (toKeySeq "gr") "Refile task to project" openRefileDialog
   , normalBinding RefreshView (toKey 'r') "Refresh current view" refreshCurrentView
   ]
+  -- Commands from registry
+  ++ map commandToKeyBinding Registry.allCommands

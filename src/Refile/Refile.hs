@@ -2,6 +2,7 @@ module Refile.Refile where
 
 import Brick (get, modify)
 import Control.Lens
+import Core.Types (TaskPointer)
 
 import Refile.Refileable
 import Tui.Types

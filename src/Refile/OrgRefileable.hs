@@ -3,13 +3,14 @@
 module Refile.OrgRefileable where
 
 import Control.Lens
+import Core.Types (TaskPointer (..), FileState, file, taskIndex)
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
 import Model.OrgMode (Task, TaskFile, content, level, todoKeyword)
 import Parser.Parser (success)
 import Refile.Refileable
-import Tui.Types
+import Tui.Types (taskBy)
 
 -- | Refileable instance for Task
 instance Refileable Task where
