@@ -33,44 +33,44 @@ data DelayType
   deriving (Show, Eq, Bounded, Enum)
 
 data RepeatInterval = RepeatInterval
-  { repeatType :: RepeatType
-  , repeatValue :: Int
-  , repeatTimeUnit :: TimeUnit
+  { repeatType :: RepeatType,
+    repeatValue :: Int,
+    repeatTimeUnit :: TimeUnit
   }
   deriving (Show, Eq)
 
 data DelayInterval = DelayInterval
-  { delayType :: DelayType
-  , dealyValue :: Int
-  , delayTimeUnit :: TimeUnit
+  { delayType :: DelayType,
+    dealyValue :: Int,
+    delayTimeUnit :: TimeUnit
   }
   deriving (Show, Eq)
 
 data OrgTime = OrgTime
-  { time :: Either Day LocalTime
-  , repeater :: Maybe RepeatInterval
-  , delay :: Maybe DelayInterval
+  { time :: Either Day LocalTime,
+    repeater :: Maybe RepeatInterval,
+    delay :: Maybe DelayInterval
   }
   deriving (Show, Eq)
 
 data Task = Task
-  { _level :: Int
-  , _todoKeyword :: T.Text
-  , _priority :: Maybe Int
-  , _title :: T.Text
-  , _tags :: S.Set T.Text
-  , _scheduled :: Maybe OrgTime
-  , _deadline :: Maybe OrgTime
-  , _createdProp :: Maybe OrgTime
-  , _closed :: Maybe OrgTime
-  , _properties :: [(T.Text, T.Text)]
-  , _description :: T.Text
+  { _level :: Int,
+    _todoKeyword :: T.Text,
+    _priority :: Maybe Int,
+    _title :: T.Text,
+    _tags :: S.Set T.Text,
+    _scheduled :: Maybe OrgTime,
+    _deadline :: Maybe OrgTime,
+    _createdProp :: Maybe OrgTime,
+    _closed :: Maybe OrgTime,
+    _properties :: [(T.Text, T.Text)],
+    _description :: T.Text
   }
   deriving (Show, Eq)
 
 data TaskFile a = TaskFile
-  { _name :: Maybe T.Text
-  , _content :: V.Vector a
+  { _name :: Maybe T.Text,
+    _content :: V.Vector a
   }
   deriving (Show, Eq)
 
@@ -94,8 +94,8 @@ instance Injection Delimiter (Char, Char) where
   to BracketDelim = ('[', ']')
 
 data TimeField = TimeField
-  { timeFieldName :: T.Text
-  , timeFieldDelimiter :: Delimiter
+  { timeFieldName :: T.Text,
+    timeFieldDelimiter :: Delimiter
   }
 
 makeLenses ''Task
@@ -141,9 +141,9 @@ allRepeatTypes = sortInverseLength [minBound .. maxBound]
 
 sortInverseLength :: (Injection a T.Text) => [a] -> [a]
 sortInverseLength = sortBy compareLength
- where
-  compareLength :: (Injection a T.Text) => a -> a -> Ordering
-  compareLength a b = compare (T.length (to b)) (T.length (to a))
+  where
+    compareLength :: (Injection a T.Text) => a -> a -> Ordering
+    compareLength a b = compare (T.length (to b)) (T.length (to a))
 
 -- Time fields
 
@@ -214,15 +214,15 @@ orgTrashKeyword = "TRASH"
 
 orgTodoKeyWords :: [T.Text]
 orgTodoKeyWords =
-  [ orgInboxKeyword
-  , orgRelevantKeyword
-  , orgSomedayKeyword
-  , orgNotesKeyword
-  , orgListKeyword
-  , orgWaitingKeyword
-  , orgProjectKeyword
-  , orgTodoKeyword
-  , orgDoneKeyword
-  , orgTrashKeyword
-  , "" -- for tasks without todo keyword
+  [ orgInboxKeyword,
+    orgRelevantKeyword,
+    orgSomedayKeyword,
+    orgNotesKeyword,
+    orgListKeyword,
+    orgWaitingKeyword,
+    orgProjectKeyword,
+    orgTodoKeyword,
+    orgDoneKeyword,
+    orgTrashKeyword,
+    "" -- for tasks without todo keyword
   ]

@@ -9,25 +9,23 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
-import Model.OrgMode
-import Parser.Parser (ParserResult (..), success)
 import Test.Hspec
 
 -- Helper function to create a test task
 mkTask :: T.Text -> T.Text -> Int -> Task
-mkTask keyword title lvl =
+mkTask keyword ttitle lvl =
   Task
-    { _level = lvl
-    , _todoKeyword = keyword
-    , _priority = Nothing
-    , _title = title
-    , _tags = S.empty
-    , _scheduled = Nothing
-    , _deadline = Nothing
-    , _createdProp = Nothing
-    , _closed = Nothing
-    , _properties = []
-    , _description = ""
+    { _level = lvl,
+      _todoKeyword = keyword,
+      _priority = Nothing,
+      _title = ttitle,
+      _tags = S.empty,
+      _scheduled = Nothing,
+      _deadline = Nothing,
+      _createdProp = Nothing,
+      _closed = Nothing,
+      _properties = [],
+      _description = ""
     }
 
 -- Helper function to create a test FileState
@@ -174,23 +172,6 @@ spec = do
             fs = mkFileState []
         addTask "nonexistent.org" task fs `shouldSatisfy` isLeft
 
-    describe "markTaskDone" $ do
-      it "changes TODO keyword to DONE" $ do
-        let task = mkTask "TODO" "Task" 1
-            fs = mkFileState [("file1.org", [task])]
-            ptr = TaskPointer "file1.org" 0
-        case markTaskDone ptr fs of
-          Right newFs ->
-            case getTask ptr newFs of
-              Just updatedTask -> view todoKeyword updatedTask `shouldBe` "DONE"
-              Nothing -> expectationFailure "Task not found after update"
-          Left err -> expectationFailure $ "Expected success but got error: " ++ err
-
-      it "returns error when task doesn't exist" $ do
-        let fs = mkFileState []
-            ptr = TaskPointer "file1.org" 0
-        markTaskDone ptr fs `shouldSatisfy` isLeft
-
     describe "editTask" $ do
       it "replaces task with new version" $ do
         let oldTask = mkTask "TODO" "Old Title" 1
@@ -208,29 +189,27 @@ spec = do
             ptr = TaskPointer "file1.org" 0
         editTask ptr task fs `shouldSatisfy` isLeft
 
-    describe "deleteTask" $ do
-      it "marks task as TRASH" $ do
-        let task = mkTask "TODO" "Task" 1
-            fs = mkFileState [("file1.org", [task])]
-            ptr = TaskPointer "file1.org" 0
-        case deleteTask ptr fs of
-          Right newFs ->
-            case getTask ptr newFs of
-              Just updatedTask -> view todoKeyword updatedTask `shouldBe` "TRASH"
-              Nothing -> expectationFailure "Task not found after deletion"
-          Left err -> expectationFailure $ "Expected success but got error: " ++ err
+    describe "deleteTask" $ it "marks task as TRASH" $ do
+      let task = mkTask "TODO" "Task" 1
+          fs = mkFileState [("file1.org", [task])]
+          ptr = TaskPointer "file1.org" 0
+      case deleteTask ptr fs of
+        Right newFs ->
+          case getTask ptr newFs of
+            Just updatedTask -> view todoKeyword updatedTask `shouldBe` "TRASH"
+            Nothing -> expectationFailure "Task not found after deletion"
+        Left err -> expectationFailure $ "Expected success but got error: " ++ err
 
-    describe "changeTodoKeyword" $ do
-      it "changes task keyword" $ do
-        let task = mkTask "TODO" "Task" 1
-            fs = mkFileState [("file1.org", [task])]
-            ptr = TaskPointer "file1.org" 0
-        case changeTodoKeyword "WAITING" ptr fs of
-          Right newFs ->
-            case getTask ptr newFs of
-              Just updatedTask -> view todoKeyword updatedTask `shouldBe` "WAITING"
-              Nothing -> expectationFailure "Task not found after update"
-          Left err -> expectationFailure $ "Expected success but got error: " ++ err
+    describe "changeTodoKeyword" $ it "changes task keyword" $ do
+      let task = mkTask "TODO" "Task" 1
+          fs = mkFileState [("file1.org", [task])]
+          ptr = TaskPointer "file1.org" 0
+      case changeTodoKeyword "WAITING" ptr fs of
+        Right newFs ->
+          case getTask ptr newFs of
+            Just updatedTask -> view todoKeyword updatedTask `shouldBe` "WAITING"
+            Nothing -> expectationFailure "Task not found after update"
+        Left err -> expectationFailure $ "Expected success but got error: " ++ err
 
     describe "changeTaskPriority" $ do
       it "sets priority on task without priority" $ do
@@ -245,7 +224,7 @@ spec = do
           Left err -> expectationFailure $ "Expected success but got error: " ++ err
 
       it "changes existing priority" $ do
-        let task = (mkTask "TODO" "Task" 1) & priority .~ Just 2
+        let task = mkTask "TODO" "Task" 1 & priority ?~ 2
             fs = mkFileState [("file1.org", [task])]
             ptr = TaskPointer "file1.org" 0
         case changeTaskPriority (Just 0) ptr fs of
@@ -268,7 +247,7 @@ spec = do
           Left err -> expectationFailure $ "Expected success but got error: " ++ err
 
       it "adds tag to existing tags" $ do
-        let task = (mkTask "TODO" "Task" 1) & tags .~ S.singleton "work"
+        let task = mkTask "TODO" "Task" 1 & tags .~ S.singleton "work"
             fs = mkFileState [("file1.org", [task])]
             ptr = TaskPointer "file1.org" 0
         case addTaskTag "music" ptr fs of
@@ -280,7 +259,7 @@ spec = do
 
     describe "deleteTaskTag" $ do
       it "deletes tag from task" $ do
-        let task = (mkTask "TODO" "Task" 1) & tags .~ S.fromList ["work", "music"]
+        let task = mkTask "TODO" "Task" 1 & tags .~ S.fromList ["work", "music"]
             fs = mkFileState [("file1.org", [task])]
             ptr = TaskPointer "file1.org" 0
         case deleteTaskTag "music" ptr fs of
@@ -291,7 +270,7 @@ spec = do
           Left err -> expectationFailure $ "Expected success but got error: " ++ err
 
       it "handles deleting non-existent tag" $ do
-        let task = (mkTask "TODO" "Task" 1) & tags .~ S.singleton "work"
+        let task = mkTask "TODO" "Task" 1 & tags .~ S.singleton "work"
             fs = mkFileState [("file1.org", [task])]
             ptr = TaskPointer "file1.org" 0
         case deleteTaskTag "music" ptr fs of

@@ -3,32 +3,35 @@
 module Commands.Projects (goToProjectsCommand, goToProjectView, saveForJump, showProjectView) where
 
 import Brick (get, modify)
-import Commands.Command (Command (..))
+import Commands.Command (Command (..), TuiBinding (..))
 import Control.Lens
+import Control.Monad (when)
 import qualified Core.Operations as Ops
 import Core.Types (FileState, TaskPointer)
-import Model.OrgMode (Task)
-import Tui.Types
-  ( AppContext
-  , GlobalAppState
-  , KeyEvent (..)
-  , KeyPress (..)
-  , appState
-  , compactView
-  , compactViewLens
-  , currentTaskPtr
-  , cursorLens
-  , fileStateLens
-  , taskBy
-  , viewFilterLens
-  , viewportStart
-  , viewSorterLens
-  )
-import Control.Monad (when)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Set as Set
 import qualified Graphics.Vty.Input.Events as E
 import qualified Model.LinearHistory as L
+import Model.OrgMode (Task)
+import qualified Tui.Contexts as Ctx
+import Tui.Keybindings
+import Tui.Types
+  ( AppContext,
+    AppMode (..),
+    GlobalAppState,
+    KeyEvent (..),
+    KeyPress (..),
+    appState,
+    compactView,
+    compactViewLens,
+    currentTaskPtr,
+    cursorLens,
+    fileStateLens,
+    taskBy,
+    viewFilterLens,
+    viewSorterLens,
+    viewportStart,
+  )
 
 -- | Go to project view command
 -- If the current task has a parent project, shows that project and its subtasks
@@ -37,18 +40,21 @@ import qualified Model.LinearHistory as L
 goToProjectsCommand :: Command Task
 goToProjectsCommand =
   Command
-    { cmdName = "Go to Project View"
-    , cmdDescription = "Navigate to the project view for the current task, showing the project and all its subtasks"
-    , cmdKeyEvent = GoToProject
-    , cmdTuiKeybinding = keySeq "gp" -- 'g' then 'p'
-    , cmdTuiDescription = "Go to project view"
-    , cmdAction = saveForJump goToProjectView
-    , cmdContext = const True -- Always available in normal mode (context will be checked by key bindings)
+    { cmdName = "Go to Project View",
+      cmdAlias = "projects",
+      cmdDescription = "Navigate to the project view for the current task, showing the project and all its subtasks",
+      cmdTui =
+        Just $
+          TuiBinding
+            { tuiKeyEvent = GoToProject,
+              tuiKeybinding = toKeySeq "gp", -- 'g' then 'p'
+              tuiDescription = "Go to project view",
+              tuiAction = saveForJump goToProjectView,
+              tuiContext = Ctx.modeKeyContext NormalMode
+            },
+      cmdCli = Nothing,
+      cmdApi = Nothing
     }
-  where
-    -- Helper to create key sequences without circular dependency
-    keySeq (c:cs) = KeyPress (E.KChar c) Set.empty :| map (\x -> KeyPress (E.KChar x) Set.empty) cs
-    keySeq [] = error "keySeq: empty string"
 
 -- | Save current view state before making a jump (for jump history)
 saveForJump :: GlobalAppState a -> GlobalAppState a
@@ -59,7 +65,8 @@ saveForJump f = do
   newCtx <- get
   let newState = view compactViewLens newCtx
   when (newState /= view L.currentState oldHist) $
-    modify $ over (appState . compactView) (const $ L.append newState oldHist)
+    modify $
+      over (appState . compactView) (const $ L.append newState oldHist)
 
 -- | Main action: Navigate to project view for current task
 goToProjectView :: GlobalAppState Task
@@ -79,8 +86,9 @@ goToProjectView = do
         -- If task has no parent project, check if current task is a PROJECT task
         Nothing ->
           case currentTask of
-            Just task | Ops.isProjectTask task ->
-              showProjectView currentPtr fs ctx
+            Just task
+              | Ops.isProjectTask task ->
+                  showProjectView currentPtr fs ctx
             _ -> return () -- Do nothing if task is neither PROJECT nor has parent PROJECT
 
 -- | Helper function to show project view for a given project pointer
@@ -90,8 +98,8 @@ showProjectView projPtr fs ctx = do
       -- Custom sorter that puts project task first, then sorts subtasks normally
       originalSorter = view viewSorterLens ctx
       projectViewSorter task1 task2 =
-        case ( Just task1 == preview (taskBy projPtr) fs
-             , Just task2 == preview (taskBy projPtr) fs
+        case ( Just task1 == preview (taskBy projPtr) fs,
+               Just task2 == preview (taskBy projPtr) fs
              ) of
           (True, False) -> LT -- task1 is project, comes first
           (False, True) -> GT -- task2 is project, comes first

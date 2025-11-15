@@ -4,18 +4,17 @@
 module Refile.RefileableSpec (spec) where
 
 import Control.Lens
+-- Import the modules we're testing
+import Core.Types (FileState, TaskPointer (..))
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
-import Test.Hspec
-
--- Import the modules we're testing
-import Core.Types (TaskPointer (..), FileState)
 import Model.OrgMode
-import Parser.Parser (ParserResult(..), success)
+import Parser.Parser (ParserResult (..), success)
 import Refile.OrgRefileable ()
 import Refile.Refileable
+import Test.Hspec
 
 spec :: Spec
 spec = do
@@ -25,25 +24,27 @@ spec = do
 
 -- Helper functions for creating test data
 createTestTask :: Int -> T.Text -> T.Text -> Task
-createTestTask lvl keyword taskTitle = Task
-  { _level = lvl
-  , _todoKeyword = keyword
-  , _priority = Nothing
-  , _title = taskTitle
-  , _tags = S.empty
-  , _scheduled = Nothing
-  , _deadline = Nothing
-  , _createdProp = Nothing
-  , _closed = Nothing
-  , _properties = []
-  , _description = T.empty
-  }
+createTestTask lvl keyword taskTitle =
+  Task
+    { _level = lvl,
+      _todoKeyword = keyword,
+      _priority = Nothing,
+      _title = taskTitle,
+      _tags = S.empty,
+      _scheduled = Nothing,
+      _deadline = Nothing,
+      _createdProp = Nothing,
+      _closed = Nothing,
+      _properties = [],
+      _description = T.empty
+    }
 
 createTestTaskFile :: [Task] -> TaskFile Task
-createTestTaskFile tasks = TaskFile
-  { _name = Nothing
-  , _content = V.fromList tasks
-  }
+createTestTaskFile tasks =
+  TaskFile
+    { _name = Nothing,
+      _content = V.fromList tasks
+    }
 
 createTestFileState :: [(String, TaskFile Task)] -> FileState Task
 createTestFileState files =
@@ -157,10 +158,11 @@ testInsertTaskUnder = do
           inboxTask = createTestTask 1 "INBOX" "Task from Inbox"
           inboxFile = createTestTaskFile [inboxTask]
 
-          fileState = createTestFileState
-            [ ("/path/to/projects.org", projectsFile)
-            , ("/path/to/inbox.org", inboxFile)
-            ]
+          fileState =
+            createTestFileState
+              [ ("/path/to/projects.org", projectsFile),
+                ("/path/to/inbox.org", inboxFile)
+              ]
 
           projectPtr = TaskPointer "/path/to/projects.org" 0
           taskPtr = TaskPointer "/path/to/inbox.org" 0
@@ -231,10 +233,11 @@ testMarkTaskForRemoval = do
           projectTask = createTestTask 1 "PROJECT" "Project"
           projectsFile = createTestTaskFile [projectTask]
 
-          fileState = createTestFileState
-            [ ("/path/to/inbox.org", inboxFile)
-            , ("/path/to/projects.org", projectsFile)
-            ]
+          fileState =
+            createTestFileState
+              [ ("/path/to/inbox.org", inboxFile),
+                ("/path/to/projects.org", projectsFile)
+              ]
 
           taskPtr = TaskPointer "/path/to/inbox.org" 0
           projectsFilePath = "/path/to/projects.org"

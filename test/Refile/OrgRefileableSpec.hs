@@ -7,46 +7,45 @@ import qualified Core.Operations as Ops
 import Core.Types (TaskPointer (..))
 import qualified Data.Map as M
 import qualified Data.Vector as V
-import SpecHelper
-
 import Model.OrgMode
 import Parser.Parser
+import SpecHelper
 
 -- Test data
 sampleTask :: Task
 sampleTask =
   Task
-    { _level = 2
-    , _todoKeyword = "TODO"
-    , _priority = Nothing
-    , _title = "Sample Task"
-    , _tags = mempty
-    , _scheduled = Nothing
-    , _deadline = Nothing
-    , _createdProp = Nothing
-    , _closed = Nothing
-    , _properties = []
-    , _description = "Sample description"
+    { _level = 2,
+      _todoKeyword = "TODO",
+      _priority = Nothing,
+      _title = "Sample Task",
+      _tags = mempty,
+      _scheduled = Nothing,
+      _deadline = Nothing,
+      _createdProp = Nothing,
+      _closed = Nothing,
+      _properties = [],
+      _description = "Sample description"
     }
 
 sampleProject :: Task
 sampleProject =
   Task
-    { _level = 1
-    , _todoKeyword = "PROJECT"
-    , _priority = Nothing
-    , _title = "Sample Project"
-    , _tags = mempty
-    , _scheduled = Nothing
-    , _deadline = Nothing
-    , _createdProp = Nothing
-    , _closed = Nothing
-    , _properties = []
-    , _description = "Project description"
+    { _level = 1,
+      _todoKeyword = "PROJECT",
+      _priority = Nothing,
+      _title = "Sample Project",
+      _tags = mempty,
+      _scheduled = Nothing,
+      _deadline = Nothing,
+      _createdProp = Nothing,
+      _closed = Nothing,
+      _properties = [],
+      _description = "Project description"
     }
 
 createTaskFile :: [Task] -> TaskFile Task
-createTaskFile tasks = TaskFile{_name = Nothing, _content = V.fromList tasks}
+createTaskFile tasks = TaskFile {_name = Nothing, _content = V.fromList tasks}
 
 spec :: Spec
 spec = do
@@ -128,9 +127,9 @@ spec = do
 
         length result `shouldBe` 3
         result
-          `shouldContain` [ TaskPointer "/test.org" 1
-                          , TaskPointer "/test.org" 2
-                          , TaskPointer "/test.org" 3
+          `shouldContain` [ TaskPointer "/test.org" 1,
+                            TaskPointer "/test.org" 2,
+                            TaskPointer "/test.org" 3
                           ]
 
       it "stops at same or lower level tasks" $ do
@@ -157,15 +156,15 @@ spec = do
 
             fileState =
               M.fromList
-                [ ("/file1.org", ParserSuccess file1)
-                , ("/file2.org", ParserSuccess file2)
+                [ ("/file1.org", ParserSuccess file1),
+                  ("/file2.org", ParserSuccess file2)
                 ]
             result = Ops.getAllProjects fileState
 
         length result `shouldBe` 2
         result
-          `shouldContain` [ TaskPointer "/file1.org" 0
-                          , TaskPointer "/file2.org" 0
+          `shouldContain` [ TaskPointer "/file1.org" 0,
+                            TaskPointer "/file2.org" 0
                           ]
 
       it "returns empty list when no projects exist" $ do

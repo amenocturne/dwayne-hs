@@ -30,9 +30,9 @@ import TextUtils
 
 taskLevelParser :: Parser Int
 taskLevelParser = failOnConditionParser parser (<= 0) errorMsg
- where
-  parser = fmap T.length (takeWhileParser (== '*'))
-  errorMsg = "Task level must be specified with at least one '*'"
+  where
+    parser = fmap T.length (takeWhileParser (== '*'))
+    errorMsg = "Task level must be specified with at least one '*'"
 
 todoKeyWordParser :: Parser T.Text
 todoKeyWordParser =
@@ -42,8 +42,8 @@ todoKeyWordParser =
 
 priorityParser :: Parser Int
 priorityParser = tryParser $ stringParser "[#" *> letterToPriorityParser <* charParser ']'
- where
-  letterToPriorityParser = failOnConditionParser (fmap (\c -> ord c - ord 'A') singleCharParser) (\i -> i < 0 || i > ord 'Z' - ord 'A') "Got invalid priority letter"
+  where
+    letterToPriorityParser = failOnConditionParser (fmap (\c -> ord c - ord 'A') singleCharParser) (\i -> i < 0 || i > ord 'Z' - ord 'A') "Got invalid priority letter"
 
 isTagChar :: Char -> Bool
 isTagChar c = isLower c || isDigit c || c == '_'
@@ -67,8 +67,8 @@ splitToTitleAndTags input = fromMaybe (T.strip input, []) $ do
   guard (all (T.all isTagChar) tags)
 
   return (title, tags)
- where
-  isTagPartChar c = isTagChar c || c == ':'
+  where
+    isTagPartChar c = isTagChar c || c == ':'
 
 ------------------------------- Time Fields ------------------------------------
 
@@ -103,19 +103,19 @@ dateTimeParserReimplemented :: Parser OrgTime
 dateTimeParserReimplemented =
   ( \dateAndWeek maybeTime maybeRepeatedInterval maybeDelayInterval ->
       OrgTime
-        { time = makeTime dateAndWeek maybeTime
-        , repeater = maybeRepeatedInterval
-        , delay = maybeDelayInterval
+        { time = makeTime dateAndWeek maybeTime,
+          repeater = maybeRepeatedInterval,
+          delay = maybeDelayInterval
         }
   )
     <$> parseDateAndWeek
     <*> (skipBlanksExceptNewLinesParser *> maybeParser parseTime)
     <*> (skipBlanksExceptNewLinesParser *> maybeParser parseRepeatInterval)
     <*> (skipBlanksExceptNewLinesParser *> maybeParser parseDelayInterval)
- where
-  makeTime d t = case t of
-    Just tt -> Right $ LocalTime d tt
-    Nothing -> Left d
+  where
+    makeTime d t = case t of
+      Just tt -> Right $ LocalTime d tt
+      Nothing -> Left d
 
 timePropertyParser :: T.Text -> (Char, Char) -> Parser OrgTime
 timePropertyParser field (delimiterLeft, delimiterRight) =
@@ -128,8 +128,8 @@ timePropertyParser field (delimiterLeft, delimiterRight) =
 
 scheduledClosedDeadLineParser :: Parser (Maybe (T.Text, OrgTime))
 scheduledClosedDeadLineParser = maybeParser $ asum (fmap makeP orgTimeFields)
- where
-  makeP (TimeField field delim) = (field,) <$> timePropertyParser field (to delim)
+  where
+    makeP (TimeField field delim) = (field,) <$> timePropertyParser field (to delim)
 
 ------------------------------- Properties -------------------------------------
 
@@ -184,27 +184,25 @@ findProp field l = snd <$> find (\(n, _) -> n == timeFieldName field) l
 properTaskParser :: Parser Task
 properTaskParser =
   ( \level todoKeyword priority (title, tags) timeProp1 timeProp2 timeProp3 properties description ->
-      let
-        propsList = catMaybes [timeProp1, timeProp2, timeProp3]
-        mCreated = (snd <$> find (\p -> fst p == orgCreatedProperty) properties)
-        createdParser = charParser '[' *> dateTimeParserReimplemented <* charParser ']'
-        mCreatedProp = case fmap (runParser createdParser) mCreated of
-          Just (_, _, ParserSuccess t) -> Just t
-          _ -> Nothing
-       in
-        Task
-          { _level = level
-          , _todoKeyword = todoKeyword
-          , _priority = priority
-          , _title = title
-          , _tags = S.fromList tags
-          , _scheduled = findProp orgScheduledField propsList
-          , _deadline = findProp orgDeadlineField propsList
-          , _createdProp = mCreatedProp
-          , _closed = findProp orgClosedField propsList
-          , _properties = properties
-          , _description = description
-          }
+      let propsList = catMaybes [timeProp1, timeProp2, timeProp3]
+          mCreated = (snd <$> find (\p -> fst p == orgCreatedProperty) properties)
+          createdParser = charParser '[' *> dateTimeParserReimplemented <* charParser ']'
+          mCreatedProp = case fmap (runParser createdParser) mCreated of
+            Just (_, _, ParserSuccess t) -> Just t
+            _ -> Nothing
+       in Task
+            { _level = level,
+              _todoKeyword = todoKeyword,
+              _priority = priority,
+              _title = title,
+              _tags = S.fromList tags,
+              _scheduled = findProp orgScheduledField propsList,
+              _deadline = findProp orgDeadlineField propsList,
+              _createdProp = mCreatedProp,
+              _closed = findProp orgClosedField propsList,
+              _properties = properties,
+              _description = description
+            }
   )
     <$> (skipBlanksParser *> taskLevelParser <* charParser ' ')
     <*> (skipBlanksExceptNewLinesParser *> todoKeyWordParser)
@@ -219,26 +217,24 @@ properTaskParser =
 brokenDescriptionTaskParser :: Parser Task
 brokenDescriptionTaskParser =
   ( \level todoKeyword priority (title, tags) description properties description2 ->
-      let
-        mCreated = (snd <$> find (\p -> fst p == orgCreatedProperty) properties)
-        createdParser = charParser '[' *> dateTimeParserReimplemented <* charParser ']'
-        mCreatedProp = case fmap (runParser createdParser) mCreated of
-          Just (_, _, ParserSuccess t) -> Just t
-          _ -> Nothing
-       in
-        Task
-          { _level = level
-          , _todoKeyword = todoKeyword
-          , _priority = priority
-          , _title = title
-          , _tags = S.fromList tags
-          , _scheduled = Nothing
-          , _deadline = Nothing
-          , _createdProp = mCreatedProp
-          , _closed = Nothing
-          , _properties = properties
-          , _description = T.unlines [description, description2]
-          }
+      let mCreated = (snd <$> find (\p -> fst p == orgCreatedProperty) properties)
+          createdParser = charParser '[' *> dateTimeParserReimplemented <* charParser ']'
+          mCreatedProp = case fmap (runParser createdParser) mCreated of
+            Just (_, _, ParserSuccess t) -> Just t
+            _ -> Nothing
+       in Task
+            { _level = level,
+              _todoKeyword = todoKeyword,
+              _priority = priority,
+              _title = title,
+              _tags = S.fromList tags,
+              _scheduled = Nothing,
+              _deadline = Nothing,
+              _createdProp = mCreatedProp,
+              _closed = Nothing,
+              _properties = properties,
+              _description = T.unlines [description, description2]
+            }
   )
     <$> (skipBlanksParser *> taskLevelParser <* charParser ' ')
     <*> (skipBlanksExceptNewLinesParser *> todoKeyWordParser)
@@ -288,6 +284,6 @@ anyTaskparser =
 
 orgFileParser :: Parser (TaskFile Task)
 orgFileParser = fmap (uncurry TaskFile . second V.fromList) parser
- where
-  fileTitleParser = maybeParser $ stringParser "#+TITLE: " *> tillTheEndOfStringParser <* skipBlanksParser
-  parser = (,) <$> fileTitleParser <*> manyStrict anyTaskparser
+  where
+    fileTitleParser = maybeParser $ stringParser "#+TITLE: " *> tillTheEndOfStringParser <* skipBlanksParser
+    parser = (,) <$> fileTitleParser <*> manyStrict anyTaskparser

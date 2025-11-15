@@ -9,60 +9,61 @@
 -- exposing TUI-specific dependencies.
 module Core.Types
   ( -- * Task Types
-    Task (..)
-  , TaskFile (..)
-  , TaskPointer (..)
+    Task (..),
+    TaskFile (..),
+    TaskPointer (..),
 
-  -- * Time Types
-  , OrgTime (..)
-  , TimeUnit (..)
-  , RepeatType (..)
-  , DelayType (..)
-  , RepeatInterval (..)
-  , DelayInterval (..)
-  , TimeField (..)
-  , Delimiter (..)
+    -- * Time Types
+    OrgTime (..),
+    TimeUnit (..),
+    RepeatType (..),
+    DelayType (..),
+    RepeatInterval (..),
+    DelayInterval (..),
+    TimeField (..),
+    Delimiter (..),
 
-  -- * Lenses
-  , level
-  , todoKeyword
-  , priority
-  , title
-  , tags
-  , scheduled
-  , deadline
-  , createdProp
-  , closed
-  , properties
-  , description
-  , name
-  , content
-  , file
-  , taskIndex
+    -- * Lenses
+    level,
+    todoKeyword,
+    priority,
+    title,
+    tags,
+    scheduled,
+    deadline,
+    createdProp,
+    closed,
+    properties,
+    description,
+    name,
+    content,
+    file,
+    taskIndex,
 
-  -- * Constants
-  , orgTodoKeyWords
-  , orgCreatedProperty
-  , orgDayTimeFormat
+    -- * Constants
+    orgTodoKeyWords,
+    orgCreatedProperty,
+    orgDayTimeFormat,
 
-  -- * File State Type
-  , FileState
-  , ParserResult (..)
-  , resultToMaybe
-  ) where
+    -- * File State Type
+    FileState,
+    ParserResult (..),
+    resultToMaybe,
+  )
+where
 
 import Control.Lens (makeLenses)
+import qualified Data.Map.Strict as M
 import Model.OrgMode
 import Parser.Parser (ParserResult (..), resultToMaybe)
-import qualified Data.Map.Strict as M
 
 -- | FileState type represents the collection of all task files
 type FileState a = M.Map FilePath (ParserResult (TaskFile a))
 
 -- | TaskPointer identifies a specific task within the file system
 data TaskPointer = TaskPointer
-  { _file :: FilePath
-  , _taskIndex :: Int
+  { _file :: FilePath,
+    _taskIndex :: Int
   }
   deriving (Eq, Show)
 
