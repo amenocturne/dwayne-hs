@@ -26,34 +26,34 @@ import TextUtils
 
 charParser :: Char -> Parser Char
 charParser c = Parser f
- where
-  makeError got = ParserFailure $ "Expected character '" ++ [c] ++ "', but got '" ++ got ++ "'"
-  f (modLoc, str) = case T.uncons str of
-    Nothing -> ((modLoc, ""), makeError "empty")
-    Just (x, xs) -> if x == c then (((`shiftLocationByChar` x) . modLoc, xs), ParserSuccess x) else ((modLoc, T.cons x xs), makeError [x])
+  where
+    makeError got = ParserFailure $ "Expected character '" ++ [c] ++ "', but got '" ++ got ++ "'"
+    f (modLoc, str) = case T.uncons str of
+      Nothing -> ((modLoc, ""), makeError "empty")
+      Just (x, xs) -> if x == c then (((`shiftLocationByChar` x) . modLoc, xs), ParserSuccess x) else ((modLoc, T.cons x xs), makeError [x])
 
 singleCharParser :: Parser Char
 singleCharParser = Parser f
- where
-  f (modLoc, str) = case T.uncons str of
-    Nothing -> ((modLoc, ""), ParserFailure "Input is empty, but expected a character")
-    Just (x, xs) -> (((`shiftLocationByChar` x) . modLoc, xs), ParserSuccess x)
+  where
+    f (modLoc, str) = case T.uncons str of
+      Nothing -> ((modLoc, ""), ParserFailure "Input is empty, but expected a character")
+      Just (x, xs) -> (((`shiftLocationByChar` x) . modLoc, xs), ParserSuccess x)
 
 singleDigitParser :: Parser Int
 singleDigitParser = Parser f
- where
-  f (modLoc, str) = case T.uncons str of
-    Nothing -> ((modLoc, ""), ParserFailure "Input is empty, but expected a digit")
-    Just (x, xs) ->
-      ( if isDigit x
-          then (((`shiftLocationByChar` x) . modLoc, xs), ParserSuccess (digitToInt x))
-          else ((modLoc, T.cons x xs), ParserFailure $ "Expected a digit, but got " ++ [x])
-      )
+  where
+    f (modLoc, str) = case T.uncons str of
+      Nothing -> ((modLoc, ""), ParserFailure "Input is empty, but expected a digit")
+      Just (x, xs) ->
+        ( if isDigit x
+            then (((`shiftLocationByChar` x) . modLoc, xs), ParserSuccess (digitToInt x))
+            else ((modLoc, T.cons x xs), ParserFailure $ "Expected a digit, but got " ++ [x])
+        )
 
 positiveIntParser :: Parser Int
 positiveIntParser = sum . fmap (\(i, d) -> d * 10 ^ i) . zip [0 ..] . reverse <$> parser
- where
-  parser = tryParser $ (:) <$> singleDigitParser <*> many singleDigitParser
+  where
+    parser = tryParser $ (:) <$> singleDigitParser <*> many singleDigitParser
 
 stringParser :: T.Text -> Parser T.Text
 stringParser t = tryParser $ mapError (\e -> "Expected `" ++ T.unpack t ++ "` but failed with: " ++ e) $ fmap T.pack (traverse charParser (T.unpack t))
@@ -138,9 +138,9 @@ tryAllWith :: (Eq a) => ([a] -> Maybe a) -> [Parser a] -> Parser a
 tryAllWith selector parsers = Parser $ \input@(modLoc, _) ->
   let results =
         [ (modLoc', remaining, res)
-        | (Parser p) <- parsers
-        , let ((modLoc', remaining), res) = p input
-        , isParserSuccess res
+        | (Parser p) <- parsers,
+          let ((modLoc', remaining), res) = p input,
+          isParserSuccess res
         ]
       ss = mapMaybe (\(_, _, c) -> resultToMaybe c) results
    in case selector ss of
@@ -175,56 +175,55 @@ takeUntilSucceeds stop = Parser $ \(locFn, input) ->
                       go (T.snoc accText c) rest
                     Nothing -> ((locFn, ""), ParserSuccess accText)
    in go T.empty input
- where
-  runP (Parser p) = p
+  where
+    runP (Parser p) = p
 
-{- | Parser that efficiently takes text until finding a valid boundary.
-A valid boundary is a delimiter followed by text that matches the stop parser.
--}
+-- | Parser that efficiently takes text until finding a valid boundary.
+-- A valid boundary is a delimiter followed by text that matches the stop parser.
 takeUntilDelimThenSucceeds :: T.Text -> Parser a -> Parser T.Text
 takeUntilDelimThenSucceeds delim stopP = Parser $ \input ->
   parseText T.empty input
- where
-  parseText :: T.Text -> ParserInput -> (ParserInput, ParserResult T.Text)
-  parseText acc (locFn, remaining)
-    -- End of input or empty input case
-    | T.null remaining =
-        finishWith acc "" locFn
-    -- Still have text to process
-    | otherwise =
-        let (before, after) = splitByFirstDelimiter delim remaining
-            newAcc = T.append acc before
-         in handleAfterText newAcc after locFn
+  where
+    parseText :: T.Text -> ParserInput -> (ParserInput, ParserResult T.Text)
+    parseText acc (locFn, remaining)
+      -- End of input or empty input case
+      | T.null remaining =
+          finishWith acc "" locFn
+      -- Still have text to process
+      | otherwise =
+          let (before, after) = splitByFirstDelimiter delim remaining
+              newAcc = T.append acc before
+           in handleAfterText newAcc after locFn
 
-  -- Process the text after finding a potential delimiter
-  handleAfterText :: T.Text -> T.Text -> (Location -> Location) -> (ParserInput, ParserResult T.Text)
-  handleAfterText acc after locFn
-    -- No delimiter was found (or end of input)
-    | T.null after =
-        finishWith acc "" locFn
-    -- Found delimiter - check if it's followed by a valid stop point
-    | isValidStopPoint after =
-        finishWith acc after locFn
-    -- Delimiter followed by invalid stop point - continue parsing
-    | otherwise =
-        let nextAcc = T.append acc delim
-            nextRemaining = T.drop (T.length delim) after
-         in parseText nextAcc (locFn, nextRemaining)
+    -- Process the text after finding a potential delimiter
+    handleAfterText :: T.Text -> T.Text -> (Location -> Location) -> (ParserInput, ParserResult T.Text)
+    handleAfterText acc after locFn
+      -- No delimiter was found (or end of input)
+      | T.null after =
+          finishWith acc "" locFn
+      -- Found delimiter - check if it's followed by a valid stop point
+      | isValidStopPoint after =
+          finishWith acc after locFn
+      -- Delimiter followed by invalid stop point - continue parsing
+      | otherwise =
+          let nextAcc = T.append acc delim
+              nextRemaining = T.drop (T.length delim) after
+           in parseText nextAcc (locFn, nextRemaining)
 
-  -- Create successful result with the given accumulated text and remainder
-  finishWith :: T.Text -> T.Text -> (Location -> Location) -> (ParserInput, ParserResult T.Text)
-  finishWith acc remainder locFn =
-    ((locFn . shiftLocationByString acc, remainder), ParserSuccess acc)
+    -- Create successful result with the given accumulated text and remainder
+    finishWith :: T.Text -> T.Text -> (Location -> Location) -> (ParserInput, ParserResult T.Text)
+    finishWith acc remainder locFn =
+      ((locFn . shiftLocationByString acc, remainder), ParserSuccess acc)
 
-  -- Check if text begins with a pattern matching the stop parser
-  isValidStopPoint :: T.Text -> Bool
-  isValidStopPoint text =
-    case runNonConsumingParser text of
-      ParserSuccess _ -> True
-      _ -> False
+    -- Check if text begins with a pattern matching the stop parser
+    isValidStopPoint :: T.Text -> Bool
+    isValidStopPoint text =
+      case runNonConsumingParser text of
+        ParserSuccess _ -> True
+        _ -> False
 
-  -- Run parser without consuming input
-  runNonConsumingParser text =
-    let (Parser pFn) = notConsumingInput stopP
-        ((_, _), result) = pFn (id, text)
-     in result
+    -- Run parser without consuming input
+    runNonConsumingParser text =
+      let (Parser pFn) = notConsumingInput stopP
+          ((_, _), result) = pFn (id, text)
+       in result
