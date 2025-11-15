@@ -5,3 +5,15 @@ projectsFile: ./resources/Projects.org
 scrollingMargin: 6
 keyTimeoutMs: 1000
 colorScheme: "default"
+
+# Optional: Enable/disable specific commands
+# Commands are enabled by default unless explicitly set to false
+# Uncomment and customize to disable specific commands:
+# commands:
+#   projects: true      # Go to Project View (enabled, can be omitted)
+#   markDone: true      # Mark Task as Done (enabled, can be omitted)
+#   addTask: false      # Add Task (disabled)
+#   editTask: true      # Edit Task (enabled, can be omitted)
+#   refile: true        # Refile Task (enabled, can be omitted)
+#   openUrl: false      # Open URL (disabled)
+#   refreshView: true   # Refresh View (enabled, can be omitted)

@@ -2,8 +2,8 @@
 
 module Parser.OrgParserSpec (spec) where
 
-import qualified Data.Set as S
 import Control.Lens
+import qualified Data.Set as S
 import qualified Data.Text as T
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
@@ -257,10 +257,10 @@ spec = do
       let input =
             T.strip $
               T.unlines
-                [ ":PROPERTIES:"
-                , ":id: 123"
-                , ":url: https://example.com"
-                , ":END:"
+                [ ":PROPERTIES:",
+                  ":id: 123",
+                  ":url: https://example.com",
+                  ":END:"
                 ]
           (loc, remainder, result) = runParser propertiesParser input
 
@@ -272,8 +272,8 @@ spec = do
       let input =
             T.strip $
               T.unlines
-                [ ":PROPERTIES:"
-                , ":END:"
+                [ ":PROPERTIES:",
+                  ":END:"
                 ]
           (loc, remainder, result) = runParser propertiesParser input
 
@@ -285,11 +285,11 @@ spec = do
       let input =
             T.strip $
               T.unlines
-                [ ":PROPERTIES:"
-                , ":id: 123"
-                , ":tags: work important"
-                , ":url: https://example.com"
-                , ":END:"
+                [ ":PROPERTIES:",
+                  ":id: 123",
+                  ":tags: work important",
+                  ":url: https://example.com",
+                  ":END:"
                 ]
           (loc, remainder, result) = runParser propertiesParser input
 
@@ -308,9 +308,9 @@ spec = do
       let input =
             T.strip $
               T.unlines
-                [ "This is the first line"
-                , "This is the second line"
-                , "This is the third line"
+                [ "This is the first line",
+                  "This is the second line",
+                  "This is the third line"
                 ]
           (loc, remainder, result) = runParser descriptionParser input
 
@@ -321,8 +321,8 @@ spec = do
     it "stops at next heading" $ do
       let input =
             T.unlines
-              [ "This is the description"
-              , "* TODO Next task"
+              [ "This is the description",
+                "* TODO Next task"
               ]
           (loc, remainder, result) = runParser descriptionParser input
 
@@ -340,8 +340,8 @@ spec = do
     let input =
           T.strip $
             T.unlines
-              [ "Description with http://example.com link"
-              , "And another https://example.org/path?query=value"
+              [ "Description with http://example.com link",
+                "And another https://example.org/path?query=value"
               ]
         (loc, remainder, result) = runParser descriptionParser input
 
@@ -353,8 +353,8 @@ spec = do
     let input =
           T.strip $
             T.unlines
-              [ "Description with *bold* and /italic/ formatting"
-              , "And [[http://example.com][link]]"
+              [ "Description with *bold* and /italic/ formatting",
+                "And [[http://example.com][link]]"
               ]
         (loc, remainder, result) = runParser descriptionParser input
 
@@ -367,10 +367,10 @@ spec = do
         let input =
               T.strip $
                 T.unlines
-                  [ "  https://music.youtube.com/watch?v=ylmNrof40gE&feature=share"
-                  , "  :PROPERTIES:"
-                  , "  :CREATED:  [2022-06-13 Mon 11:29]"
-                  , "  :END:"
+                  [ "  https://music.youtube.com/watch?v=ylmNrof40gE&feature=share",
+                    "  :PROPERTIES:",
+                    "  :CREATED:  [2022-06-13 Mon 11:29]",
+                    "  :END:"
                   ]
             (_, _, result) = runParser brokenDescriptionParser input
         resultToMaybe result
@@ -400,9 +400,9 @@ spec = do
       let input =
             T.strip $
               T.unlines
-                [ "* TODO"
-                , ":PROPERTIES:"
-                , ":END:"
+                [ "* TODO",
+                  ":PROPERTIES:",
+                  ":END:"
                 ]
           (loc, remainder, result) = runParser anyTaskparser input
       remainder `shouldBe` ""
