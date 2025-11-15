@@ -41,6 +41,7 @@ import Parser.Parser
 import Searcher.Searcher
 import System.Directory (getHomeDirectory)
 import System.Environment (lookupEnv)
+import System.Exit (die)
 import TextUtils
 
 class Tui a where
@@ -51,7 +52,17 @@ instance (Searcher a, RenderTask a Name, Writer a, Show a, Eq a, Refileable a, S
     configFilePath <- getConfigPath
     parsedConfig <- decodeFileEither configFilePath :: IO (Either ParseException (AppConfig a))
     conf <- case parsedConfig of
-      Left err -> Prelude.error $ show err
+      Left err -> die $ unlines
+        [ "ERROR: Failed to load configuration file"
+        , "Location: " ++ configFilePath
+        , ""
+        , "Reason: " ++ show err
+        , ""
+        , "Please check that:"
+        , "  - The configuration file exists"
+        , "  - The YAML syntax is valid"
+        , "  - All required fields are present"
+        ]
       Right conf -> return conf
     -- Auto-include inboxFile and projectsFile in files list and remove duplicates
     let allFiles = nub $ view files conf ++ [view inboxFile conf, view projectsFile conf]

@@ -58,7 +58,9 @@ splitToTitleAndTags input = fromMaybe (T.strip input, []) $ do
   let (nonTagPrefix, actualTagsPart) = T.breakOn ":" tagsPart
 
   guard (T.length actualTagsPart >= 2)
-  guard (T.head actualTagsPart == ':' && T.last actualTagsPart == ':')
+  firstChar <- fst <$> T.uncons actualTagsPart
+  lastChar <- snd <$> T.unsnoc actualTagsPart
+  guard (firstChar == ':' && lastChar == ':')
 
   let title = T.strip (titlePart <> nonTagPrefix)
   let tags = filter (not . T.null) $ T.splitOn ":" actualTagsPart
