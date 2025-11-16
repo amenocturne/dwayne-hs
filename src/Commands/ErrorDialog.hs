@@ -1,12 +1,21 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Commands.ErrorDialog where
+module Commands.ErrorDialog
+  ( errorDialogQuitCommand,
+    errorDialogAcceptCommand,
+    showError,
+  )
+where
 
 import Brick (modify)
+import Brick.Widgets.Dialog (dialog)
+import Brick.Widgets.Core (str)
 import Commands.Command (Command (..), TuiBinding (..))
+import Control.Lens (set)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Set as Set
+import qualified Data.Text as T
 -- For proceedInErrorDialog
 
 import Graphics.Vty (Key (KEsc))
@@ -17,8 +26,12 @@ import qualified Tui.Contexts as Ctx
 import Tui.Keybindings
 import qualified Tui.Keybindings as KB
 import Tui.Types
-  ( KeyEvent (..),
+  ( ErrorDialog (..),
+    GlobalAppState,
+    KeyEvent (..),
     KeyPress (..),
+    appState,
+    errorDialog,
   )
 import Writer.Writer (Writer)
 
@@ -61,3 +74,18 @@ errorDialogAcceptCommand =
       cmdCli = Nothing,
       cmdApi = Nothing
     }
+
+-- | Show an error dialog with the given message
+-- This is a helper function for consistent error handling across commands
+showError :: T.Text -> GlobalAppState a
+showError msg = do
+  let dlg =
+        ErrorDialog
+          { _edDialog =
+              dialog
+                (Just $ str "Error")
+                Nothing
+                50,
+            _edMessage = T.unpack msg
+          }
+  modify $ set (appState . errorDialog) (Just dlg)

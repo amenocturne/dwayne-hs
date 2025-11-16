@@ -5,6 +5,7 @@ module Commands.Edit (editTaskCommand, editSelectedTaskInEditor) where
 import Brick (get, modify, suspendAndResume)
 import Brick.BChan (writeBChan)
 import Commands.Command (Command (..), TuiBinding (..))
+import Commands.ErrorDialog (showError)
 import Control.Lens
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Set as Set
@@ -74,4 +75,6 @@ editSelectedTaskInEditor = Helpers.saveForUndo $ do
             ParserFailure e -> do
               _ <- writeBChan (view (appState . eventChannel) ctx) $ Error (e ++ " at " ++ show (line l) ++ ":" ++ show (column l))
               return ctx
-    _ -> return ()
+    _ -> do
+      showError "No task selected. Please select a task to edit."
+      return ctx

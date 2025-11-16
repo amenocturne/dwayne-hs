@@ -6,6 +6,7 @@ module Commands.OpenUrl (openUrlCommand, openTaskUrl, extractFirstUrl, openUrlIn
 import Brick (get)
 import Brick.BChan (writeBChan)
 import Commands.Command (Command (..), TuiBinding (..))
+import Commands.ErrorDialog (showError)
 import Control.Applicative ((<|>))
 import Control.Exception (IOException, catch)
 import Control.Lens
@@ -68,8 +69,8 @@ openTaskUrl = do
           case result of
             Left err -> liftIO $ writeBChan (view (appState . eventChannel) ctx) $ Error err
             Right () -> return ()
-        Nothing -> return ()
-    Nothing -> return ()
+        Nothing -> showError "No URL found in task.\n\nURLs can be in the task title or description.\nSupported formats:\n- Plain: http://example.com\n- Org-mode: [[http://example.com]]"
+    Nothing -> showError "No task selected. Please select a task first."
 
 -- | Extract the first URL from text (supports org-mode [[url]] format and plain URLs)
 extractFirstUrl :: T.Text -> Maybe T.Text

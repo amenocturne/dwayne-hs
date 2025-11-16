@@ -4,6 +4,7 @@ module Commands.Refile (refileCommand, openRefileDialog) where
 
 import Brick (get, modify)
 import Commands.Command (Command (..), TuiBinding (..))
+import Commands.ErrorDialog (showError)
 import Control.Lens
 import qualified Core.Operations as Ops
 import Data.List.NonEmpty (NonEmpty (..))
@@ -52,7 +53,7 @@ openRefileDialog = do
   let fs = view fileStateLens ctx
       allProjects = Ops.getAllProjects fs
   case allProjects of
-    [] -> return () -- No projects found
+    [] -> showError "No projects found in your task files.\n\nTo refile a task, you need at least one task with TODO state 'PROJECT'."
     _ -> do
       let dialog =
             RefileDialog

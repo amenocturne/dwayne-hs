@@ -5,6 +5,7 @@ module Commands.AddTask (addTaskCommand, addNewTask) where
 import Brick (get, modify, suspendAndResume)
 import Brick.BChan (writeBChan)
 import Commands.Command (Command (..), TuiBinding (..))
+import Commands.ErrorDialog (showError)
 import Control.Lens
 import Control.Monad.IO.Class (liftIO)
 import qualified Core.Operations as Ops
@@ -85,7 +86,7 @@ addNewTask = Helpers.saveForUndo $ do
   ctx <- get
   let fp = view (config . inboxFile) ctx
   case preview (fileLens fp) ctx of
-    Nothing -> return ()
+    Nothing -> showError $ "Inbox file not found: " <> T.pack fp <> "\n\nPlease check your configuration and ensure the inbox file exists."
     Just tf -> do
       now <- liftIO getZonedTime
       let createdStr = T.pack $ "[" ++ formatTime defaultTimeLocale orgDayTimeFormat now ++ "]"

@@ -4,6 +4,7 @@ module Commands.Projects (goToProjectsCommand, goToProjectView, saveForJump, sho
 
 import Brick (get, modify)
 import Commands.Command (Command (..), TuiBinding (..))
+import Commands.ErrorDialog (showError)
 import Control.Lens
 import Control.Monad (when)
 import qualified Core.Operations as Ops
@@ -75,7 +76,7 @@ goToProjectView = do
   let fs = view fileStateLens ctx
       maybeCurrentPtr = view currentTaskPtr ctx
   case maybeCurrentPtr of
-    Nothing -> return ()
+    Nothing -> showError "No task selected. Please select a task first."
     Just currentPtr -> do
       let maybeProjectPtr = Ops.findProjectForTask currentPtr fs
           currentTask = preview (taskBy currentPtr) fs
@@ -89,7 +90,7 @@ goToProjectView = do
             Just task
               | Ops.isProjectTask task ->
                   showProjectView currentPtr fs ctx
-            _ -> return () -- Do nothing if task is neither PROJECT nor has parent PROJECT
+            _ -> showError "Current task is not a project and has no parent project.\n\nTo use project view, select a task that:\n- Has TODO state 'PROJECT', or\n- Is a subtask of a PROJECT task"
 
 -- | Helper function to show project view for a given project pointer
 showProjectView :: TaskPointer -> FileState Task -> AppContext Task -> GlobalAppState Task
