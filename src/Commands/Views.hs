@@ -15,13 +15,10 @@ module Commands.Views
   )
 where
 
-import Commands.Builders (mkViewCommand)
 import Commands.Command (Command (..), TuiBinding (..))
 import qualified Commands.Projects as CmdProjects
-import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.Set as Set
+import Control.Monad (forM_)
 import qualified Data.Text as T
-import qualified Graphics.Vty.Input.Events as E
 import Model.OrgMode
   ( Task,
     orgDoneKeyword,
@@ -38,7 +35,39 @@ import Model.OrgMode
 import qualified Tui.Contexts as Ctx
 import qualified Tui.Helpers as Helpers
 import qualified Tui.Keybindings as KB
-import Tui.Types (AppMode (NormalMode), KeyEvent (..), KeyPress (..))
+import Tui.Types (AppMode (NormalMode), KeyEvent (..))
+
+-- | Generic builder for view filter commands with keyword filtering
+-- Creates a command that filters tasks by TODO keyword with optional sorting
+viewCommand ::
+  -- | TODO keyword to filter by (e.g., "INBOX", "RELEVANT")
+  T.Text ->
+  -- | Key sequence (e.g., " ai" for view inbox)
+  String ->
+  -- | Command alias (e.g., "viewInbox")
+  T.Text ->
+  -- | Optional sorting function
+  Maybe (Task -> Task -> Ordering) ->
+  Command Task
+viewCommand keyword keySeq alias maybeSorter =
+  Command
+    { cmdName = "View Filter",
+      cmdAlias = alias,
+      cmdDescription = T.concat ["Show ", keyword, " tasks"],
+      cmdTui =
+        Just $
+          TuiBinding
+            { tuiKeyEvent = View keyword,
+              tuiKeybinding = KB.toKeySeq keySeq,
+              tuiDescription = T.concat ["Show ", keyword, " tasks"],
+              tuiAction = do
+                CmdProjects.saveForJump $ Helpers.applyFilterToAllTasks (KB.todoKeywordFilter keyword)
+                forM_ maybeSorter Helpers.applySorter,
+              tuiContext = Ctx.modeKeyContext NormalMode
+            },
+      cmdCli = Nothing,
+      cmdApi = Nothing
+    }
 
 -- | View all tasks command
 viewAllCommand :: Command Task
@@ -51,7 +80,7 @@ viewAllCommand =
         Just $
           TuiBinding
             { tuiKeyEvent = View "all",
-              tuiKeybinding = toKeySeq " aa",
+              tuiKeybinding = KB.toKeySeq " aa",
               tuiDescription = "Show all tasks",
               tuiAction = CmdProjects.saveForJump $ Helpers.applyFilterToAllTasks (const True),
               tuiContext = Ctx.modeKeyContext NormalMode
@@ -59,46 +88,43 @@ viewAllCommand =
       cmdCli = Nothing,
       cmdApi = Nothing
     }
-  where
-    toKeySeq (c : cs) = KeyPress (E.KChar c) Set.empty :| map (\x -> KeyPress (E.KChar x) Set.empty) cs
-    toKeySeq [] = error "toKeySeq: empty string"
 
 -- | View INBOX tasks
 viewInboxCommand :: Command Task
-viewInboxCommand = mkViewCommand orgInboxKeyword " ai" "viewInbox" (Just KB.sortByCreatedDesc)
+viewInboxCommand = viewCommand orgInboxKeyword " ai" "viewInbox" (Just KB.sortByCreatedDesc)
 
 -- | View RELEVANT tasks
 viewRelevantCommand :: Command Task
-viewRelevantCommand = mkViewCommand orgRelevantKeyword " ar" "viewRelevant" (Just KB.sortByPriorityAsc)
+viewRelevantCommand = viewCommand orgRelevantKeyword " ar" "viewRelevant" (Just KB.sortByPriorityAsc)
 
 -- | View SOMEDAY tasks
 viewSomedayCommand :: Command Task
-viewSomedayCommand = mkViewCommand orgSomedayKeyword " as" "viewSomeday" Nothing
+viewSomedayCommand = viewCommand orgSomedayKeyword " as" "viewSomeday" Nothing
 
 -- | View NOTES tasks
 viewNotesCommand :: Command Task
-viewNotesCommand = mkViewCommand orgNotesKeyword " an" "viewNotes" Nothing
+viewNotesCommand = viewCommand orgNotesKeyword " an" "viewNotes" Nothing
 
 -- | View LIST tasks
 viewListCommand :: Command Task
-viewListCommand = mkViewCommand orgListKeyword " al" "viewList" Nothing
+viewListCommand = viewCommand orgListKeyword " al" "viewList" Nothing
 
 -- | View WAITING tasks
 viewWaitingCommand :: Command Task
-viewWaitingCommand = mkViewCommand orgWaitingKeyword " aw" "viewWaiting" (Just KB.sortByPriorityAsc)
+viewWaitingCommand = viewCommand orgWaitingKeyword " aw" "viewWaiting" (Just KB.sortByPriorityAsc)
 
 -- | View PROJECT tasks
 viewProjectCommand :: Command Task
-viewProjectCommand = mkViewCommand orgProjectKeyword " ap" "viewProject" (Just KB.sortByPriorityAsc)
+viewProjectCommand = viewCommand orgProjectKeyword " ap" "viewProject" (Just KB.sortByPriorityAsc)
 
 -- | View TODO tasks
 viewTodoCommand :: Command Task
-viewTodoCommand = mkViewCommand orgTodoKeyword " at" "viewTodo" (Just KB.sortByPriorityAsc)
+viewTodoCommand = viewCommand orgTodoKeyword " at" "viewTodo" (Just KB.sortByPriorityAsc)
 
 -- | View DONE tasks
 viewDoneCommand :: Command Task
-viewDoneCommand = mkViewCommand orgDoneKeyword " ad" "viewDone" Nothing
+viewDoneCommand = viewCommand orgDoneKeyword " ad" "viewDone" Nothing
 
 -- | View TRASH tasks
 viewTrashCommand :: Command Task
-viewTrashCommand = mkViewCommand orgTrashKeyword " ax" "viewTrash" Nothing
+viewTrashCommand = viewCommand orgTrashKeyword " ax" "viewTrash" Nothing
