@@ -75,6 +75,4 @@ editSelectedTaskInEditor = Helpers.saveForUndo $ do
             ParserFailure e -> do
               _ <- writeBChan (view (appState . eventChannel) ctx) $ Error (e ++ " at " ++ show (line l) ++ ":" ++ show (column l))
               return ctx
-    _ -> do
-      showError "No task selected. Please select a task to edit."
-      return ctx
+    _ -> showError "No task selected. Please select a task to edit."
