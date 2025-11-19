@@ -113,13 +113,13 @@ drawCompactView mQuery ctx =
     fs = view fileStateLens ctx
     scheme = view (config . colorScheme) ctx
     cv = view currentViewLens ctx
+    vs = view (compactViewLens . viewSpec) ctx
 
     renderSearchView query =
       Widget Fixed Greedy $ do
         c <- getContext
         let h = availHeight c
             allPtrs = getAllPointers fs
-            vs = view (compactViewLens . viewSpec) ctx
             ptrsWithTasks = V.mapMaybe (\ptr -> fmap (ptr,) (fs ^? taskBy ptr)) allPtrs
             currentFilters = view vsFilters vs
             searchFilter = matches query
@@ -171,7 +171,16 @@ drawCompactView mQuery ctx =
                in reportExtent CompactViewWidget $ vBox $ catMaybes $ V.toList (V.imap renderTask taskPointers)
 
     renderRightPane =
-      let numberOfTasks = V.length cv
+      let numberOfTasks = case mQuery of
+            Just query ->
+              let allPtrs = getAllPointers fs
+                  ptrsWithTasks = V.mapMaybe (\ptr -> fmap (ptr,) (fs ^? taskBy ptr)) allPtrs
+                  currentFilters = view vsFilters vs
+                  searchFilter = matches query
+                  effectiveFilters = if T.null query then currentFilters else searchFilter : currentFilters
+                  filtered = V.filter (\(_, task) -> all (\f -> f task) effectiveFilters) ptrsWithTasks
+               in V.length filtered
+            Nothing -> V.length cv
           maybeCurrentFile = fromMaybe "-" (preview (currentTaskPtr . _Just . file) ctx)
           modeIndicator = case view (appState . appMode) ctx of
             NormalMode -> ""
