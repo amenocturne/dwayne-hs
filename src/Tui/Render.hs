@@ -132,7 +132,7 @@ drawCompactView mQuery ctx =
             v_start = 0 -- Always start from beginning in search view
         render $
           if searchResultsSize == 0
-            then emptyWidget
+            then padBottom Max (fill ' ')
             else
               let visibleTasks = V.slice v_start (min h searchResultsSize) searchResults
                   renderTask task = R.renderCompactWithColors (getColorScheme scheme) task
@@ -149,7 +149,7 @@ drawCompactView mQuery ctx =
 
         render $
           if viewSize == 0
-            then emptyWidget
+            then padBottom Max (fill ' ')
             else
               let taskPointers = V.slice v_start (min h (viewSize - v_start)) cv
                   selection = view selectionLens ctx
