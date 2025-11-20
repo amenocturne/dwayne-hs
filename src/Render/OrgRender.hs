@@ -92,10 +92,17 @@ instance Render Task b where
                   (orgClosedField, view closed)
                 ]
 
+      allProperties = catMaybes [formatCreatedProp (view createdProp task)] ++ view properties task
+
       propertiesSection =
         withAttr propertyAttr $
           txt $
-            T.intercalate "\n" (fmap (\(key, value) -> T.concat [":", key, ": ", value]) (view properties task))
+            T.intercalate "\n" (fmap renderProperty allProperties)
+
+      renderProperty (key, value) =
+        if key == orgCreatedProperty
+          then T.concat [":", key, ":  ", value]
+          else T.concat [":", key, ": ", value]
 
       level' = view level task
       todoKw = view todoKeyword task

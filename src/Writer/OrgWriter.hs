@@ -9,7 +9,7 @@ import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Model.Injection
-import Model.OrgFormat (formatHeaderLine, formatRichTextPlain, formatTimeField)
+import Model.OrgFormat (formatCreatedProp, formatHeaderLine, formatRichTextPlain, formatTimeField)
 import Model.OrgMode
 import Writer.Writer
 
@@ -25,6 +25,8 @@ instance Writer Task where
   write task = T.intercalate "\n" $ filter (not . T.null) components
     where
       desc = T.strip $ formatRichTextPlain (view description task)
+      allProperties = catMaybes [formatCreatedProp (view createdProp task)] ++ view properties task
+
       components =
         [ headerLine,
           timeFieldsLine,
@@ -51,20 +53,16 @@ instance Writer Task where
             ]
 
       propertiesSection
-        | null (view properties task) = ""
+        | null allProperties = ""
         | otherwise =
             T.strip $
               T.unlines $
                 filter
                   (not . T.null)
                   [ orgPropertiesBegin,
-                    propertiesText,
+                    T.intercalate "\n" $ map (uncurry renderProperty) allProperties,
                     orgPropertiesEnd
                   ]
-
-      propertiesText =
-        T.intercalate "\n" $
-          map (uncurry renderProperty) (view properties task)
 
       renderProperty key value =
         if key == orgCreatedProperty

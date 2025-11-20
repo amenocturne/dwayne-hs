@@ -262,6 +262,7 @@ properTaskParser =
           mCreatedProp = case fmap (runParser createdParser) mCreated of
             Just (_, _, ParserSuccess t) -> Just t
             _ -> Nothing
+          filteredProperties = filter (\(k, _) -> k /= orgCreatedProperty) properties
        in Task
             { _level = level,
               _todoKeyword = todoKeyword,
@@ -272,7 +273,7 @@ properTaskParser =
               _deadline = findProp orgDeadlineField propsList,
               _createdProp = mCreatedProp,
               _closed = findProp orgClosedField propsList,
-              _properties = properties,
+              _properties = filteredProperties,
               _description = description
             }
   )
@@ -294,6 +295,7 @@ brokenDescriptionTaskParser =
           mCreatedProp = case fmap (runParser createdParser) mCreated of
             Just (_, _, ParserSuccess t) -> Just t
             _ -> Nothing
+          filteredProperties = filter (\(k, _) -> k /= orgCreatedProperty) properties
           combinedDesc = RichText (_unRichText description ++ _unRichText description2)
        in Task
             { _level = level,
@@ -305,7 +307,7 @@ brokenDescriptionTaskParser =
               _deadline = Nothing,
               _createdProp = mCreatedProp,
               _closed = Nothing,
-              _properties = properties,
+              _properties = filteredProperties,
               _description = combinedDesc
             }
   )

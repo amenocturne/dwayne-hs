@@ -36,6 +36,7 @@ import Model.OrgMode
     title,
     todoKeyword,
   )
+import Parser.OrgParser (dateTimeParserReimplemented)
 import Parser.Parser (Location (..), ParserResult (..), runParser)
 import System.Exit (exitFailure, exitSuccess)
 import System.IO (hPutStrLn, stderr, stdout)
@@ -91,7 +92,11 @@ addNewTask = Helpers.saveForUndo $ do
     Nothing -> showError $ "Inbox file not found: " <> T.pack fp <> "\n\nPlease check your configuration and ensure the inbox file exists."
     Just tf -> do
       now <- liftIO getZonedTime
-      let createdStr = T.pack $ "[" ++ formatTime defaultTimeLocale orgDayTimeFormat now ++ "]"
+      let createdStr = T.pack $ formatTime defaultTimeLocale orgDayTimeFormat now
+          (_, _, createdResult) = runParser dateTimeParserReimplemented createdStr
+          createdTime = case createdResult of
+            ParserSuccess t -> Just t
+            _ -> Nothing
           dummyTask =
             Task
               { _level = 1,
@@ -101,9 +106,9 @@ addNewTask = Helpers.saveForUndo $ do
                 _tags = S.empty,
                 _scheduled = Nothing,
                 _deadline = Nothing,
-                _createdProp = Nothing,
+                _createdProp = createdTime,
                 _closed = Nothing,
-                _properties = [(orgCreatedProperty, createdStr)],
+                _properties = [],
                 _description = plainToRichText ""
               }
           initialContent = write dummyTask

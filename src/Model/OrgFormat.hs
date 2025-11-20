@@ -12,6 +12,7 @@ module Model.OrgFormat
     formatTimeField,
     formatRepeatInterval,
     formatDelayInterval,
+    formatCreatedProp,
 
     -- * Header formatting
     formatStars,
@@ -65,6 +66,16 @@ formatDelayInterval (DelayInterval tt v tu) =
       T.pack $ show v,
       T.singleton (to tu)
     ]
+
+-- | Format the CREATED property.
+formatCreatedProp :: Maybe OrgTime -> Maybe (T.Text, T.Text)
+formatCreatedProp Nothing = Nothing
+formatCreatedProp (Just t) =
+  let timeText =
+        case time t of
+          Left day -> T.pack $ formatTime defaultTimeLocale orgDayFormat day
+          Right localT -> T.pack $ formatTime defaultTimeLocale orgDayTimeFormat localT
+   in Just (orgCreatedProperty, T.concat ["[", timeText, "]"])
 
 -- | Format a complete time field with name, delimiters, repeater, and delay
 -- Examples:
