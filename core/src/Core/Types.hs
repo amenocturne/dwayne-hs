@@ -53,7 +53,9 @@ module Core.Types
 where
 
 import Control.Lens (makeLenses)
+import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
 import qualified Data.Map.Strict as M
+import qualified Data.Text as T
 import Model.OrgMode
 import Parser.Parser (ParserResult (..), resultToMaybe)
 
@@ -68,3 +70,17 @@ data TaskPointer = TaskPointer
   deriving (Eq, Show)
 
 makeLenses ''TaskPointer
+
+-- | JSON serialization for TaskPointer
+instance ToJSON TaskPointer where
+  toJSON (TaskPointer filePath idx) =
+    object
+      [ "file" .= filePath,
+        "taskIndex" .= idx
+      ]
+
+instance FromJSON TaskPointer where
+  parseJSON = withObject "TaskPointer" $ \v ->
+    TaskPointer
+      <$> v .: "file"
+      <*> v .: "taskIndex"

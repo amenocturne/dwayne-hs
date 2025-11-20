@@ -32,7 +32,7 @@ version:            1.0.0.0
 license:            MIT
 
 -- The file containing the license text.
-license-file:       LICENSE
+license-file:       ../LICENSE
 
 -- The package author(s).
 author:             skril
@@ -49,6 +49,10 @@ build-type:         Simple
 
 library
     exposed-modules:
+        Api.Handlers
+        Api.Server
+        Api.Types
+        Api.WebSocket
         Commands.AddTask
         Commands.Command
         Commands.Edit
@@ -71,6 +75,8 @@ library
         Commands.Macros
         Core.Types
         Core.Operations
+        Core.Filters
+        FileWatcher
         Model.Injection
         Model.OrgMode
         Model.OrgFormat
@@ -123,7 +129,15 @@ library
         filepath,
         directory,
         aeson,
-        unordered-containers
+        unordered-containers,
+        servant-server >= 0.20 && < 0.21,
+        warp >= 3.3,
+        wai >= 3.2,
+        wai-cors >= 0.2,
+        fsnotify >= 0.4,
+        stm >= 2.5,
+        websockets >= 0.12,
+        wai-websockets >= 3.0
 
     hs-source-dirs: src
     default-language: Haskell2010
@@ -140,6 +154,8 @@ executable dwayne
         yaml,
         filepath,
         directory,
+        aeson,
+        containers,
         dwayne-hs
     hs-source-dirs: app
     ghc-options: -Wall -threaded

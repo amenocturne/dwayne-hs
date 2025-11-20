@@ -365,3 +365,41 @@ currentTaskPtr = to $ \ctx ->
 -- | Traversal to the current TaskFile at a given FilePath
 fileLens :: FilePath -> Traversal' (AppContext a) (TaskFile a)
 fileLens fp = appState . fileState . currentState . ix fp . success
+
+-- | Initialize AppContext for server mode (no event channel or UI state needed)
+-- This is used by the API server to bootstrap the context with loaded files
+initializeAppContextForServer ::
+  SystemConfig a ->
+  AppConfig a ->
+  FileState a ->
+  AppContext a
+initializeAppContextForServer sysConf conf fState =
+  let pointers = getAllPointers fState
+      viewSpec = ViewSpec {_vsFilters = view defaultFilters sysConf, _vsSorter = view defaultSorter sysConf, _vsVersion = 0}
+      state =
+        AppState
+          { _eventChannel = Prelude.error "Event channel not available in server mode",
+            _errorDialog = Nothing,
+            _refileDialog = Nothing,
+            _validationDialog = Nothing,
+            _keyState = NoInput,
+            _appMode = NormalMode,
+            _cmdState = Nothing,
+            _compactView =
+              initLinearHistory
+                CompactView
+                  { _cursor = 0 <$ V.headM pointers,
+                    _cachedView = computeCurrentView fState pointers viewSpec,
+                    _viewSpec = viewSpec,
+                    _viewportStart = 0
+                  },
+            _fileState = initLinearHistory fState,
+            _originalFileState = fState,
+            _selection = mempty,
+            _selectionAnchor = Nothing
+          }
+   in AppContext
+        { _appState = state,
+          _config = conf,
+          _system = sysConf
+        }

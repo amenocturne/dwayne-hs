@@ -1,5 +1,7 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -8,13 +10,25 @@
 module Model.OrgMode where
 
 import Control.Lens (makeLenses)
+import Data.Aeson
+  ( FromJSON (..),
+    ToJSON (..),
+    Value (..),
+    object,
+    withObject,
+    withText,
+    (.:),
+    (.:?),
+    (.=),
+  )
 import Data.List (sortBy)
 import qualified Data.Set as S
 import Data.String (IsString (..))
 import qualified Data.Text as T
 import Data.Time
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
 import Data.Vector as V
+import GHC.Generics (Generic)
 import Model.Injection
 
 -- Model
@@ -258,3 +272,184 @@ orgTodoKeyWords =
     orgTrashKeyword,
     "" -- for tasks without todo keyword
   ]
+
+---------------------- JSON SERIALIZATION ----------------------------
+
+instance ToJSON TextNode where
+  toJSON (PlainText t) = object ["type" .= ("plain" :: T.Text), "text" .= t]
+  toJSON (OrgLink url mTitle) =
+    object
+      [ "type" .= ("link" :: T.Text),
+        "url" .= url,
+        "title" .= mTitle
+      ]
+
+instance FromJSON TextNode where
+  parseJSON = withObject "TextNode" $ \v -> do
+    nodeType <- v .: "type"
+    case nodeType :: T.Text of
+      "plain" -> PlainText <$> v .: "text"
+      "link" -> OrgLink <$> v .: "url" <*> v .:? "title"
+      _ -> fail "Unknown TextNode type"
+
+instance ToJSON RichText where
+  toJSON (RichText nodes) = toJSON nodes
+
+instance FromJSON RichText where
+  parseJSON v = RichText <$> parseJSON v
+
+instance ToJSON TimeUnit where
+  toJSON Hour = String "hour"
+  toJSON Day = String "day"
+  toJSON Week = String "week"
+  toJSON Month = String "month"
+  toJSON Year = String "year"
+
+instance FromJSON TimeUnit where
+  parseJSON = withText "TimeUnit" $ \case
+    "hour" -> pure Hour
+    "day" -> pure Day
+    "week" -> pure Week
+    "month" -> pure Month
+    "year" -> pure Year
+    _ -> fail "Unknown TimeUnit"
+
+instance ToJSON RepeatType where
+  toJSON NextDate = String "nextDate"
+  toJSON NextFutureDate = String "nextFutureDate"
+  toJSON PlusCompletionDate = String "plusCompletionDate"
+
+instance FromJSON RepeatType where
+  parseJSON = withText "RepeatType" $ \case
+    "nextDate" -> pure NextDate
+    "nextFutureDate" -> pure NextFutureDate
+    "plusCompletionDate" -> pure PlusCompletionDate
+    _ -> fail "Unknown RepeatType"
+
+instance ToJSON DelayType where
+  toJSON AllOccurrences = String "allOccurrences"
+  toJSON FirstOccurrence = String "firstOccurrence"
+
+instance FromJSON DelayType where
+  parseJSON = withText "DelayType" $ \case
+    "allOccurrences" -> pure AllOccurrences
+    "firstOccurrence" -> pure FirstOccurrence
+    _ -> fail "Unknown DelayType"
+
+instance ToJSON RepeatInterval where
+  toJSON (RepeatInterval rType rValue rUnit) =
+    object
+      [ "type" .= rType,
+        "value" .= rValue,
+        "unit" .= rUnit
+      ]
+
+instance FromJSON RepeatInterval where
+  parseJSON = withObject "RepeatInterval" $ \v ->
+    RepeatInterval
+      <$> v .: "type"
+      <*> v .: "value"
+      <*> v .: "unit"
+
+instance ToJSON DelayInterval where
+  toJSON (DelayInterval dType dValue dUnit) =
+    object
+      [ "type" .= dType,
+        "value" .= dValue,
+        "unit" .= dUnit
+      ]
+
+instance FromJSON DelayInterval where
+  parseJSON = withObject "DelayInterval" $ \v ->
+    DelayInterval
+      <$> v .: "type"
+      <*> v .: "value"
+      <*> v .: "unit"
+
+-- | Serialize OrgTime as an object with date/time components
+-- Format: { "date": "2025-11-20", "time": "14:30" | null, "repeater": {...} | null, "delay": {...} | null }
+instance ToJSON OrgTime where
+  toJSON (OrgTime timeVal mRepeater mDelay) =
+    case timeVal of
+      Left day ->
+        object
+          [ "date" .= formatTime defaultTimeLocale "%Y-%m-%d" day,
+            "time" .= Null,
+            "repeater" .= mRepeater,
+            "delay" .= mDelay
+          ]
+      Right localTime ->
+        let day = localDay localTime
+            tod = localTimeOfDay localTime
+         in object
+              [ "date" .= formatTime defaultTimeLocale "%Y-%m-%d" day,
+                "time" .= formatTime defaultTimeLocale "%H:%M" tod,
+                "repeater" .= mRepeater,
+                "delay" .= mDelay
+              ]
+
+instance FromJSON OrgTime where
+  parseJSON = withObject "OrgTime" $ \v -> do
+    dateStr <- v .: "date"
+    mTimeStr <- v .:? "time"
+    mRepeater <- v .:? "repeater"
+    mDelay <- v .:? "delay"
+
+    day <- case parseTimeM True defaultTimeLocale "%Y-%m-%d" dateStr of
+      Just d -> pure d
+      Nothing -> fail "Invalid date format"
+
+    timeVal <- case mTimeStr of
+      Nothing -> pure $ Left day
+      Just timeStr -> do
+        tod <- case parseTimeM True defaultTimeLocale "%H:%M" (T.unpack timeStr) of
+          Just t -> pure t
+          Nothing -> fail "Invalid time format"
+        pure $ Right (LocalTime day tod)
+
+    pure $ OrgTime timeVal mRepeater mDelay
+
+-- | Serialize Task with field names matching TypeScript interface
+instance ToJSON Task where
+  toJSON task =
+    object
+      [ "level" .= _level task,
+        "todoKeyword" .= _todoKeyword task,
+        "priority" .= _priority task,
+        "title" .= _title task,
+        "tags" .= S.toList (_tags task),
+        "scheduled" .= _scheduled task,
+        "deadline" .= _deadline task,
+        "createdProp" .= _createdProp task,
+        "closed" .= _closed task,
+        "properties" .= _properties task,
+        "description" .= _description task
+      ]
+
+instance FromJSON Task where
+  parseJSON = withObject "Task" $ \v ->
+    Task
+      <$> v .: "level"
+      <*> v .: "todoKeyword"
+      <*> v .:? "priority"
+      <*> v .: "title"
+      <*> (S.fromList <$> v .: "tags")
+      <*> v .:? "scheduled"
+      <*> v .:? "deadline"
+      <*> v .:? "createdProp"
+      <*> v .:? "closed"
+      <*> v .: "properties"
+      <*> v .: "description"
+
+instance ToJSON a => ToJSON (TaskFile a) where
+  toJSON (TaskFile mName content) =
+    object
+      [ "name" .= mName,
+        "content" .= V.toList content
+      ]
+
+instance FromJSON a => FromJSON (TaskFile a) where
+  parseJSON = withObject "TaskFile" $ \v ->
+    TaskFile
+      <$> v .:? "name"
+      <*> (V.fromList <$> v .: "content")

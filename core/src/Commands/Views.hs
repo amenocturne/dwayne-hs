@@ -15,6 +15,8 @@ module Commands.Views
   )
 where
 
+import Api.Handlers (makeKeywordViewHandler, viewAllHandler)
+import Api.Types (ApiBinding (..), ApiMethod (..))
 import Commands.Command (Command (..), TuiBinding (..))
 import qualified Commands.Projects as CmdProjects
 import Control.Monad (forM_)
@@ -46,10 +48,12 @@ viewCommand ::
   String ->
   -- | Command alias (e.g., "viewInbox")
   T.Text ->
+  -- | API endpoint path (e.g., "views/inbox")
+  T.Text ->
   -- | Optional sorting function
   Maybe (Task -> Task -> Ordering) ->
   Command Task
-viewCommand keyword keySeq alias maybeSorter =
+viewCommand keyword keySeq alias endpoint maybeSorter =
   Command
     { cmdName = "View Filter",
       cmdAlias = alias,
@@ -66,7 +70,13 @@ viewCommand keyword keySeq alias maybeSorter =
               tuiContext = Ctx.modeKeyContext NormalMode
             },
       cmdCli = Nothing,
-      cmdApi = Nothing
+      cmdApi =
+        Just $
+          ApiBinding
+            { apiEndpoint = endpoint,
+              apiMethod = GET,
+              apiHandler = makeKeywordViewHandler keyword maybeSorter
+            }
     }
 
 -- | View all tasks command
@@ -86,45 +96,51 @@ viewAllCommand =
               tuiContext = Ctx.modeKeyContext NormalMode
             },
       cmdCli = Nothing,
-      cmdApi = Nothing
+      cmdApi =
+        Just $
+          ApiBinding
+            { apiEndpoint = "views/all",
+              apiMethod = GET,
+              apiHandler = viewAllHandler
+            }
     }
 
 -- | View INBOX tasks
 viewInboxCommand :: Command Task
-viewInboxCommand = viewCommand orgInboxKeyword " ai" "viewInbox" (Just KB.sortByCreatedDesc)
+viewInboxCommand = viewCommand orgInboxKeyword " ai" "viewInbox" "views/inbox" (Just KB.sortByCreatedDesc)
 
 -- | View RELEVANT tasks
 viewRelevantCommand :: Command Task
-viewRelevantCommand = viewCommand orgRelevantKeyword " ar" "viewRelevant" (Just KB.sortByPriorityAsc)
+viewRelevantCommand = viewCommand orgRelevantKeyword " ar" "viewRelevant" "views/relevant" (Just KB.sortByPriorityAsc)
 
 -- | View SOMEDAY tasks
 viewSomedayCommand :: Command Task
-viewSomedayCommand = viewCommand orgSomedayKeyword " as" "viewSomeday" Nothing
+viewSomedayCommand = viewCommand orgSomedayKeyword " as" "viewSomeday" "views/someday" Nothing
 
 -- | View NOTES tasks
 viewNotesCommand :: Command Task
-viewNotesCommand = viewCommand orgNotesKeyword " an" "viewNotes" Nothing
+viewNotesCommand = viewCommand orgNotesKeyword " an" "viewNotes" "views/notes" Nothing
 
 -- | View LIST tasks
 viewListCommand :: Command Task
-viewListCommand = viewCommand orgListKeyword " al" "viewList" Nothing
+viewListCommand = viewCommand orgListKeyword " al" "viewList" "views/list" Nothing
 
 -- | View WAITING tasks
 viewWaitingCommand :: Command Task
-viewWaitingCommand = viewCommand orgWaitingKeyword " aw" "viewWaiting" (Just KB.sortByPriorityAsc)
+viewWaitingCommand = viewCommand orgWaitingKeyword " aw" "viewWaiting" "views/waiting" (Just KB.sortByPriorityAsc)
 
 -- | View PROJECT tasks
 viewProjectCommand :: Command Task
-viewProjectCommand = viewCommand orgProjectKeyword " ap" "viewProject" (Just KB.sortByPriorityAsc)
+viewProjectCommand = viewCommand orgProjectKeyword " ap" "viewProject" "views/project" (Just KB.sortByPriorityAsc)
 
 -- | View TODO tasks
 viewTodoCommand :: Command Task
-viewTodoCommand = viewCommand orgTodoKeyword " at" "viewTodo" (Just KB.sortByPriorityAsc)
+viewTodoCommand = viewCommand orgTodoKeyword " at" "viewTodo" "views/todo" (Just KB.sortByPriorityAsc)
 
 -- | View DONE tasks
 viewDoneCommand :: Command Task
-viewDoneCommand = viewCommand orgDoneKeyword " ad" "viewDone" Nothing
+viewDoneCommand = viewCommand orgDoneKeyword " ad" "viewDone" "views/done" Nothing
 
 -- | View TRASH tasks
 viewTrashCommand :: Command Task
-viewTrashCommand = viewCommand orgTrashKeyword " ax" "viewTrash" Nothing
+viewTrashCommand = viewCommand orgTrashKeyword " ax" "viewTrash" "views/trash" Nothing

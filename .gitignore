@@ -1,7 +1,18 @@
-.stack-work/
+core/.stack-work/
+core/resources/Phone.org
+core/dist-newstyle
+core/.env
+core/hie.yaml
 
-resources/Phone.org
-dist-newstyle
-.aider*
-.env
-hie.yaml
+# Logs
+web/*.local
+web/*.log
+web/dist
+web/dist-ssr
+web/lerna-debug.log*
+web/logs
+web/node_modules
+web/npm-debug.log*
+web/pnpm-debug.log*
+web/yarn-debug.log*
+web/yarn-error.log*

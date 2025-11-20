@@ -2,6 +2,7 @@
 
 module Commands.Command where
 
+import Api.Types (ApiBinding)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Text as T
 import Options.Applicative (Parser)
@@ -36,6 +37,8 @@ data Command a = Command
     cmdTui :: Maybe (TuiBinding a),
     -- | Placeholder for CLI binding (Phase 3)
     cmdCli :: Maybe (Parser (IO ())),
-    -- | Placeholder for API binding (Phase 4)
-    cmdApi :: Maybe ()
+    -- | API binding (Nothing if command not available via API)
+    -- Commands can be enabled/disabled in config.yml via the 'commands' field
+    -- Example: commands: { viewInbox: true, viewTrash: false }
+    cmdApi :: Maybe (ApiBinding a)
   }

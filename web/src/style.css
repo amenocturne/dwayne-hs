@@ -1,0 +1,181 @@
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+
+  /* Dark theme colors */
+  --bg-primary: #1a1a1a;
+  --card-bg: #2a2a2a;
+  --card-border: #404040;
+  --text-primary: rgba(255, 255, 255, 0.87);
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-tertiary: rgba(255, 255, 255, 0.4);
+  --tag-bg: rgba(100, 108, 255, 0.15);
+  --tag-text: #a5b4fc;
+  --link-color: #646cff;
+
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+#app {
+  width: 100%;
+  min-height: 100vh;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: var(--card-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+
+button:hover {
+  border-color: #646cff;
+}
+
+.search-mode-toggle:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+a {
+  color: var(--link-color);
+  text-decoration: underline;
+  transition: opacity 0.2s;
+}
+
+a:hover {
+  opacity: 0.8;
+}
+
+/* Light theme */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-primary: #f5f5f5;
+    --card-bg: #ffffff;
+    --card-border: #e5e5e5;
+    --text-primary: #213547;
+    --text-secondary: #64748b;
+    --text-tertiary: #94a3b8;
+    --tag-bg: rgba(100, 108, 255, 0.1);
+    --tag-text: #4f46e5;
+    --link-color: #3b82f6;
+  }
+}
+
+/* Loading spinner animation */
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Toast notification animations */
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* Sidebar animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* Hoverable component styles - replacing inline style mutations */
+.hoverable {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.hoverable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.hoverable-subtle {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.hoverable-subtle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.hoverable-project {
+  transition: all 0.2s;
+}
+
+.hoverable-project:hover {
+  background-color: rgba(100, 108, 255, 0.05) !important;
+  border-color: var(--link-color) !important;
+}
+
+.hoverable-button {
+  transition: all 0.2s;
+}
+
+.hoverable-button:hover {
+  background-color: rgba(100, 108, 255, 0.2) !important;
+}

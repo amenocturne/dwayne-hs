@@ -1,0 +1,5 @@
+packages: .
+
+-- Constrain warp version to avoid http2 compatibility issues
+constraints: warp >= 3.4 && < 3.4.9,
+             http2 < 5.3
