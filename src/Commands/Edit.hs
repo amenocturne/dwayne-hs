@@ -45,7 +45,7 @@ editTaskCommand =
         Just $
           TuiBinding
             { tuiKeyEvent = EditTask,
-              tuiKeybinding = toKeySeq "ee", -- 'e' then 'e'
+              tuiKeybinding = toKey E.KEnter,
               tuiDescription = "Edit task in editor",
               tuiAction = editSelectedTaskInEditor,
               tuiContext = Ctx.modeKeyContext NormalMode

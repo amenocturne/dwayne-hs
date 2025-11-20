@@ -16,6 +16,7 @@ import Tui.Types
   )
 import qualified Tui.ValidationDialogs as TuiValidationDialogs -- For acceptValidation, rejectValidation
 import Writer.Writer (Writer)
+import Tui.Keybindings (toKey)
 
 -- | Accept validation dialog command
 validationDialogAcceptCommand :: (Writer Task) => Command Task
@@ -28,7 +29,7 @@ validationDialogAcceptCommand =
         Just $
           TuiBinding
             { tuiKeyEvent = ValidationDialogAccept,
-              tuiKeybinding = pure $ Tui.Types.KeyPress E.KEnter Set.empty,
+              tuiKeybinding = toKey E.KEnter,
               tuiDescription = "Accept validation",
               tuiAction = TuiValidationDialogs.acceptValidation,
               tuiContext = Ctx.validationDialogKeyContext
@@ -48,7 +49,7 @@ validationDialogRejectCommand =
         Just $
           TuiBinding
             { tuiKeyEvent = ValidationDialogReject,
-              tuiKeybinding = pure $ Tui.Types.KeyPress E.KEsc Set.empty,
+              tuiKeybinding = toKey E.KEsc,
               tuiDescription = "Reject validation",
               tuiAction = TuiValidationDialogs.rejectValidation,
               tuiContext = Ctx.validationDialogKeyContext
