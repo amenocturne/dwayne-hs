@@ -1,18 +1,18 @@
 run:
-  DWAYNE_CONFIG=./resources/config.yml cabal run
+  cd core; DWAYNE_CONFIG=./resources/config.yml cabal run
 
 build:
-  cabal build
+  cd core; cabal build
 
 test:
-  cabal test
+  cd core; cabal test
 
 install:
-  cabal install --overwrite-policy=always
+  cd core; cabal install --overwrite-policy=always
 
 profile:
-  cabal configure --enable-profiling
-  cabal run dwayne -- +RTS -p -RTS
+  cd core; cabal configure --enable-profiling
+  cd core; cabal run dwayne -- +RTS -p -RTS
 
 format:
-  ormolu --mode inplace $(find src app test -name "*.hs" -type f)
+  cd core; ormolu --mode inplace $(find src app test -name "*.hs" -type f)
