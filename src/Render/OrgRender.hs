@@ -52,6 +52,7 @@ instance Render Task b where
       title' = view title task
       tags' = view tags task
 
+  -- TODO: make title wrap in full view
   renderFull scheme task =
     vBox $
       catMaybes

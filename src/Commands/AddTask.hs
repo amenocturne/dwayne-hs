@@ -41,6 +41,7 @@ import System.Exit (exitFailure, exitSuccess)
 import System.IO (hPutStrLn, stderr, stdout)
 import TextUtils (editWithEditor)
 import qualified Tui.Contexts as Ctx
+import Tui.Helpers (refreshTuiView)
 import qualified Tui.Helpers as Helpers
 import Tui.Keybindings (toKeySeq)
 import Tui.Types
@@ -107,7 +108,7 @@ addNewTask = Helpers.saveForUndo $ do
               }
           initialContent = write dummyTask
 
-      suspendAndResume $ do
+      _ <- suspendAndResume $ do
         editResult <- editWithEditor initialContent
         case editResult of
           Left err -> do
@@ -119,9 +120,8 @@ addNewTask = Helpers.saveForUndo $ do
                   runParser (view (system . taskParser) ctx) editedStr
              in case result of
                   ParserFailure err -> do
-                    _ <-
-                      writeBChan (view (appState . eventChannel) ctx) $
-                        Error (err ++ " at " ++ show (line l) ++ ":" ++ show (column l))
+                    writeBChan (view (appState . eventChannel) ctx) $
+                      Error (err ++ " at " ++ show (line l) ++ ":" ++ show (column l))
                     return ctx
                   ParserSuccess newTask
                     | newTask == dummyTask -> do
@@ -135,3 +135,5 @@ addNewTask = Helpers.saveForUndo $ do
                             ctx1 = set (fileLens fp) updatedTf ctx
                             ctx2 = set cursorLens (Just idx) ctx1
                         return ctx2
+      refreshTuiView
+      return ()

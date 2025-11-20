@@ -83,5 +83,12 @@ applyFilterToAllTasks f = do
   modify $ set cursorLens (Just 0)
   modify $ set (compactViewLens . viewportStart) 0
 
+-- | Refreshes the TUI view by recomputing the cached view based on the current application state.
+refreshTuiView :: GlobalAppState a
+refreshTuiView = do
+  ctx <- get
+  let newCache = recomputeCurrentView ctx
+  modify $ set (compactViewLens . cachedView) newCache
+
 changeTodoKeyword :: T.Text -> AppContext Task -> AppContext Task
 changeTodoKeyword keyword = over (currentTaskLens . todoKeyword) (const keyword)

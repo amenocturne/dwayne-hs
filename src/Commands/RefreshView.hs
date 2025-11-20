@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Commands.RefreshView (refreshViewCommand, refreshCurrentView) where
+module Commands.RefreshView (refreshViewCommand) where
 
 import Brick (get, modify)
 import Commands.Command (Command (..), TuiBinding (..))
@@ -10,6 +10,7 @@ import qualified Data.Set as Set
 import qualified Graphics.Vty.Input.Events as E
 import Model.OrgMode (Task)
 import qualified Tui.Contexts as Ctx
+import Tui.Helpers (refreshTuiView)
 import Tui.Keybindings
 import Tui.Types
   ( AppMode (..),
@@ -34,16 +35,9 @@ refreshViewCommand =
             { tuiKeyEvent = RefreshView,
               tuiKeybinding = toKeySeq "r", -- 'r'
               tuiDescription = "Refresh current view",
-              tuiAction = refreshCurrentView,
+              tuiAction = refreshTuiView,
               tuiContext = Ctx.normalOrSelectionContext
             },
       cmdCli = Nothing,
       cmdApi = Nothing
     }
-
--- | Action: Refresh the current view by recomputing the cached view
-refreshCurrentView :: GlobalAppState a
-refreshCurrentView = do
-  ctx <- get
-  let newCache = recomputeCurrentView ctx
-  modify $ set (compactViewLens . cachedView) newCache
