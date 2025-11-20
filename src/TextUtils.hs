@@ -41,10 +41,62 @@ expandHome ('~' : '/' : rest) = do
   return $ home </> rest
 expandHome path = return path
 
--- TODO: expand env variables as well as ~
+-- | Expands both ~ (home directory) and environment variables ($VAR or ${VAR})
+-- in a file path. Undefined environment variables are left unexpanded.
+--
+-- Examples:
+--   ~/foo        -> /home/user/foo
+--   $HOME/foo    -> /home/user/foo
+--   ${HOME}/foo  -> /home/user/foo
+--   $VAR/bar     -> <value of VAR>/bar
+--   foo/$VAR/bar -> foo/<value of VAR>/bar
+expandPath :: String -> IO String
+expandPath path = do
+  pathAfterTilde <- expandHome path
+  expandEnvVars pathAfterTilde
+  where
+    expandEnvVars :: String -> IO String
+    expandEnvVars [] = return []
+    expandEnvVars ('$' : '{' : rest) = do
+      let (varName, afterBrace) = break (== '}') rest
+      case afterBrace of
+        '}' : remainder -> do
+          mValue <- lookupEnv varName
+          case mValue of
+            Just value -> do
+              expanded <- expandEnvVars remainder
+              return $ value ++ expanded
+            Nothing -> do
+              expanded <- expandEnvVars afterBrace
+              return $ "${" ++ varName ++ expanded
+        _ -> do
+          expanded <- expandEnvVars rest
+          return $ "${" ++ expanded
+    expandEnvVars ('$' : rest) = do
+      let (varName, remainder) = span isVarChar rest
+      if null varName
+        then do
+          expanded <- expandEnvVars rest
+          return $ '$' : expanded
+        else do
+          mValue <- lookupEnv varName
+          case mValue of
+            Just value -> do
+              expanded <- expandEnvVars remainder
+              return $ value ++ expanded
+            Nothing -> do
+              expanded <- expandEnvVars remainder
+              return $ '$' : varName ++ expanded
+    expandEnvVars (c : rest) = do
+      expanded <- expandEnvVars rest
+      return $ c : expanded
+
+    isVarChar :: Char -> Bool
+    isVarChar c = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_'
+
 readFileExample :: FilePath -> IO T.Text
 readFileExample f = do
-  fp <- expandHome f
+  fp <- expandPath f
   TIO.readFile fp `catch` handleIOError fp
   where
     handleIOError :: FilePath -> IOException -> IO T.Text
@@ -63,17 +115,18 @@ readFileExample f = do
             "  - The path is correct"
           ]
 
--- TODO: expand env variables as well as ~
 writeFileExample :: FilePath -> T.Text -> IO (Either String ())
 writeFileExample path content = do
-  (TIO.writeFile path content >> return (Right ())) `catch` handleIOError
+  expandedPath <- expandPath path
+  (TIO.writeFile expandedPath content >> return (Right ())) `catch` handleIOError expandedPath
   where
-    handleIOError :: IOException -> IO (Either String ())
-    handleIOError e =
+    handleIOError :: FilePath -> IOException -> IO (Either String ())
+    handleIOError expandedPath e =
       return $
         Left $
           unlines
             [ "Failed to write file: " ++ path,
+              "Expanded path: " ++ expandedPath,
               "Reason: " ++ show e
             ]
 
@@ -99,7 +152,7 @@ splitByFirstDelimiter delim input
   | delim `T.isPrefixOf` input = ("", input)
   | otherwise =
       case T.uncons input of
-        Nothing -> ("", "") -- This case is already handled above, but being explicit
+        Nothing -> ("", "")
         Just (c, rest) ->
           let (prefix, remainder) = splitByFirstDelimiter delim rest
            in (T.cons c prefix, remainder)
@@ -137,7 +190,7 @@ editWithEditor content = catch tryEdit handleError
           return $ Right (Just $ T.pack newContent)
         _ -> do
           removeFile tempPath
-          return $ Right Nothing -- User cancelled
+          return $ Right Nothing
     handleError :: IOException -> IO (Either String (Maybe T.Text))
     handleError e =
       return $
