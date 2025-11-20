@@ -63,8 +63,7 @@ instance (Searcher a, Render a Name, Writer a, Show a, Eq a, Refileable a, SV.Sy
               "  - All required fields are present"
             ]
       Right conf -> expandConfigPaths conf
-    -- Auto-include inboxFile and projectsFile in files list and remove duplicates
-    let allFiles = nub $ view files conf ++ [view inboxFile conf, view projectsFile conf]
+    let allFiles = getAllFiles conf
     parsedFiles <- mapM (\f -> fmap (f,) (readTasks (view fileParser sysConf) f)) allFiles
     eventChan <- newBChan 10 -- maybe should use different event channel size
     let fState = M.fromList (fmap (\(a, (_, c)) -> (a, c)) parsedFiles)

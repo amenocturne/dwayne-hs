@@ -35,7 +35,7 @@ import Writer.Writer
 
 checkFilesUnmodified :: (Eq a) => AppContext a -> IO [FilePath]
 checkFilesUnmodified ctx = do
-  let fps = view (config . files) ctx
+  let fps = getAllFiles (view config ctx)
       parser = view (system . fileParser) ctx
       originalMap = view originalFileStateLens ctx
   pairs <- liftIO $ forM fps $ \fp -> do
@@ -56,6 +56,27 @@ checkUnsavedChanges ctx =
   let currentState = view fileStateLens ctx
       originalState = view originalFileStateLens ctx
    in currentState /= originalState
+
+performReload :: GlobalAppState a
+performReload = do
+  ctx <- get
+  let fps = getAllFiles (view config ctx)
+      parser = view (system . fileParser) ctx
+  results <- liftIO $ forM fps $ \fp -> do
+    txt <- readFileExample fp
+    let (_, _, parsed) = runParser parser txt
+    return (fp, parsed)
+  let newFileState = M.fromList results
+      filesReloaded = length fps
+  modify $ \c ->
+    c & set fileStateLens newFileState
+      & set originalFileStateLens newFileState
+      & set (appState . cmdState) (Just $ ShowingMessage $ T.pack $ show filesReloaded ++ " file(s) reloaded")
+  modify $ switchMode NormalMode
+  -- Refresh the view to reflect the reloaded data
+  ctx' <- get
+  let newCache = recomputeCurrentView ctx'
+  modify $ set (compactViewLens . cachedView) newCache
 
 matchesSubsequence :: [KeyPress] -> KeyBinding a -> Bool
 matchesSubsequence s = isPrefixOf s . view keyBinding
@@ -278,6 +299,34 @@ handleEvent (AppEvent event) = case event of
             (Error "No write since last change (add ! to override)")
       else halt
   ForceQuit -> halt
+  ReloadFiles -> do
+    ctx <- get
+    let currentState = view fileStateLens ctx
+        originalState = view originalFileStateLens ctx
+        hasUnsavedChanges = currentState /= originalState
+    
+    if hasUnsavedChanges
+      then do
+        modified <- liftIO $ checkFilesUnmodified ctx
+        if not (null modified)
+          then do
+            modify $ switchMode NormalMode . set (appState . cmdState) Nothing
+            liftIO $
+              writeBChan
+                (view (appState . eventChannel) ctx)
+                ( Error $
+                    "Cannot reload: unsaved changes and external edits detected in: "
+                      ++ intercalate ", " modified
+                      ++ "\nSave (:w) or force write (:w!) first, or use :e! to force reload"
+                )
+          else do
+            modify $ switchMode NormalMode . set (appState . cmdState) Nothing
+            liftIO $
+              writeBChan
+                (view (appState . eventChannel) ctx)
+                (Error "No write since last change (save with :w first, or use :e! to discard changes)")
+      else performReload
+  ForceReloadFiles -> performReload
 handleEvent _ = return ()
 
 writeTaskFile :: (Writer a) => FilePath -> ParserResult a -> IO (Either String ())

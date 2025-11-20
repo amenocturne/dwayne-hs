@@ -14,6 +14,7 @@ import Control.Monad.ST (runST)
 import Core.Types (FileState, TaskPointer (..), file, taskIndex)
 import Data.Aeson (Object, Options (..), defaultOptions)
 import Data.Aeson.Types (genericParseJSON)
+import Data.List (nub)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map.Strict as M
 import Data.Set (Set)
@@ -121,6 +122,11 @@ expandConfigPaths config = do
         _projectsFile = expandedProjectsFile
       }
 
+-- | Get all files from config, including files, inboxFile, and projectsFile
+-- Removes duplicates and returns a unique list
+getAllFiles :: AppConfig a -> [FilePath]
+getAllFiles config = nub $ _files config ++ [_inboxFile config, _projectsFile config]
+
 data SystemConfig a = SystemConfig
   { _fileParser :: Parser (TaskFile a),
     _taskParser :: Parser a,
@@ -202,12 +208,14 @@ data ValidationDialog = ValidationDialog
 instance Show ValidationDialog where
   show (ValidationDialog _ _ msg) = msg
 
-data AppEvent = Error String | SaveAllFiles | ForceWriteAll | QuitApp | ForceQuit | ValidationDialogCreated ValidationDialog
+data AppEvent = Error String | SaveAllFiles | ForceWriteAll | ReloadFiles | ForceReloadFiles | QuitApp | ForceQuit | ValidationDialogCreated ValidationDialog
 
 instance Eq AppEvent where
   Error s1 == Error s2 = s1 == s2
   SaveAllFiles == SaveAllFiles = True
   ForceWriteAll == ForceWriteAll = True
+  ReloadFiles == ReloadFiles = True
+  ForceReloadFiles == ForceReloadFiles = True
   QuitApp == QuitApp = True
   ForceQuit == ForceQuit = True
   ValidationDialogCreated _ == ValidationDialogCreated _ = True -- Just check constructor

@@ -49,6 +49,8 @@ executeCommand = do
               let filesSavedCount = M.size $ view fileStateLens ctx
               let msg = T.pack $ show filesSavedCount <> if filesSavedCount == 1 then " file written (forced)" else " files written (forced)"
               modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
+            "e" -> reloadFiles
+            "e!" -> forceReloadFiles
             "q" -> quit
             "q!" -> forceQuit
             "wq" -> do
@@ -72,6 +74,12 @@ saveAll = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ct
 
 forceWriteAll :: GlobalAppState a
 forceWriteAll = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ctx) ForceWriteAll
+
+reloadFiles :: GlobalAppState a
+reloadFiles = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ctx) ReloadFiles
+
+forceReloadFiles :: GlobalAppState a
+forceReloadFiles = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ctx) ForceReloadFiles
 
 quit :: GlobalAppState a
 quit = get >>= \ctx -> liftIO $ writeBChan (view (appState . eventChannel) ctx) QuitApp
