@@ -12,58 +12,43 @@ import qualified Data.Map.Strict as M
 import Data.Maybe
 import qualified Data.Set as S
 import qualified Data.Text as T
-import Data.Time (defaultTimeLocale)
-import Data.Time.Format (formatTime)
 import GHC.Char (chr)
 import Graphics.Vty.Attributes (defAttr)
 import Model.Injection
+import Model.OrgFormat
 import Model.OrgMode
 import Render.Render
 import Tui.ColorScheme (ColorScheme, descriptionAttr, levelAttr, priorityAttr, propertyAttr, tagAttr, timeFieldAttr, todoKeywordAttr)
-
--- TODO: render pretty org-style links
--- TODO: factor out common functions from it and Writer
 instance RenderTask Task b where
-  renderCompact task = titleLine
+  renderCompact task = txt $ formatHeaderLine level' todoKw priority' title' tags'
     where
-      titleLine =
-        txt $
-          T.unwords $
-            catMaybes
-              [ Just $ T.replicate (view level task) "*",
-                Just $ view todoKeyword task,
-                view priority task >>= renderPriority,
-                Just (view title task),
-                renderTags (S.toList $ view tags task)
-              ]
-
-      renderPriority p
-        | p >= 0 = Just $ T.concat ["[#", T.singleton (chr $ ord 'A' + p), "]"]
-        | otherwise = Nothing
-
-      renderTags [] = Nothing
-      renderTags ts = Just $ T.concat [":", T.intercalate ":" ts, ":"]
+      level' = view level task
+      todoKw = view todoKeyword task
+      priority' = view priority task
+      title' = view title task
+      tags' = view tags task
 
   renderCompactWithColors scheme task =
     hBox $
       catMaybes
-        [ Just $ withAttr (levelAttr (view level task)) $ txt $ T.replicate (view level task) "*",
+        [ Just $ withAttr (levelAttr level') $ txt $ formatStars level',
           Just $ txt " ",
-          Just $ withAttr (todoKeywordAttr (view todoKeyword task)) $ txt $ view todoKeyword task,
+          Just $ withAttr (todoKeywordAttr todoKw) $ txt todoKw,
           Just $ txt " ",
-          case view priority task of
-            Just p -> fmap (withAttr (priorityAttr p)) (renderPriorityWidget p)
+          case priority' of
+            Just p -> fmap (\t -> withAttr (priorityAttr p) $ txt $ t <> " ") (formatPriority p)
             Nothing -> Nothing,
-          Just $ txt $ view title task,
-          fmap (withAttr tagAttr) (renderTagsWidget (S.toList $ view tags task))
+          Just $ txt title',
+          case formatTags (S.toList tags') of
+            "" -> Nothing
+            t -> Just $ withAttr tagAttr $ txt $ " " <> t
         ]
     where
-      renderPriorityWidget p
-        | p >= 0 = Just $ txt $ T.concat ["[#", T.singleton (chr $ ord 'A' + p), "] "]
-        | otherwise = Nothing
-
-      renderTagsWidget [] = Nothing
-      renderTagsWidget ts = Just $ txt $ T.concat [" :", T.intercalate ":" ts, ":"]
+      level' = view level task
+      todoKw = view todoKeyword task
+      priority' = view priority task
+      title' = view title task
+      tags' = view tags task
 
   renderFull task =
     vBox $
@@ -77,67 +62,25 @@ instance RenderTask Task b where
           Just $ txtWrap $ view description task
         ]
     where
-      titleLine =
-        txtWrap $
-          T.unwords $
-            catMaybes
-              [ Just $ T.replicate (view level task) "*",
-                Just $ view todoKeyword task,
-                view priority task >>= renderPriority,
-                Just $ view title task,
-                renderTags (S.toList $ view tags task)
-              ]
+      titleLine = txtWrap $ formatHeaderLine level' todoKw priority' title' tags'
+      
       timeFieldsLine =
         txt $
           T.unwords $
             mapMaybe
-              (\(field, getTime) -> fmap (renderTimeField field) (getTime task))
+              (\(field, getTime) -> fmap (formatTimeField field) (getTime task))
               [ (orgScheduledField, view scheduled),
                 (orgDeadlineField, view deadline),
                 (orgClosedField, view closed)
               ]
 
-      renderTimeField :: TimeField -> OrgTime -> T.Text
-      renderTimeField (TimeField n delim) (OrgTime t r d) =
-        T.concat
-          [ n,
-            " ",
-            T.singleton (fst delims),
-            displayOrgTime t,
-            maybe "" renderRepeater r,
-            maybe "" renderDelay d,
-            T.singleton (snd delims)
-          ]
-        where
-          delims :: (Char, Char)
-          delims = to delim
-
       propertiesSection = txt $ T.intercalate "\n" (fmap (\(key, value) -> T.concat [":", key, ": ", value]) (view properties task))
 
-      renderPriority p
-        | p >= 0 = Just $ T.concat ["[#", T.singleton (chr $ ord 'A' + p), "]"]
-        | otherwise = Nothing
-
-      renderTags [] = Nothing
-      renderTags ts = Just $ T.concat [":", T.intercalate ":" ts, ":"]
-
-      displayOrgTime (Left day) = T.pack $ formatTime defaultTimeLocale orgDayFormat day
-      displayOrgTime (Right utcTime) = T.pack $ formatTime defaultTimeLocale orgDayTimeFormat utcTime
-
-      renderRepeater :: RepeatInterval -> T.Text
-      renderRepeater (RepeatInterval tt v tu) =
-        T.concat
-          [ to tt,
-            T.pack $ show v,
-            T.singleton (to tu)
-          ]
-      renderDelay :: DelayInterval -> T.Text
-      renderDelay (DelayInterval tt v tu) =
-        T.concat
-          [ to tt,
-            T.pack $ show v,
-            T.singleton (to tu)
-          ]
+      level' = view level task
+      todoKw = view todoKeyword task
+      priority' = view priority task
+      title' = view title task
+      tags' = view tags task
 
   renderFullWithColors scheme task =
     vBox $
@@ -151,30 +94,14 @@ instance RenderTask Task b where
           Just $ withAttr descriptionAttr $ txt $ view description task
         ]
     where
-      titleLineColored =
-        txtWrap $
-          T.unwords $
-            catMaybes
-              [ Just $ T.replicate (view level task) "*",
-                Just $ view todoKeyword task,
-                view priority task >>= renderPriorityText,
-                Just $ view title task,
-                renderTagsText (S.toList $ view tags task)
-              ]
-        where
-          renderPriorityText p
-            | p >= 0 = Just $ T.concat ["[#", T.singleton (chr $ ord 'A' + p), "]"]
-            | otherwise = Nothing
-
-          renderTagsText [] = Nothing
-          renderTagsText ts = Just $ T.concat [":", T.intercalate ":" ts, ":"]
+      titleLineColored = txtWrap $ formatHeaderLine level' todoKw priority' title' tags'
 
       timeFieldsLineColored =
         withAttr timeFieldAttr $
           txt $
             T.unwords $
               mapMaybe
-                (\(field, getTime) -> fmap (renderTimeField field) (getTime task))
+                (\(field, getTime) -> fmap (formatTimeField field) (getTime task))
                 [ (orgScheduledField, view scheduled),
                   (orgDeadlineField, view deadline),
                   (orgClosedField, view closed)
@@ -185,42 +112,8 @@ instance RenderTask Task b where
           txt $
             T.intercalate "\n" (fmap (\(key, value) -> T.concat [":", key, ": ", value]) (view properties task))
 
-      renderTimeField :: TimeField -> OrgTime -> T.Text
-      renderTimeField (TimeField n delim) (OrgTime t r d) =
-        T.concat
-          [ n,
-            " ",
-            T.singleton (fst delims),
-            displayOrgTime t,
-            maybe "" renderRepeater r,
-            maybe "" renderDelay d,
-            T.singleton (snd delims)
-          ]
-        where
-          delims :: (Char, Char)
-          delims = to delim
-
-      renderPriorityWidget p
-        | p >= 0 = Just $ txt $ T.concat ["[#", T.singleton (chr $ ord 'A' + p), "] "]
-        | otherwise = Nothing
-
-      renderTagsWidget [] = Nothing
-      renderTagsWidget ts = Just $ txt $ T.concat [" :", T.intercalate ":" ts, ":"]
-
-      displayOrgTime (Left day) = T.pack $ formatTime defaultTimeLocale orgDayFormat day
-      displayOrgTime (Right utcTime) = T.pack $ formatTime defaultTimeLocale orgDayTimeFormat utcTime
-
-      renderRepeater :: RepeatInterval -> T.Text
-      renderRepeater (RepeatInterval tt v tu) =
-        T.concat
-          [ to tt,
-            T.pack $ show v,
-            T.singleton (to tu)
-          ]
-      renderDelay :: DelayInterval -> T.Text
-      renderDelay (DelayInterval tt v tu) =
-        T.concat
-          [ to tt,
-            T.pack $ show v,
-            T.singleton (to tu)
-          ]
+      level' = view level task
+      todoKw = view todoKeyword task
+      priority' = view priority task
+      title' = view title task
+      tags' = view tags task

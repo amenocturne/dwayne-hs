@@ -73,6 +73,7 @@ library
         Core.Operations
         Model.Injection
         Model.OrgMode
+        Model.OrgFormat
         Model.LinearHistory
         Parser.OrgParser
         Parser.Parser
