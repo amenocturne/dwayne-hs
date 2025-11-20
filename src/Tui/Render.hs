@@ -19,6 +19,7 @@ import Render.Render
 import qualified Render.Render as R
 import Searcher.Searcher
 import System.Directory.Internal.Prelude (fromMaybe)
+import System.FilePath (takeFileName)
 import Tui.ColorScheme
   ( ColorScheme,
     defaultColor,
@@ -184,7 +185,7 @@ drawCompactView mQuery ctx =
                   filtered = V.filter (\(_, task) -> all (\f -> f task) effectiveFilters) ptrsWithTasks
                in V.length filtered
             Nothing -> V.length cv
-          maybeCurrentFile = fromMaybe "-" (preview (currentTaskPtr . _Just . file) ctx)
+          maybeCurrentFile = takeFileName $ fromMaybe "-" (preview (currentTaskPtr . _Just . file) ctx)
           modeIndicator = case view (appState . appMode) ctx of
             NormalMode -> ""
             CmdMode -> ""
