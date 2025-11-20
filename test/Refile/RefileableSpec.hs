@@ -29,14 +29,14 @@ createTestTask lvl keyword taskTitle =
     { _level = lvl,
       _todoKeyword = keyword,
       _priority = Nothing,
-      _title = taskTitle,
+      _title = plainToRichText taskTitle,
       _tags = S.empty,
       _scheduled = Nothing,
       _deadline = Nothing,
       _createdProp = Nothing,
       _closed = Nothing,
       _properties = [],
-      _description = T.empty
+      _description = plainToRichText T.empty
     }
 
 createTestTaskFile :: [Task] -> TaskFile Task

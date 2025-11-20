@@ -19,6 +19,7 @@ data ColorScheme = ColorScheme
     _levelColors :: [Color], -- Colors for different heading levels
     _propertyColor :: Color,
     _descriptionColor :: Color,
+    _urlColor :: Color,
     _defaultColor :: Color
   }
 
@@ -51,6 +52,7 @@ defaultColorScheme =
       _levelColors = [yellow, red, green, blue, mauve, teal],
       _propertyColor = textColor,
       _descriptionColor = textColor,
+      _urlColor = mauve,
       _defaultColor = textColor,
       _highlightBgColor = highlight
     }
@@ -97,3 +99,6 @@ propertyAttr = attrName "property"
 
 descriptionAttr :: AttrName
 descriptionAttr = attrName "description"
+
+urlAttr :: AttrName
+urlAttr = attrName "url"

@@ -12,7 +12,7 @@ module Parser.OrgParser where
 
 import Control.Monad (guard, void)
 import Data.Bifunctor
-import Data.Char (isDigit, isLower)
+import Data.Char (isDigit, isLower, isSpace)
 import Data.Foldable
 import Data.Maybe (catMaybes, fromMaybe)
 import qualified Data.Set as S
@@ -25,6 +25,72 @@ import Model.OrgMode
 import Parser.Parser
 import Parser.StandardParsers
 import TextUtils
+
+------------------------------- Rich Text --------------------------------------
+
+parseTextToRichText :: T.Text -> RichText
+parseTextToRichText text
+  | T.null text = RichText [PlainText ""]
+  | otherwise = RichText (go text [])
+  where
+    go :: T.Text -> [TextNode] -> [TextNode]
+    go remaining acc
+      | T.null remaining = reverse acc
+      | otherwise =
+          case findNextLink remaining of
+            Nothing -> reverse (PlainText remaining : acc)
+            Just (beforeLink, linkNode, afterLink) ->
+              let acc' = if T.null beforeLink then acc else PlainText beforeLink : acc
+               in go afterLink (linkNode : acc')
+
+    findNextLink :: T.Text -> Maybe (T.Text, TextNode, T.Text)
+    findNextLink t =
+      let orgLinkResult = findOrgLink t
+          plainUrlResult = findPlainUrl t
+       in case (orgLinkResult, plainUrlResult) of
+            (Just (before1, link1, after1), Just (before2, link2, after2)) ->
+              if T.length before1 <= T.length before2
+                then Just (before1, link1, after1)
+                else Just (before2, link2, after2)
+            (Just result, Nothing) -> Just result
+            (Nothing, Just result) -> Just result
+            (Nothing, Nothing) -> Nothing
+
+    findOrgLink :: T.Text -> Maybe (T.Text, TextNode, T.Text)
+    findOrgLink t =
+      case T.breakOn "[[" t of
+        (_, "") -> Nothing
+        (before, rest) ->
+          let afterOpen = T.drop 2 rest
+           in case T.breakOn "]]" afterOpen of
+                (_, "") -> Nothing
+                (linkContent, afterClose) ->
+                  let after = T.drop 2 afterClose
+                   in case T.breakOn "][" linkContent of
+                        (url, "") -> Just (before, OrgLink url Nothing, after)
+                        (url, titlePart) ->
+                          let titleText = T.drop 2 titlePart
+                           in Just (before, OrgLink url (Just titleText), after)
+
+    findPlainUrl :: T.Text -> Maybe (T.Text, TextNode, T.Text)
+    findPlainUrl t =
+      let httpPos = T.breakOn "http://" t
+          httpsPos = T.breakOn "https://" t
+          (before, protocol, rest) = case (httpPos, httpsPos) of
+            ((b1, ""), (b2, "")) -> ("", "", "")
+            ((b1, r1), (_, "")) -> (b1, "http://", T.drop 7 r1)
+            ((_, ""), (b2, r2)) -> (b2, "https://", T.drop 8 r2)
+            ((b1, r1), (b2, r2)) ->
+              if T.length b1 <= T.length b2
+                then (b1, "http://", T.drop 7 r1)
+                else (b2, "https://", T.drop 8 r2)
+       in if T.null protocol
+            then Nothing
+            else
+              let urlPart = T.takeWhile (\c -> not (isSpace c)) rest
+                  after = T.drop (T.length urlPart) rest
+                  fullUrl = protocol <> urlPart
+               in Just (before, OrgLink fullUrl Nothing, after)
 
 ------------------------------- Title Line -------------------------------------
 
@@ -48,8 +114,12 @@ priorityParser = tryParser $ stringParser "[#" *> letterToPriorityParser <* char
 isTagChar :: Char -> Bool
 isTagChar c = isLower c || isDigit c || c == '_'
 
-titleAndTagsParser :: Parser (T.Text, [T.Text])
-titleAndTagsParser = fmap splitToTitleAndTags tillTheEndOfStringParser
+titleAndTagsParser :: Parser (RichText, [T.Text])
+titleAndTagsParser = do
+  fullLine <- tillTheEndOfStringParser
+  let (titleText, tags) = splitToTitleAndTags fullLine
+      richTitle = parseTextToRichText titleText
+  pure (richTitle, tags)
 
 splitToTitleAndTags :: T.Text -> (T.Text, [T.Text])
 splitToTitleAndTags input = fromMaybe (T.strip input, []) $ do
@@ -165,18 +235,20 @@ titleLineParser = do
   todoKeyWordParser
   return ()
 
-descriptionParser :: Parser T.Text
-descriptionParser =
-  T.strip
-    <$> takeUntilDelimThenSucceeds "\n" titleLineParser
+descriptionParser :: Parser RichText
+descriptionParser = do
+  text <- T.strip <$> takeUntilDelimThenSucceeds "\n" titleLineParser
+  pure (parseTextToRichText text)
 
-brokenDescriptionParser :: Parser T.Text
-brokenDescriptionParser =
-  unMaybeParser "Read empty description" $
-    fmap (\t -> if T.null t then Nothing else Just t) $
-      T.strip
-        <$> takeUntilSucceeds
-          (void propertiesParser <|> titleLineParser)
+brokenDescriptionParser :: Parser RichText
+brokenDescriptionParser = do
+  text <-
+    unMaybeParser "Read empty description" $
+      fmap (\t -> if T.null t then Nothing else Just t) $
+        T.strip
+          <$> takeUntilSucceeds
+            (void propertiesParser <|> titleLineParser)
+  pure (parseTextToRichText text)
 
 findProp :: TimeField -> [(T.Text, a)] -> Maybe a
 findProp field l = snd <$> find (\(n, _) -> n == timeFieldName field) l
@@ -222,6 +294,7 @@ brokenDescriptionTaskParser =
           mCreatedProp = case fmap (runParser createdParser) mCreated of
             Just (_, _, ParserSuccess t) -> Just t
             _ -> Nothing
+          combinedDesc = RichText (_unRichText description ++ _unRichText description2)
        in Task
             { _level = level,
               _todoKeyword = todoKeyword,
@@ -233,7 +306,7 @@ brokenDescriptionTaskParser =
               _createdProp = mCreatedProp,
               _closed = Nothing,
               _properties = properties,
-              _description = T.unlines [description, description2]
+              _description = combinedDesc
             }
   )
     <$> (skipBlanksParser *> taskLevelParser <* charParser ' ')

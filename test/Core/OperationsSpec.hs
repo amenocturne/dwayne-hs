@@ -9,6 +9,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
+import Model.OrgMode (plainToRichText)
 import Test.Hspec
 
 -- Helper function to create a test task
@@ -18,7 +19,7 @@ mkTask keyword ttitle lvl =
     { _level = lvl,
       _todoKeyword = keyword,
       _priority = Nothing,
-      _title = ttitle,
+      _title = plainToRichText ttitle,
       _tags = S.empty,
       _scheduled = Nothing,
       _deadline = Nothing,

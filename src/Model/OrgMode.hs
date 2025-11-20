@@ -10,6 +10,7 @@ module Model.OrgMode where
 import Control.Lens (makeLenses)
 import Data.List (sortBy)
 import qualified Data.Set as S
+import Data.String (IsString (..))
 import qualified Data.Text as T
 import Data.Time
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
@@ -17,6 +18,17 @@ import Data.Vector as V
 import Model.Injection
 
 -- Model
+
+data TextNode
+  = PlainText T.Text
+  | OrgLink
+      { _linkUrl :: T.Text,
+        _linkTitle :: Maybe T.Text
+      }
+  deriving (Show, Eq)
+
+newtype RichText = RichText {_unRichText :: [TextNode]}
+  deriving (Show, Eq)
 
 data TimeUnit = Hour | Day | Week | Month | Year
   deriving (Show, Eq, Bounded, Enum)
@@ -57,14 +69,14 @@ data Task = Task
   { _level :: Int,
     _todoKeyword :: T.Text,
     _priority :: Maybe Int,
-    _title :: T.Text,
+    _title :: RichText,
     _tags :: S.Set T.Text,
     _scheduled :: Maybe OrgTime,
     _deadline :: Maybe OrgTime,
     _createdProp :: Maybe OrgTime,
     _closed :: Maybe OrgTime,
     _properties :: [(T.Text, T.Text)],
-    _description :: T.Text
+    _description :: RichText
   }
   deriving (Show, Eq)
 
@@ -76,7 +88,27 @@ data TaskFile a = TaskFile
 
 data Delimiter = AngleDelim | BracketDelim
 
+makeLenses ''TextNode
+makeLenses ''RichText
 makeLenses ''TaskFile
+
+---------------------- RICH TEXT HELPERS ----------------------------
+
+richTextToPlain :: RichText -> T.Text
+richTextToPlain (RichText nodes) = T.concat $ Prelude.map nodeToText nodes
+  where
+    nodeToText (PlainText t) = t
+    nodeToText (OrgLink url (Just title)) = title
+    nodeToText (OrgLink url Nothing) = url
+
+plainToRichText :: T.Text -> RichText
+plainToRichText t = RichText [PlainText t]
+
+extractUrls :: RichText -> [T.Text]
+extractUrls (RichText nodes) = [url | OrgLink url _ <- nodes]
+
+instance IsString RichText where
+  fromString = plainToRichText . T.pack
 
 ---------------------- CONSTANTS ------------------------------------
 

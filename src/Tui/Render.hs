@@ -39,6 +39,8 @@ import Tui.ColorScheme
     timeFieldColor,
     todoKeywordAttr,
     todoKeywordColors,
+    urlAttr,
+    urlColor,
   )
 import Tui.Types
 
@@ -51,7 +53,8 @@ createAttrMap scheme =
         (tagAttr, fg $ view tagColor scheme),
         (timeFieldAttr, fg $ view timeFieldColor scheme),
         (propertyAttr, fg $ view propertyColor scheme),
-        (descriptionAttr, fg $ view descriptionColor scheme)
+        (descriptionAttr, fg $ view descriptionColor scheme),
+        (urlAttr, fg $ view urlColor scheme)
       ]
       ++ todoKeywordAttrs
       ++ priorityAttrs
@@ -75,7 +78,7 @@ createAttrMap scheme =
 theAppAttrMap :: ColorScheme -> AttrMap
 theAppAttrMap = createAttrMap
 
-drawUI :: (RenderTask a Name, Searcher a) => AppContext a -> [Widget Name]
+drawUI :: (Render a Name, Searcher a) => AppContext a -> [Widget Name]
 drawUI ctx =
   let mainLayers = case view (appState . appMode) ctx of
         NormalMode -> [drawCompactView Nothing ctx]
@@ -101,7 +104,7 @@ drawUI ctx =
           layersWithValidation = maybe layersWithRefile withValidationDialog maybeValidationDialog
        in maybe layersWithValidation withErrorDialog maybeErrorDialog
 
-drawCompactView :: (RenderTask a Name, Searcher a) => Maybe T.Text -> AppContext a -> Widget Name
+drawCompactView :: (Render a Name, Searcher a) => Maybe T.Text -> AppContext a -> Widget Name
 drawCompactView mQuery ctx =
   hBox
     [ hLimitPercent 50 $
@@ -135,7 +138,7 @@ drawCompactView mQuery ctx =
             then padBottom Max (fill ' ')
             else
               let visibleTasks = V.slice v_start (min h searchResultsSize) searchResults
-                  renderTask task = R.renderCompactWithColors (getColorScheme scheme) task
+                  renderTask task = R.renderCompact (getColorScheme scheme) task
                in reportExtent CompactViewWidget $
                     vBox $
                       V.toList (V.map (padRight Max . renderTask) visibleTasks) ++ [padBottom Max (fill ' ')]
@@ -159,7 +162,7 @@ drawCompactView mQuery ctx =
                     let absoluteIdx = v_start + idx
                         isSelected = Set.member absoluteIdx selection
                         isCursor = Just ptr == selectedTaskPtr
-                        baseWidget = fmap (R.renderCompactWithColors $ getColorScheme scheme) (preview (taskBy ptr) fs)
+                        baseWidget = fmap (R.renderCompact $ getColorScheme scheme) (preview (taskBy ptr) fs)
                      in fmap
                           ( \widget ->
                               let styledWidget
@@ -190,7 +193,7 @@ drawCompactView mQuery ctx =
                in " -- SELECTION (" ++ show selCount ++ ") --"
           maybeFocusedTask = case mQuery of
             Just _ -> emptyWidget -- No focused task in search view
-            Nothing -> maybe emptyWidget (R.renderFullWithColors $ getColorScheme scheme) (preview currentTaskLens ctx)
+            Nothing -> maybe emptyWidget (R.renderFull $ getColorScheme scheme) (preview currentTaskLens ctx)
        in vBox
             [ str $ "Number of tasks in view: " ++ show numberOfTasks,
               str $ "Task file: " ++ maybeCurrentFile,
@@ -211,9 +214,10 @@ cmdWidget cmdType query =
 messageWidget :: T.Text -> Widget Name
 messageWidget msg = vLimit 1 $ txt msg
 
-renderRefileDialog :: (RenderTask a Name, Searcher a) => RefileDialog -> AppContext a -> Widget Name
+renderRefileDialog :: (Render a Name, Searcher a) => RefileDialog -> AppContext a -> Widget Name
 renderRefileDialog refileDialog ctx =
   let fs = view fileStateLens ctx
+      scheme = view (config . colorScheme) ctx
       allProjects = view rdProjects refileDialog
       searchQuery = view rdSearchQuery refileDialog
       selectedIdx = view rdSelectedIndex refileDialog
@@ -225,7 +229,7 @@ renderRefileDialog refileDialog ctx =
 
       renderProject idx ptr =
         let isSelected = idx == selectedIdx
-            widget = maybe (txt "<missing task>") renderCompact (preview (taskBy ptr) fs)
+            widget = maybe (txt "<missing task>") (renderCompact (getColorScheme scheme)) (preview (taskBy ptr) fs)
          in if isSelected
               then withDefAttr highlightBgAttr widget
               else widget

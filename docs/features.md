@@ -307,7 +307,7 @@ See [Org Mode Format](./org-mode-format.md) for syntax details.
 
 ### Type Class Architecture
 Swap any component by implementing type classes:
-- `RenderTask`: Custom rendering
+- `Render`: Custom rendering
 - `Writer`: Custom serialization
 - `Searcher`: Custom search logic
 - `Refileable`: Custom organization

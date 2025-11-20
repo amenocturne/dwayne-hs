@@ -314,7 +314,7 @@ spec = do
                 ]
           (loc, remainder, result) = runParser descriptionParser input
 
-      result `shouldBe` ParserSuccess input
+      fmap richTextToPlain result `shouldBe` ParserSuccess input
       remainder `shouldBe` ""
       loc `shouldBe` Location 3 22
 
@@ -326,13 +326,13 @@ spec = do
               ]
           (loc, remainder, result) = runParser descriptionParser input
 
-      result `shouldBe` ParserSuccess "This is the description"
+      fmap richTextToPlain result `shouldBe` ParserSuccess "This is the description"
       remainder `shouldBe` "\n* TODO Next task\n"
       loc `shouldBe` Location 1 23
 
     it "handles empty description" $ do
       let (loc, remainder, result) = runParser descriptionParser "\n* TODO Next task"
-      result `shouldBe` ParserSuccess ""
+      fmap richTextToPlain result `shouldBe` ParserSuccess ""
       remainder `shouldBe` "\n* TODO Next task"
       loc `shouldBe` Location 1 0
 
@@ -345,7 +345,7 @@ spec = do
               ]
         (loc, remainder, result) = runParser descriptionParser input
 
-    result `shouldBe` ParserSuccess input
+    fmap richTextToPlain result `shouldBe` ParserSuccess input
     remainder `shouldBe` ""
     loc `shouldBe` Location 2 48
 
@@ -356,9 +356,14 @@ spec = do
               [ "Description with *bold* and /italic/ formatting",
                 "And [[http://example.com][link]]"
               ]
+        expectedPlain =
+          T.unlines
+            [ "Description with *bold* and /italic/ formatting",
+              "And link"
+            ]
         (loc, remainder, result) = runParser descriptionParser input
 
-    result `shouldBe` ParserSuccess input
+    fmap richTextToPlain result `shouldBe` ParserSuccess (T.strip expectedPlain)
     remainder `shouldBe` ""
     loc `shouldBe` Location 2 32
   describe "brokenDescripitonParser" $ do
@@ -367,14 +372,14 @@ spec = do
         let input =
               T.strip $
                 T.unlines
-                  [ "  https://music.youtube.com/watch?v=ylmNrof40gE&feature=share",
+                  [ "  https://youtu.be/dQw4w9WgXcQ",
                     "  :PROPERTIES:",
                     "  :CREATED:  [2022-06-13 Mon 11:29]",
                     "  :END:"
                   ]
             (_, _, result) = runParser brokenDescriptionParser input
-        resultToMaybe result
-        `shouldBe` Just "https://music.youtube.com/watch?v=ylmNrof40gE&feature=share"
+        fmap richTextToPlain result
+        `shouldBe` ParserSuccess "https://youtu.be/dQw4w9WgXcQ"
 
   describe "anyTaskparser" $ do
     it "parses a minimal task" $ do

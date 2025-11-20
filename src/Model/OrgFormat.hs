@@ -16,6 +16,9 @@ module Model.OrgFormat
     -- * Header formatting
     formatStars,
     formatHeaderLine,
+
+    -- * RichText formatting
+    formatRichTextPlain,
   )
 where
 
@@ -87,9 +90,17 @@ formatTimeField (TimeField n delim) (OrgTime t r d) =
 formatStars :: Int -> T.Text
 formatStars = flip T.replicate "*"
 
+-- | Format RichText as plain text (for org-mode files)
+formatRichTextPlain :: RichText -> T.Text
+formatRichTextPlain (RichText nodes) = T.concat $ Prelude.map formatNode nodes
+  where
+    formatNode (PlainText t) = t
+    formatNode (OrgLink url Nothing) = T.concat ["[[", url, "]]"]
+    formatNode (OrgLink url (Just title)) = T.concat ["[[", url, "][", title, "]]"]
+
 -- | Format a complete header line without colors
 -- Example: "** TODO [#A] Task title :tag1:tag2:"
-formatHeaderLine :: Int -> T.Text -> Maybe Int -> T.Text -> S.Set T.Text -> T.Text
+formatHeaderLine :: Int -> T.Text -> Maybe Int -> RichText -> S.Set T.Text -> T.Text
 formatHeaderLine level todoKw maybePriority title tags =
   T.intercalate " " $ filter (not . T.null) parts
   where
@@ -97,6 +108,6 @@ formatHeaderLine level todoKw maybePriority title tags =
       [ formatStars level,
         todoKw,
         maybe "" id (formatPriority =<< maybePriority),
-        title,
+        formatRichTextPlain title,
         formatTags (S.toList tags)
       ]

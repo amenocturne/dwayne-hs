@@ -28,6 +28,7 @@ import Model.OrgMode
     orgCreatedProperty,
     orgDayTimeFormat,
     orgInboxKeyword,
+    plainToRichText,
     priority,
     properties,
     scheduled,
@@ -95,14 +96,14 @@ addNewTask = Helpers.saveForUndo $ do
               { _level = 1,
                 _todoKeyword = orgInboxKeyword,
                 _priority = Nothing,
-                _title = "{{Title}}",
+                _title = plainToRichText "{{Title}}",
                 _tags = S.empty,
                 _scheduled = Nothing,
                 _deadline = Nothing,
                 _createdProp = Nothing,
                 _closed = Nothing,
                 _properties = [(orgCreatedProperty, createdStr)],
-                _description = ""
+                _description = plainToRichText ""
               }
           initialContent = write dummyTask
 

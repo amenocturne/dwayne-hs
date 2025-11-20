@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `just build` - Build the project
 
 **Testing:**
-- `cabal test` - Run all tests  
+- `cabal test` - Run all tests
 - `just test` - Run all tests (preferred)
 
 **Installation:**
@@ -27,8 +27,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Core Philosophy:** Maximum modularity through type classes - any component can be swapped without changing the rest of the system.
 
 **Key Type Classes:**
-- `RenderTask` - Polymorphic UI rendering
-- `Writer` - Serialization back to text format  
+- `Render` - Polymorphic UI rendering
+- `Writer` - Serialization back to text format
 - `Searcher` - Search functionality with smart case handling
 - `Refileable` - Task movement and organization operations
 - `Injection` - Bidirectional type conversions
@@ -39,7 +39,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `Writer/` - Serialization back to file formats
 - `Tui/` - Brick-based terminal user interface
 - `Render/` - Display formatting and rendering logic
-- `Searcher/` - Search implementations  
+- `Searcher/` - Search implementations
 - `Refile/` - Task organization and movement
 - `Validation/` - System and project validation
 

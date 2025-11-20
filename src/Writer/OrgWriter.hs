@@ -9,7 +9,7 @@ import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Model.Injection
-import Model.OrgFormat
+import Model.OrgFormat (formatHeaderLine, formatRichTextPlain, formatTimeField)
 import Model.OrgMode
 import Writer.Writer
 
@@ -24,7 +24,7 @@ instance (Writer a) => Writer (TaskFile a) where
 instance Writer Task where
   write task = T.intercalate "\n" $ filter (not . T.null) components
     where
-      desc = T.strip (view description task)
+      desc = T.strip $ formatRichTextPlain (view description task)
       components =
         [ headerLine,
           timeFieldsLine,

@@ -17,7 +17,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Graphics.Vty.Input.Events as E
-import Model.OrgMode (Task (..))
+import Model.OrgMode (Task (..), extractUrls)
 import System.Process (spawnProcess, waitForProcess)
 import Text.Regex.Posix ((=~))
 import qualified Tui.Contexts as Ctx
@@ -60,16 +60,18 @@ openTaskUrl = do
   let ct = preview currentTaskLens ctx
   case ct of
     Just task -> do
-      let titleUrl = extractFirstUrl (_title task)
-          descUrl = extractFirstUrl (_description task)
-          firstUrl = titleUrl <|> descUrl
+      let titleUrls = extractUrls (_title task)
+          descUrls = extractUrls (_description task)
+          firstUrl = case titleUrls ++ descUrls of
+            (u : _) -> Just u
+            [] -> Nothing
       case firstUrl of
         Just url -> do
           result <- liftIO $ openUrlInBrowser url
           case result of
             Left err -> liftIO $ writeBChan (view (appState . eventChannel) ctx) $ Error err
             Right () -> return ()
-        Nothing -> showError "No URL found in task.\n\nURLs can be in the task title or description.\nSupported formats:\n- Plain: http://example.com\n- Org-mode: [[http://example.com]]"
+        Nothing -> showError "No URL found in task.\n\nURLs can be in the task title or description.\nSupported formats:\n- Plain: http://example.com\n- Org-mode: [[http://example.com][title]]"
     Nothing -> showError "No task selected. Please select a task first."
 
 -- | Extract the first URL from text (supports org-mode [[url]] format and plain URLs)
