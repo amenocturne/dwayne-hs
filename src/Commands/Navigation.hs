@@ -36,7 +36,7 @@ jumpToEndCommand =
         Just $
           TuiBinding
             { tuiKeyEvent = JumpEnd,
-              tuiKeybinding = KeyPress (E.KChar 'G') Set.empty :| [],
+              tuiKeybinding = toKey 'G',
               tuiDescription = "Jump to the end",
               tuiAction = CmdProjects.saveForJump $ SM.selectionAwareMove (const maxBound),
               tuiContext = Ctx.normalOrSelectionContext
