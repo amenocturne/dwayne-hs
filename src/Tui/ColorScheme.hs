@@ -47,7 +47,7 @@ defaultColorScheme =
             ("", textColor)
           ],
       _priorityColors = [red, yellow, blue],
-      _tagColor = textColor,
+      _tagColor = blue,
       _timeFieldColor = textColor,
       _levelColors = [yellow, red, green, blue, mauve, teal],
       _propertyColor = textColor,
