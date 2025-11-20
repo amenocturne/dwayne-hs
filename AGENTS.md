@@ -28,3 +28,10 @@ This is a personal project built for the author's own use. **Do not prioritize b
 **Testing:** Use hspec with `describe`/`it`. Test specs in `test/` mirror `src/` structure. Use `shouldBe` assertions and check parser results with `runParser`.
 
 **Comments:** Only add comments that provide non-obvious context or explain "why" rather than "what". Remove comments that merely restate what the code already clearly expresses. Top-level Haddock comments with examples are valuable. Inline comments should be rare and meaningful.
+
+## Development Philosophy
+
+- **Simplicity first**: Don't add complexity when simpler solutions exist. Reuse working code over building new abstractions.
+- **Question duplication**: Challenge redundant patterns (e.g., "WithX" and "WithoutX" variants). Eliminate unnecessary code.
+- **Iterate, don't over-design**: Ship working code first, refine later. Let tests guide design improvements.
+- **Use real constraints**: Architecture should solve actual problems, not theoretical ones.
