@@ -19,6 +19,7 @@ import Model.OrgFormat
 import Model.OrgMode
 import Render.Render
 import Tui.ColorScheme (ColorScheme, descriptionAttr, levelAttr, priorityAttr, propertyAttr, tagAttr, timeFieldAttr, todoKeywordAttr)
+
 instance RenderTask Task b where
   renderCompact task = txt $ formatHeaderLine level' todoKw priority' title' tags'
     where
@@ -63,7 +64,7 @@ instance RenderTask Task b where
         ]
     where
       titleLine = txtWrap $ formatHeaderLine level' todoKw priority' title' tags'
-      
+
       timeFieldsLine =
         txt $
           T.unwords $

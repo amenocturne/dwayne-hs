@@ -9,8 +9,8 @@ module Commands.ErrorDialog
 where
 
 import Brick (modify)
-import Brick.Widgets.Dialog (dialog)
 import Brick.Widgets.Core (str)
+import Brick.Widgets.Dialog (dialog)
 import Commands.Command (Command (..), TuiBinding (..))
 import Control.Lens (set)
 import Data.List.NonEmpty (NonEmpty (..))

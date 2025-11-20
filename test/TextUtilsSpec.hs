@@ -2,7 +2,7 @@
 
 module TextUtilsSpec (spec) where
 
-import System.Directory (getHomeDirectory, createDirectoryIfMissing)
+import System.Directory (createDirectoryIfMissing, getHomeDirectory)
 import System.Environment (setEnv, unsetEnv)
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
@@ -271,15 +271,15 @@ spec = do
         setEnv "TEST_TMP_DIR" tmpDir
         let content = "test content"
         let path = "$TEST_TMP_DIR/test-file.txt"
-        
+
         -- Write file
         writeResult <- writeFileExample path content
         writeResult `shouldBe` Right ()
-        
+
         -- Read file back
         readContent <- readFileExample path
         readContent `shouldBe` content
-        
+
         unsetEnv "TEST_TMP_DIR"
 
     it "writes and reads a file with ~ expansion" $ do
@@ -287,20 +287,20 @@ spec = do
         -- Create a test subdirectory
         let testDir = tmpDir </> "test-home"
         createDirectoryIfMissing True testDir
-        
+
         -- Temporarily use tmpDir as "home" by using explicit path
         setEnv "TEST_HOME" testDir
         let content = "home test content"
         let path = "$TEST_HOME/test-file.txt"
-        
+
         -- Write file
         writeResult <- writeFileExample path content
         writeResult `shouldBe` Right ()
-        
+
         -- Read file back
         readContent <- readFileExample path
         readContent `shouldBe` content
-        
+
         unsetEnv "TEST_HOME"
 
     it "returns error when writing to invalid path" $ do
