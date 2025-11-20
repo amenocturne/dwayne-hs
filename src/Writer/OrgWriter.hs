@@ -14,12 +14,12 @@ import Model.OrgMode
 import Writer.Writer
 
 instance (Writer a) => Writer (TaskFile a) where
-  write (TaskFile maybeName tasks) = T.concat $ titleText ++ [T.intercalate "\n\n" tasksText]
+  write (TaskFile maybeName tasks) = T.concat $ titleText ++ [tasksText]
     where
       titleText = case maybeName of
         Just n -> ["#+TITLE: " <> n, "\n\n"]
         Nothing -> []
-      tasksText = map write (V.toList tasks) -- TODO: Rewrite function to accept Vector instead of list and avoid convertion
+      tasksText = T.intercalate "\n\n" $ V.toList $ V.map write tasks
 
 instance Writer Task where
   write task = T.intercalate "\n" $ filter (not . T.null) components

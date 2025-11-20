@@ -241,13 +241,15 @@ cursorLens :: Lens' (AppContext a) (Maybe Int)
 cursorLens = appState . compactView . currentState . cursor
 
 getAllPointers :: FileState a -> V.Vector TaskPointer
-getAllPointers fs = V.concatMap fun (V.fromList $ M.toList fs) -- TODO: optimize all this convertions
+getAllPointers fs = V.concat $ M.foldlWithKey' accumulate [] fs
   where
-    fun (f, result) =
-      maybe
-        V.empty
-        (\taskFile -> (\(i, _) -> TaskPointer f i) <$> V.zip (V.fromList [0 ..]) (_content taskFile))
-        (resultToMaybe result)
+    accumulate acc f result =
+      case resultToMaybe result of
+        Nothing -> acc
+        Just taskFile ->
+          let taskCount = V.length (_content taskFile)
+              pointers = V.generate taskCount (\i -> TaskPointer f i)
+           in pointers : acc
 
 sortByVector :: (a -> a -> Ordering) -> V.Vector a -> V.Vector a
 sortByVector cmp vec = runST $ do
