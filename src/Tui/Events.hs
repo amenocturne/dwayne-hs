@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module Tui.Events where
@@ -205,43 +206,67 @@ handleEvent (AppEvent event) = case event of
     modify $ set (appState . validationDialog) (Just dlg)
   SaveAllFiles -> do
     ctx <- get
-    modified <- liftIO $ checkFilesUnmodified ctx
-    if not (null modified)
-      then do
-        modify $ switchMode NormalMode . set (appState . cmdState) Nothing
-        liftIO $
-          writeBChan
-            (view (appState . eventChannel) ctx)
-            ( Error $
-                "Aborting save, external edits detected in: "
-                  ++ intercalate ", " modified
-            )
+    let currentState = view fileStateLens ctx
+        originalState = view originalFileStateLens ctx
+        changedFiles =
+          [ (fp, file)
+          | (fp, file) <- M.toList currentState,
+            M.lookup fp originalState /= Just file
+          ]
+    if null changedFiles
+      then modify $ set (appState . cmdState) (Just $ ShowingMessage "No changes to save")
       else do
-        let files = M.toList $ view fileStateLens ctx
-        results <- liftIO $ traverse (uncurry writeTaskFile) files
+        modified <- liftIO $ checkFilesUnmodified ctx
+        let modifiedChanged = filter (`elem` map fst changedFiles) modified
+        if not (null modifiedChanged)
+          then do
+            modify $ switchMode NormalMode . set (appState . cmdState) Nothing
+            liftIO $
+              writeBChan
+                (view (appState . eventChannel) ctx)
+                ( Error $
+                    "Aborting save, external edits detected in: "
+                      ++ intercalate ", " modifiedChanged
+                )
+          else do
+            results <- liftIO $ traverse (uncurry writeTaskFile) changedFiles
+            let errors = [err | Left err <- results]
+            if null errors
+              then do
+                modify $ \c ->
+                  let updated = foldl (\m (fp, f) -> M.insert fp f m) (view originalFileStateLens c) changedFiles
+                   in set originalFileStateLens updated c
+                modify $ set (appState . cmdState) (Just $ ShowingMessage $ T.pack $ "Saved " ++ show (length changedFiles) ++ " file(s)")
+              else do
+                liftIO $
+                  writeBChan
+                    (view (appState . eventChannel) ctx)
+                    (Error $ "Failed to save some files:\n" ++ intercalate "\n" errors)
+  ForceWriteAll -> do
+    ctx <- get
+    let currentState = view fileStateLens ctx
+        originalState = view originalFileStateLens ctx
+        changedFiles =
+          [ (fp, file)
+          | (fp, file) <- M.toList currentState,
+            M.lookup fp originalState /= Just file
+          ]
+    if null changedFiles
+      then modify $ set (appState . cmdState) (Just $ ShowingMessage "No changes to save")
+      else do
+        results <- liftIO $ traverse (uncurry writeTaskFile) changedFiles
         let errors = [err | Left err <- results]
         if null errors
           then do
-            -- Update original file state after successful save
-            modify $ set originalFileStateLens (view fileStateLens ctx)
+            modify $ \c ->
+              let updated = foldl (\m (fp, f) -> M.insert fp f m) (view originalFileStateLens c) changedFiles
+               in set originalFileStateLens updated c
+            modify $ set (appState . cmdState) (Just $ ShowingMessage $ T.pack $ "Saved " ++ show (length changedFiles) ++ " file(s)")
           else do
             liftIO $
               writeBChan
                 (view (appState . eventChannel) ctx)
                 (Error $ "Failed to save some files:\n" ++ intercalate "\n" errors)
-  ForceWriteAll -> do
-    ctx <- get
-    let files = M.toList $ view fileStateLens ctx
-    results <- liftIO $ traverse (uncurry writeTaskFile) files
-    let errors = [err | Left err <- results]
-    if null errors
-      then do
-        modify $ set originalFileStateLens (view fileStateLens ctx)
-      else do
-        liftIO $
-          writeBChan
-            (view (appState . eventChannel) ctx)
-            (Error $ "Failed to save some files:\n" ++ intercalate "\n" errors)
   QuitApp -> do
     ctx <- get
     if checkUnsavedChanges ctx
