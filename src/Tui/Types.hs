@@ -28,6 +28,7 @@ import qualified Graphics.Vty.Input.Events as E
 import Model.LinearHistory
 import Model.OrgMode
 import Parser.Parser
+import TextUtils (expandPath)
 
 data AppContext a = AppContext
   { _appState :: AppState a,
@@ -107,6 +108,18 @@ instance FromJSON (AppConfig a) where
       defaultOptions
         { fieldLabelModifier = drop 1 -- drops the leading underscore
         }
+
+expandConfigPaths :: AppConfig a -> IO (AppConfig a)
+expandConfigPaths config = do
+  expandedFiles <- mapM expandPath (_files config)
+  expandedInboxFile <- expandPath (_inboxFile config)
+  expandedProjectsFile <- expandPath (_projectsFile config)
+  return $
+    config
+      { _files = expandedFiles,
+        _inboxFile = expandedInboxFile,
+        _projectsFile = expandedProjectsFile
+      }
 
 data SystemConfig a = SystemConfig
   { _fileParser :: Parser (TaskFile a),

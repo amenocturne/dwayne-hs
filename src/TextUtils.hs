@@ -17,6 +17,7 @@ import qualified Data.Text.IO as TIO
 import Data.Time (ParseTime, defaultTimeLocale)
 import Data.Time.Format (parseTimeM)
 import GHC.IO.Exception (ExitCode (..))
+import GHC.Unicode
 import System.Directory (getHomeDirectory, removeFile)
 import System.Environment (lookupEnv)
 import System.Exit (die)
@@ -92,11 +93,10 @@ expandPath path = do
       return $ c : expanded
 
     isVarChar :: Char -> Bool
-    isVarChar c = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_'
+    isVarChar c = isAsciiUpper c || isAsciiLower c || isDigit c || c == '_'
 
 readFileExample :: FilePath -> IO T.Text
-readFileExample f = do
-  fp <- expandPath f
+readFileExample fp = do
   TIO.readFile fp `catch` handleIOError fp
   where
     handleIOError :: FilePath -> IOException -> IO T.Text
@@ -104,7 +104,7 @@ readFileExample f = do
       die $
         unlines
           [ "ERROR: Failed to read file",
-            "File: " ++ f,
+            "File: " ++ fp,
             "Expanded path: " ++ expandedPath,
             "",
             "Reason: " ++ show e,
@@ -117,8 +117,7 @@ readFileExample f = do
 
 writeFileExample :: FilePath -> T.Text -> IO (Either String ())
 writeFileExample path content = do
-  expandedPath <- expandPath path
-  (TIO.writeFile expandedPath content >> return (Right ())) `catch` handleIOError expandedPath
+  (TIO.writeFile path content >> return (Right ())) `catch` handleIOError path
   where
     handleIOError :: FilePath -> IOException -> IO (Either String ())
     handleIOError expandedPath e =

@@ -62,7 +62,7 @@ instance (Searcher a, Render a Name, Writer a, Show a, Eq a, Refileable a, SV.Sy
               "  - The YAML syntax is valid",
               "  - All required fields are present"
             ]
-      Right conf -> return conf
+      Right conf -> expandConfigPaths conf
     -- Auto-include inboxFile and projectsFile in files list and remove duplicates
     let allFiles = nub $ view files conf ++ [view inboxFile conf, view projectsFile conf]
     parsedFiles <- mapM (\f -> fmap (f,) (readTasks (view fileParser sysConf) f)) allFiles
