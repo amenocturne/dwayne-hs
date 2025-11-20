@@ -106,7 +106,7 @@ formatRichTextPlain :: RichText -> T.Text
 formatRichTextPlain (RichText nodes) = T.concat $ Prelude.map formatNode nodes
   where
     formatNode (PlainText t) = t
-    formatNode (OrgLink url Nothing) = T.concat ["[[", url, "]]"]
+    formatNode (OrgLink url Nothing) = url
     formatNode (OrgLink url (Just title)) = T.concat ["[[", url, "][", title, "]]"]
 
 -- | Format a complete header line without colors
