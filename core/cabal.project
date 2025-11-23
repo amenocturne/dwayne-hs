@@ -1,3 +1,6 @@
+package *
+  documentation: true
+
 packages: .
 
 -- Constrain warp version to avoid http2 compatibility issues

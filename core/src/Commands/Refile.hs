@@ -37,7 +37,7 @@ refileCommand =
         Just $
           TuiBinding
             { tuiKeyEvent = Refile,
-              tuiKeybinding = toKeySeq "rf", -- 'r' then 'f'
+              tuiKeybinding = toKeySeq "rf", -- 'r' then 'f' -- TODO: fix the shortcut doesn't work because we have 'r' for refresh
               tuiDescription = "Refile task to project",
               tuiAction = openRefileDialog,
               tuiContext = Ctx.modeKeyContext NormalMode
