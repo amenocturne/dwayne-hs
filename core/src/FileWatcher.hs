@@ -37,9 +37,9 @@ startWatcher files callback = do
         watchDir
           mgr
           dir
-          ( \event -> case event of
-              Modified path _ _ -> normalise path == normalise file
-              _ -> False
+          ( \event ->
+              let path = eventPath event
+               in normalise file == normalise path
           )
           ( \event -> do
               let path = eventPath event
