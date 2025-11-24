@@ -1,6 +1,6 @@
 /**
  * Application Bootstrap
- * 
+ *
  * Initializes Snabbdom, creates the store, and wires up side effects.
  * All state changes flow through dispatch -> reducer -> effects -> dispatch.
  */
@@ -41,7 +41,7 @@ const initialState: AppState = {
   projectPointer: null,
   parentProject: null,
   loadingParentProject: false,
-  
+
   // 3D Carousel state
   carouselRotation: 0,
   carouselTargetRotation: 0,
@@ -111,25 +111,25 @@ async function handleTaskSelection(taskWithPointer: TaskWithPointer): Promise<vo
       );
 
       let parentProject: TaskWithPointer | null = null;
-      
+
       for (let i = projectsInSameFile.length - 1; i >= 0; i--) {
         const candidate = projectsInSameFile[i];
         if (!candidate) continue; // Handle noUncheckedIndexedAccess
-        
+
         if (candidate.task.level >= task.level) {
           continue;
         }
-        
+
         try {
           const tree = await fetchProjectTree(candidate.pointer.file, candidate.pointer.taskIndex);
-          
+
           const containsTask = (node: any): boolean => {
             if (node.pointer.file === pointer.file && node.pointer.taskIndex === pointer.taskIndex) {
               return true;
             }
             return node.children.some(containsTask);
           };
-          
+
           if (containsTask(tree.root)) {
             parentProject = { task: candidate.task, pointer: candidate.pointer };
             break;

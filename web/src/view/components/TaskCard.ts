@@ -377,7 +377,7 @@ export function renderTaskNodeCard(
  * - Container has perspective to create depth
  * - Rotation controlled via state (carouselRotation)
  * - Supports mouse wheel scrolling
- * 
+ *
  * @param tasks - Array of tasks to display
  * @param rotation - Current rotation angle in degrees (from state)
  * @param callbacks - Task click callbacks
@@ -398,7 +398,7 @@ export function renderTaskGrid(
       width: '100%',
       height: '500px',
       perspective: `${perspective}px`,
-      perspectiveOrigin: '50% 50%',
+      perspectiveOrigin: '50% 100%', // Look from bottom of viewport
       overflow: 'visible',
       marginTop: '40px',
       border: '2px solid lime', // DEBUG: visual boundary
@@ -439,15 +439,16 @@ export function renderTaskGrid(
         top: '50%',
         left: '50%',
         transformStyle: 'preserve-3d',
-        // Apply slider rotation here (rotate entire container, not individual cards)
-        // IMPORTANT: Don't apply perspective here, it's on parent
-        transform: `rotateY(${rotation}deg)`,
+        // Apply camera tilt (rotateX) then carousel rotation (rotateY)
+        // rotateX(-25deg) = tilt top toward viewer, creating arc at bottom
+        // This creates the speedometer/dashboard arc effect
+        transform: `rotateX(-45deg) rotateY(${rotation}deg)`,
         transition: 'none', // No CSS transition, we use RAF interpolation
       },
     }, tasks.map((taskWithPointer, index) => {
       // Calculate position using our pure helper function
       const pos = calculateCarouselPosition(index, totalCards, 0, radius);
-      
+
       return h('div.carousel-card-wrapper', {
         key: `${taskWithPointer.pointer.file}-${taskWithPointer.pointer.taskIndex}`,
         style: {
@@ -456,7 +457,7 @@ export function renderTaskGrid(
           transformStyle: 'preserve-3d',
           // Position card in 3D space
           // Use positive rotateY to make cards face outward (away from center)
-          transform: `translate3d(${pos.x}px, 0px, ${pos.z}px) rotateY(${pos.rotateY}deg)`,
+          transform: `translate3d(${pos.x}px, 0px, ${pos.z}px) rotateY(${pos.rotateY + 180}deg)`,
           // Center the card (half width/height offset)
           marginLeft: `-${carousel3DConfig.cardWidth / 2}px`,
           marginTop: `-${carousel3DConfig.cardHeight / 2}px`,
