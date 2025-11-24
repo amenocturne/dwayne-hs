@@ -8,7 +8,7 @@
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 import type { TaskWithPointer, TaskNode } from "../../types/domain.js";
-import { getTodoKeywordColor, renderTextNodes } from "../helpers.js";
+import { getTodoKeywordColor, renderTextNodes, calculateCarouselPosition } from "../helpers.js";
 import { renderKeywordBadge, renderPriorityBadge } from "./common/Badge.js";
 import { renderTags } from "./common/Tag.js";
 import { renderCompactDates } from "./common/DateDisplay.js";
@@ -25,7 +25,7 @@ import {
   shadows,
   transitions,
 } from "../designSystem.js";
-import { carouselConfig } from "../constants.js";
+import { carouselConfig, carousel3DConfig } from "../constants.js";
 
 export interface TaskCardCallbacks {
   readonly onTaskClick: (task: TaskWithPointer) => void;
@@ -369,104 +369,101 @@ export function renderTaskNodeCard(
 }
 
 /**
- * Renders a horizontal carousel of task cards.
- * Pure function: (ReadonlyArray<TaskWithPointer>, TaskCardCallbacks) => VNode
+ * Renders a 3D carousel of task cards in a circular arrangement.
+ * Pure function: (ReadonlyArray<TaskWithPointer>, number, TaskCardCallbacks, (delta: number) => void) => VNode
  *
- * Supports horizontal scrolling via:
- * - Mouse wheel (vertical scroll translates to horizontal)
- * - Click and drag
- * - Native scrollbar (hidden but functional)
+ * Based on CSS 3D transforms:
+ * - Cards positioned on a circle in 3D space (XZ plane)
+ * - Container has perspective to create depth
+ * - Rotation controlled via state (carouselRotation)
+ * - Supports mouse wheel scrolling
+ * 
+ * @param tasks - Array of tasks to display
+ * @param rotation - Current rotation angle in degrees (from state)
+ * @param callbacks - Task click callbacks
+ * @param onRotate - Callback when user scrolls (dispatches CarouselRotate action)
  */
 export function renderTaskGrid(
   tasks: ReadonlyArray<TaskWithPointer>,
-  callbacks: TaskCardCallbacks
+  rotation: number,
+  callbacks: TaskCardCallbacks,
+  onRotate: (delta: number) => void
 ): VNode {
-  return h('div.task-carousel', {
+  const totalCards = tasks.length;
+  const { radius, perspective } = carousel3DConfig;
+
+  return h('div.carousel-scene', {
     style: {
       position: 'relative',
       width: '100%',
-      overflowX: 'auto',
-      overflowY: 'hidden',
-      padding: '20px 0 40px',
-      cursor: 'grab',
-      scrollbarWidth: 'none', // Firefox
-      msOverflowStyle: 'none', // IE/Edge
-      scrollBehavior: 'smooth',
+      height: '500px',
+      perspective: `${perspective}px`,
+      perspectiveOrigin: '50% 50%',
+      overflow: 'visible',
+      marginTop: '40px',
+      border: '2px solid lime', // DEBUG: visual boundary
     },
-    on: {
-      mousedown: (e: MouseEvent) => {
-        const target = e.currentTarget as HTMLElement;
-        target.style.cursor = 'grabbing';
-        target.style.scrollBehavior = 'auto'; // Disable smooth scroll during drag
-        const startX = e.pageX - target.offsetLeft;
-        const scrollLeft = target.scrollLeft;
-
-        const mouseMoveHandler = (moveEvent: MouseEvent) => {
-          moveEvent.preventDefault();
-          const x = moveEvent.pageX - target.offsetLeft;
-          const walk = (x - startX) * carouselConfig.dragSpeed;
-          target.scrollLeft = scrollLeft - walk;
-        };
-
-        const mouseUpHandler = () => {
-          target.style.cursor = 'grab';
-          target.style.scrollBehavior = 'smooth';
-          document.removeEventListener('mousemove', mouseMoveHandler);
-          document.removeEventListener('mouseup', mouseUpHandler);
-        };
-
-        document.addEventListener('mousemove', mouseMoveHandler);
-        document.addEventListener('mouseup', mouseUpHandler);
-      },
-      wheel: (e: WheelEvent) => {
-        const target = e.currentTarget as HTMLElement;
-
-        // Check if this is a horizontal scroll gesture (trackpad two-finger swipe)
-        // deltaX !== 0 indicates horizontal scroll intention
-        const isHorizontalScroll = Math.abs(e.deltaX) > Math.abs(e.deltaY);
-
-        if (isHorizontalScroll) {
-          // Native horizontal scroll from trackpad - use as-is
-          e.preventDefault();
-          target.scrollLeft += e.deltaX * carouselConfig.trackpadScrollSpeed;
-        } else if (e.deltaY !== 0) {
-          // Vertical scroll (mouse wheel or vertical trackpad gesture)
-          // Translate to horizontal scroll
-          e.preventDefault();
-          target.scrollLeft += e.deltaY * carouselConfig.wheelScrollSpeed;
-        }
-      },
-    },
-    // Add hook to attach wheel listener with { passive: false } for preventDefault
+    // Wheel handler - updates target rotation via callback
     hook: {
       insert: (vnode) => {
         const elm = vnode.elm as HTMLElement;
+        console.log('Carousel scene mounted, attaching wheel listener');
         elm.addEventListener('wheel', (e: WheelEvent) => {
-          // Check if this is a horizontal scroll gesture (trackpad two-finger swipe)
-          const isHorizontalScroll = Math.abs(e.deltaX) > Math.abs(e.deltaY);
-
-          if (isHorizontalScroll) {
-            // Native horizontal scroll from trackpad - use as-is
-            e.preventDefault();
-            elm.scrollLeft += e.deltaX * carouselConfig.trackpadScrollSpeed;
-          } else if (e.deltaY !== 0) {
-            // Vertical scroll (mouse wheel or vertical trackpad gesture)
-            // Translate to horizontal scroll
-            e.preventDefault();
-            elm.scrollLeft += e.deltaY * carouselConfig.wheelScrollSpeed;
-          }
+          e.preventDefault();
+          const delta = e.deltaY * carousel3DConfig.rotationSpeed;
+          console.log('Wheel event:', { deltaY: e.deltaY, delta, currentRotation: rotation });
+          onRotate(delta);
         }, { passive: false });
       },
     },
   }, [
-    h('div.task-carousel-track', {
+    // DEBUG: Show current rotation
+    h('div', {
       style: {
-        display: 'flex',
-        gap: carouselConfig.cardGap,
-        paddingLeft: carouselConfig.trackPadding,
-        paddingRight: carouselConfig.trackPadding,
-        minWidth: 'min-content',
+        position: 'absolute',
+        top: '10px',
+        left: '10px',
+        color: 'lime',
+        fontSize: '20px',
+        fontWeight: 'bold',
+        zIndex: '1000',
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        padding: '10px',
       },
-    }, tasks.map((task) => renderTaskCard(task, callbacks))),
+    }, `Rotation: ${rotation.toFixed(1)}°`),
+    h('div.carousel-container', {
+      // CSS custom properties for formula (like in the video)
+      style: {
+        '--quantity': `${totalCards}`,
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        transformStyle: 'preserve-3d',
+        // Apply slider rotation here (rotate entire container, not individual cards)
+        // IMPORTANT: Don't apply perspective here, it's on parent
+        transform: `rotateY(${rotation}deg)`,
+        transition: 'none', // No CSS transition, we use RAF interpolation
+      },
+    }, tasks.map((taskWithPointer, index) => {
+      // Calculate position using our pure helper function
+      const pos = calculateCarouselPosition(index, totalCards, 0, radius);
+      
+      return h('div.carousel-card-wrapper', {
+        key: `${taskWithPointer.pointer.file}-${taskWithPointer.pointer.taskIndex}`,
+        style: {
+          '--position': `${index + 1}`, // 1-based position for CSS formula
+          position: 'absolute',
+          transformStyle: 'preserve-3d',
+          // Position card in 3D space
+          // Use positive rotateY to make cards face outward (away from center)
+          transform: `translate3d(${pos.x}px, 0px, ${pos.z}px) rotateY(${pos.rotateY}deg)`,
+          // Center the card (half width/height offset)
+          marginLeft: `-${carousel3DConfig.cardWidth / 2}px`,
+          marginTop: `-${carousel3DConfig.cardHeight / 2}px`,
+        },
+      }, [
+        renderTaskCard(taskWithPointer, callbacks),
+      ]);
+    })),
   ]);
 }

@@ -6,7 +6,27 @@
  */
 
 /**
- * Carousel scroll configuration
+ * 3D Carousel configuration
+ * Based on circular rotation approach (not arc-based math)
+ */
+export const carousel3DConfig = {
+  // 3D positioning
+  radius: 550,              // Circle radius in pixels (Z-direction distance)
+  perspective: 1000,        // CSS perspective value (distance to screen)
+  
+  // Rotation
+  rotationSpeed: 0.3,       // Wheel scroll to rotation multiplier (degrees per deltaY)
+  
+  // Animation
+  animationDuration: 20000, // Auto-rotation duration in ms (20 seconds)
+  
+  // Card dimensions (must match cardSizes.large from designSystem)
+  cardWidth: 320,           // From designSystem.cardSizes.large.width
+  cardHeight: 450,          // From designSystem.cardSizes.large.height
+} as const;
+
+/**
+ * Carousel scroll configuration (horizontal fallback)
  */
 export const carouselConfig = {
   // Scroll speed multipliers

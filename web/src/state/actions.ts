@@ -34,4 +34,8 @@ export type Action =
   | { type: 'GlobalSearchCompleted'; tasks: ReadonlyArray<TaskWithPointer>; total: number }
   | { type: 'GlobalSearchFailed'; error: string }
   | { type: 'ProjectSearchCompleted'; tasks: ReadonlyArray<TaskWithPointer>; total: number }
-  | { type: 'ProjectSearchFailed'; error: string };
+  | { type: 'ProjectSearchFailed'; error: string }
+  
+  // 3D Carousel actions
+  | { type: 'CarouselRotate'; delta: number }           // User scrolls wheel, change target rotation
+  | { type: 'CarouselUpdateCurrent'; rotation: number }; // Animation loop updates current rotation

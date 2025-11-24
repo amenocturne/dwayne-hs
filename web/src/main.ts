@@ -41,6 +41,10 @@ const initialState: AppState = {
   projectPointer: null,
   parentProject: null,
   loadingParentProject: false,
+  
+  // 3D Carousel state
+  carouselRotation: 0,
+  carouselTargetRotation: 0,
 };
 
 // ============================================================================
@@ -191,6 +195,11 @@ const callbacks: AppCallbacks = {
 
   onBackToView: () => {
     dispatch({ type: 'BackToViewRequested' });
+  },
+
+  onCarouselRotate: (delta: number) => {
+    console.log('onCarouselRotate called with delta:', delta);
+    dispatch({ type: 'CarouselRotate', delta });
   },
 };
 

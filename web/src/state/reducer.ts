@@ -362,6 +362,39 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
         { type: 'None' }
       ];
 
+    // 3D Carousel actions
+    case 'CarouselRotate':
+      // User scrolled wheel - update target rotation
+      // Keep rotation in range [0, 360) to prevent overflow
+      const newTargetRotation = (state.carouselTargetRotation + action.delta) % 360;
+      const normalizedTarget = newTargetRotation < 0 ? newTargetRotation + 360 : newTargetRotation;
+      
+      console.log('CarouselRotate reducer:', { 
+        currentTarget: state.carouselTargetRotation, 
+        delta: action.delta,
+        newTarget: normalizedTarget 
+      });
+      
+      return [
+        {
+          ...state,
+          carouselTargetRotation: normalizedTarget,
+          // For now, also update current rotation directly (no interpolation yet)
+          carouselRotation: normalizedTarget,
+        },
+        { type: 'None' }
+      ];
+
+    case 'CarouselUpdateCurrent':
+      // Animation loop interpolated to new current rotation
+      return [
+        {
+          ...state,
+          carouselRotation: action.rotation,
+        },
+        { type: 'None' }
+      ];
+
     default:
       // Exhaustiveness check - ensures all action types are handled at compile time
       // If a new action is added but not handled, TypeScript will error here

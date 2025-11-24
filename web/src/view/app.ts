@@ -29,6 +29,7 @@ export interface AppCallbacks {
   readonly onViewAllSubtasks: (pointer: TaskPointer) => void;
   readonly onClickParentProject: (parent: TaskWithPointer) => void;
   readonly onBackToView: () => void;
+  readonly onCarouselRotate: (delta: number) => void;
 }
 
 /**
@@ -221,10 +222,15 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                         fontSize: "1.125rem",
                       },
                     },
-                    "No tasks match your search",
+                     "No tasks match your search",
                   )
                 : h("div", [
-                    renderTaskGrid(filteredTasks, taskCardCallbacks),
+                    renderTaskGrid(
+                      filteredTasks,
+                      state.carouselRotation,
+                      taskCardCallbacks,
+                      callbacks.onCarouselRotate
+                    ),
                     ...(state.loadingMore ? [renderLoadingIndicator()] : []),
                   ]),
       ],
