@@ -6,30 +6,38 @@
 
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
-import { cardSizes } from "../../designSystem.js";
+import { cardSizes, fonts, colors, clipPaths, fontWeight } from "../../designSystem.js";
 
 type TagSize = keyof typeof cardSizes;
 
 /**
- * Renders a single tag.
+ * Renders a single tag with angled clip-path.
  * Pure function: (tag, size) => VNode
  */
 export function renderTag(tag: string, size: TagSize = 'medium'): VNode {
   const sizeConfig = cardSizes[size];
+  const isLarge = size === 'large';
   
   return h(
     'span.tag',
     {
       key: tag,
       style: {
-        backgroundColor: 'var(--tag-bg)',
-        color: 'var(--tag-text)',
+        fontFamily: fonts.display,
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+        color: colors.grey,
+        border: `1px solid ${colors.greyDark}`,
         padding: sizeConfig.tagPadding,
-        borderRadius: sizeConfig.tagBorderRadius,
         fontSize: sizeConfig.tagFontSize,
+        fontWeight: fontWeight.semibold,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        clipPath: isLarge ? clipPaths.tagAngled : 'none',
+        borderRadius: isLarge ? '0' : sizeConfig.tagBorderRadius,
+        transition: 'all 0.2s',
       },
     },
-    `#${tag}`
+    tag.toUpperCase()
   );
 }
 

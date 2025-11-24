@@ -86,19 +86,28 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
               {
                 style: {
                   margin: "0 0 8px 0",
-                  fontSize: "2.5rem",
+                  fontFamily: "var(--font-display)",
+                  fontSize: "clamp(2rem, 6vw, 3.5rem)",
                   fontWeight: "700",
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
                   color: "var(--text-primary)",
+                  transform: "skewX(-3deg)",
+                  display: "inline-block",
                 },
               },
-              "Dwayne Task Manager",
+              "DWAYNE",
             ),
             h(
               "p",
               {
                 style: {
                   margin: "0 0 24px 0",
-                  fontSize: "1rem",
+                  fontFamily: "var(--font-display)",
+                  fontSize: "0.875rem",
+                  fontWeight: "600",
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
                   color: "var(--text-secondary)",
                 },
               },

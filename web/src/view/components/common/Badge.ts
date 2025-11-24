@@ -6,12 +6,12 @@
 
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
-import { cardSizes, fontWeight } from "../../designSystem.js";
+import { cardSizes, fontWeight, fonts, clipPaths, colors } from "../../designSystem.js";
 
 type BadgeSize = keyof typeof cardSizes;
 
 /**
- * Renders a colored keyword badge.
+ * Renders a colored keyword badge with hexagonal clip-path.
  * Pure function: (text, color, size) => VNode
  */
 export function renderKeywordBadge(
@@ -20,18 +20,25 @@ export function renderKeywordBadge(
   size: BadgeSize = 'medium'
 ): VNode {
   const sizeConfig = cardSizes[size];
+  const isLarge = size === 'large';
   
   return h(
     'span.keyword-badge',
     {
       style: {
-        backgroundColor: color,
-        color: '#fff',
+        fontFamily: fonts.display,
+        backgroundColor: `rgba(0, 0, 0, 0.${isLarge ? '5' : '4'})`,
+        color: color,
+        border: `1px solid ${color}`,
         padding: sizeConfig.badgePadding,
-        borderRadius: sizeConfig.badgeBorderRadius,
         fontSize: sizeConfig.badgeFontSize,
-        fontWeight: fontWeight.semibold,
+        fontWeight: fontWeight.bold,
+        letterSpacing: '0.12em',
         textTransform: 'uppercase',
+        clipPath: isLarge ? clipPaths.badgeHex : 'none',
+        borderRadius: isLarge ? '0' : sizeConfig.badgeBorderRadius,
+        whiteSpace: 'nowrap',
+        transition: 'all 0.3s',
       },
     },
     text
