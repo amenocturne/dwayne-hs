@@ -1,12 +1,12 @@
 /**
  * Badge Component
- * 
+ *
  * Pure function for rendering keyword and priority badges.
  */
 
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
-import { cardSizes, fontWeight, fonts, clipPaths, colors } from "../../designSystem.js";
+import { cardSizes, fontWeight, fonts, clipPaths } from "../../designSystem.js";
 
 type BadgeSize = keyof typeof cardSizes;
 
@@ -21,7 +21,7 @@ export function renderKeywordBadge(
 ): VNode {
   const sizeConfig = cardSizes[size];
   const isLarge = size === 'large';
-  
+
   return h(
     'span.keyword-badge',
     {
@@ -55,7 +55,7 @@ export function renderPriorityBadge(
   size: BadgeSize = 'medium'
 ): VNode {
   const sizeConfig = cardSizes[size];
-  
+
   return h(
     'span.priority',
     {

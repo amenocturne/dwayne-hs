@@ -1,6 +1,6 @@
 /**
  * View Helpers
- * 
+ *
  * Pure utility functions for rendering and formatting.
  */
 
@@ -83,47 +83,33 @@ export function formatDate(orgTime: OrgTime | null): string {
 
 /**
  * 3D Carousel Position Calculator
- * 
+ *
  * Calculates the position and rotation for a card in a circular 3D carousel.
- * Based on the formula from the video guide:
- * - Each card is positioned on a circle in 3D space (XZ plane)
- * - Cards are evenly distributed around Y-axis
- * - Rotation angle = (position - 1) * (360 / totalCards)
- * 
- * Pure function: (number, number, number, number) => { x, z, rotateY }
- * 
+ * Cards are positioned with fixed spacing (not evenly around 360°).
+ *
+ * Pure function: (number, number, number, number, number) => { x, z, rotateY }
+ *
  * @param cardIndex - Zero-based index of the card (0, 1, 2, ...)
- * @param totalCards - Total number of cards in the carousel
+ * @param totalCards - Total number of cards in the carousel (used for rotation limits)
  * @param rotationOffset - Current rotation offset in degrees (from user scroll)
  * @param radius - Circle radius in pixels
+ * @param anglePerCard - Degrees between each card (fixed spacing)
  * @returns Position { x, z } and rotation { rotateY } for the card
  */
 export function calculateCarouselPosition(
   cardIndex: number,
   totalCards: number,
   rotationOffset: number,
-  radius: number
+  radius: number,
+  anglePerCard: number,
 ): { readonly x: number; readonly z: number; readonly rotateY: number } {
-  // Calculate angle per card (evenly distributed around 360°)
-  const anglePerCard = 360 / totalCards;
-  
-  // Calculate this card's angle
-  // Position is 1-based in the formula: (position - 1) * anglePerCard
-  // Since cardIndex is 0-based, we use: cardIndex * anglePerCard
-  const cardAngle = cardIndex * anglePerCard + rotationOffset;
-  
-  // Convert to radians for trigonometry
+  const centerOffset = 0;
+  const cardAngle = centerOffset + (totalCards - cardIndex - 1) * anglePerCard + rotationOffset;
+
   const angleRad = (cardAngle * Math.PI) / 180;
-  
-  // Position on XZ plane (Y-axis points up)
-  // x = sin(angle) * radius (horizontal position)
-  // z = cos(angle) * radius (depth position)
   const x = Math.sin(angleRad) * radius;
   const z = Math.cos(angleRad) * radius;
-  
-  // Rotate card to face center of circle
-  // Return the angle itself - we'll handle the sign in the component
+
   const rotateY = cardAngle;
-  
   return { x, z, rotateY };
 }

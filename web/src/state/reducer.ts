@@ -365,22 +365,23 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
     // 3D Carousel actions
     case 'CarouselRotate':
       // User scrolled wheel - update target rotation
-      // Keep rotation in range [0, 360) to prevent overflow
-      const newTargetRotation = (state.carouselTargetRotation + action.delta) % 360;
-      const normalizedTarget = newTargetRotation < 0 ? newTargetRotation + 360 : newTargetRotation;
+      // Clamp rotation to prevent scrolling past edges
+      // Note: limits are calculated in the view, but we don't have access here
+      // For now, allow full rotation and clamp in view component
+      const newTargetRotation = state.carouselTargetRotation + action.delta;
       
       console.log('CarouselRotate reducer:', { 
         currentTarget: state.carouselTargetRotation, 
         delta: action.delta,
-        newTarget: normalizedTarget 
+        newTarget: newTargetRotation 
       });
       
       return [
         {
           ...state,
-          carouselTargetRotation: normalizedTarget,
+          carouselTargetRotation: newTargetRotation,
           // For now, also update current rotation directly (no interpolation yet)
-          carouselRotation: normalizedTarget,
+          carouselRotation: newTargetRotation,
         },
         { type: 'None' }
       ];

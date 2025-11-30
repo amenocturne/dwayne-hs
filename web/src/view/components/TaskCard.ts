@@ -18,14 +18,14 @@ import {
   spacing,
   cssClasses,
   fontWeight,
-  lineHeight,
+  // lineHeight,
   colors,
   fonts,
   clipPaths,
-  shadows,
+  // shadows,
   transitions,
 } from "../designSystem.js";
-import { carouselConfig, carousel3DConfig } from "../constants.js";
+import { carousel3DConfig } from "../constants.js";
 
 export interface TaskCardCallbacks {
   readonly onTaskClick: (task: TaskWithPointer) => void;
@@ -390,7 +390,14 @@ export function renderTaskGrid(
   onRotate: (delta: number) => void
 ): VNode {
   const totalCards = tasks.length;
-  const { radius, perspective } = carousel3DConfig;
+  const { radius, perspective, anglePerCard } = carousel3DConfig;
+
+  // Calculate rotation limits (max left/right rotation)
+  // Cards span from -totalSpan/2 to +totalSpan/2
+  // We want to stop when first card is centered (at 0) and last card is centered
+  const totalSpan = (totalCards - 1) * anglePerCard;
+  const minRotation = -totalSpan / 2;  // Can't rotate past first card
+  const maxRotation = totalSpan / 2;   // Can't rotate past last card
 
   return h('div.carousel-scene', {
     style: {
@@ -398,19 +405,27 @@ export function renderTaskGrid(
       width: '100%',
       height: '500px',
       perspective: `${perspective}px`,
-      perspectiveOrigin: '50% 100%', // Look from bottom of viewport
+      perspectiveOrigin: '50% 100%',
       overflow: 'visible',
-      marginTop: '40px',
-      border: '2px solid lime', // DEBUG: visual boundary
+      marginTop: '400px',
     },
     // Wheel handler - updates target rotation via callback
     hook: {
       insert: (vnode) => {
         const elm = vnode.elm as HTMLElement;
         console.log('Carousel scene mounted, attaching wheel listener');
+        console.log('Rotation limits:', { minRotation, maxRotation, totalCards });
         elm.addEventListener('wheel', (e: WheelEvent) => {
           e.preventDefault();
           const delta = e.deltaY * carousel3DConfig.rotationSpeed;
+
+          // Check if rotation would exceed limits
+          const newRotation = rotation + delta;
+          if (newRotation < minRotation || newRotation > maxRotation) {
+            console.log('Rotation clamped:', { current: rotation, newRotation, min: minRotation, max: maxRotation });
+            return; // Don't rotate if we'd exceed limits
+          }
+
           console.log('Wheel event:', { deltaY: e.deltaY, delta, currentRotation: rotation });
           onRotate(delta);
         }, { passive: false });
@@ -439,15 +454,19 @@ export function renderTaskGrid(
         top: '50%',
         left: '50%',
         transformStyle: 'preserve-3d',
-        // Apply camera tilt (rotateX) then carousel rotation (rotateY)
-        // rotateX(-25deg) = tilt top toward viewer, creating arc at bottom
-        // This creates the speedometer/dashboard arc effect
         transform: `rotateX(-45deg) rotateY(${rotation}deg)`,
         transition: 'none', // No CSS transition, we use RAF interpolation
       },
     }, tasks.map((taskWithPointer, index) => {
       // Calculate position using our pure helper function
-      const pos = calculateCarouselPosition(index, totalCards, 0, radius);
+      const pos = calculateCarouselPosition(index, totalCards, 0, radius, anglePerCard);
+
+      console.log(`Card ${index}:`, {
+        totalCards,
+        anglePerCard,
+        position: pos,
+        rotation
+      });
 
       return h('div.carousel-card-wrapper', {
         key: `${taskWithPointer.pointer.file}-${taskWithPointer.pointer.taskIndex}`,

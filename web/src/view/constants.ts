@@ -17,6 +17,12 @@ export const carousel3DConfig = {
   // Rotation
   rotationSpeed: 0.3,       // Wheel scroll to rotation multiplier (degrees per deltaY)
 
+  // Card spacing
+  anglePerCard: 20,         // Degrees between each card
+                            // ↓ Smaller = cards closer together (e.g. 20)
+                            // ↑ Larger = cards more spread out (e.g. 40)
+                            // Typical range: 20-40 degrees
+
   // Animation
   animationDuration: 20000, // Auto-rotation duration in ms (20 seconds)
 
@@ -28,19 +34,19 @@ export const carousel3DConfig = {
 /**
  * Carousel scroll configuration (horizontal fallback)
  */
-export const carouselConfig = {
-  // Scroll speed multipliers
-  dragSpeed: 0.8,           // Mouse drag sensitivity (lower = slower, more controlled)
-  wheelScrollSpeed: 10.0,    // Mouse wheel/vertical trackpad scroll speed multiplier
-  trackpadScrollSpeed: 10.0, // Horizontal trackpad swipe (1.0 = native feel)
-
-  // Layout
-  cardGap: '32px',          // Gap between cards in carousel
-  trackPadding: '20px',     // Left/right padding of carousel track
-
-  // Smooth scroll behavior
-  smoothScrollDuration: '1.5s', // CSS transition duration for smooth scroll
-} as const;
+// export const carouselConfig = {
+//   // Scroll speed multipliers
+//   dragSpeed: 0.8,           // Mouse drag sensitivity (lower = slower, more controlled)
+//   wheelScrollSpeed: 10.0,    // Mouse wheel/vertical trackpad scroll speed multiplier
+//   trackpadScrollSpeed: 10.0, // Horizontal trackpad swipe (1.0 = native feel)
+//
+//   // Layout
+//   cardGap: '32px',          // Gap between cards in carousel
+//   trackPadding: '20px',     // Left/right padding of carousel track
+//
+//   // Smooth scroll behavior
+//   smoothScrollDuration: '1.5s', // CSS transition duration for smooth scroll
+// } as const;
 
 /**
  * Card animation configuration
