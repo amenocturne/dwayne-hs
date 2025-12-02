@@ -313,6 +313,29 @@ export function renderTaskNodeCard(
   ]);
 }
 
+function calculateCardVisibility(
+  cardAngle: number,
+  rotation: number
+): { readonly visible: boolean; readonly opacity: number } {
+  const { visibleAngleRange, fadeTransitionAngle } = carousel3DConfig;
+  const viewportAngle = cardAngle + rotation;
+  const absAngle = Math.abs(viewportAngle);
+  const maxVisibleAngle = visibleAngleRange / 2;
+  
+  if (absAngle > maxVisibleAngle + fadeTransitionAngle) {
+    return { visible: false, opacity: 0 };
+  }
+  
+  if (absAngle <= maxVisibleAngle) {
+    return { visible: true, opacity: 1 };
+  }
+  
+  const fadeProgress = (absAngle - maxVisibleAngle) / fadeTransitionAngle;
+  const opacity = 1 - fadeProgress;
+  
+  return { visible: true, opacity };
+}
+
 export function renderTaskGrid(
   tasks: ReadonlyArray<TaskWithPointer>,
   rotation: number,
@@ -320,11 +343,16 @@ export function renderTaskGrid(
   onRotate: (delta: number) => void
 ): VNode {
   const totalCards = tasks.length;
-  const { radius, perspective, anglePerCard } = carousel3DConfig;
+  const { radius, perspective, anglePerCard, visibleAngleRange } = carousel3DConfig;
 
   const totalSpan = (totalCards - 1) * anglePerCard;
   const minRotation = -totalSpan / 2;
   const maxRotation = totalSpan / 2;
+
+  const visibleCards = tasks.filter((_, index) => {
+    const cardAngle = index * anglePerCard;
+    return calculateCardVisibility(cardAngle, rotation).visible;
+  }).length;
 
   return h('div.carousel-scene', {
     style: {
@@ -339,19 +367,15 @@ export function renderTaskGrid(
     hook: {
       insert: (vnode) => {
         const elm = vnode.elm as HTMLElement;
-        console.log('Carousel scene mounted, attaching wheel listener');
-        console.log('Rotation limits:', { minRotation, maxRotation, totalCards });
         elm.addEventListener('wheel', (e: WheelEvent) => {
           e.preventDefault();
           const delta = e.deltaY * carousel3DConfig.rotationSpeed;
 
           const newRotation = rotation + delta;
           if (newRotation < minRotation || newRotation > maxRotation) {
-            console.log('Rotation clamped:', { current: rotation, newRotation, min: minRotation, max: maxRotation });
             return;
           }
 
-          console.log('Wheel event:', { deltaY: e.deltaY, delta, currentRotation: rotation });
           onRotate(delta);
         }, { passive: false });
       },
@@ -363,13 +387,16 @@ export function renderTaskGrid(
         top: '10px',
         left: '10px',
         color: 'lime',
-        fontSize: '20px',
+        fontSize: '14px',
         fontWeight: 'bold',
         zIndex: '1000',
-        backgroundColor: 'rgba(0,0,0,0.8)',
-        padding: '10px',
+        backgroundColor: 'rgba(0,0,0,0.9)',
+        padding: '12px',
+        fontFamily: 'monospace',
+        whiteSpace: 'pre-line',
+        borderRadius: '4px',
       },
-    }, `Rotation: ${rotation.toFixed(1)}°`),
+    }, `Visible: ${visibleCards} / ${totalCards} cards`),
     h('div.carousel-container', {
       style: {
         position: 'absolute',
@@ -401,24 +428,35 @@ export function renderTaskGrid(
         });
       }),
 
-      ...tasks.map((taskWithPointer, index) => {
-      const cardAngle = index * anglePerCard;
-      const angleRad = (cardAngle * Math.PI) / 180;
-      const x = Math.cos(angleRad) * radius;
-      const y = Math.sin(angleRad) * radius;
+      ...tasks
+        .map((taskWithPointer, index) => {
+          const cardAngle = index * anglePerCard;
+          const { visible, opacity } = calculateCardVisibility(cardAngle, rotation);
 
-      return h('div.carousel-card-wrapper', {
-        key: `${taskWithPointer.pointer.file}-${taskWithPointer.pointer.taskIndex}`,
-        style: {
-          position: 'absolute',
-          transformStyle: 'preserve-3d',
-          transform: `translate3d(${x}px, ${y}px, 0px) rotateZ(90deg) rotateX(-90deg) rotateY(${-cardAngle}deg)`,
-          marginLeft: `-${carousel3DConfig.cardWidth / 2}px`,
-          marginTop: `-${carousel3DConfig.cardHeight / 2}px`,
-        },
-      }, [
-        renderTaskCard(taskWithPointer, callbacks),
-      ]);
-    })]),
+          if (!visible) {
+            return null;
+          }
+
+          const angleRad = (cardAngle * Math.PI) / 180;
+          const x = Math.cos(angleRad) * radius;
+          const y = Math.sin(angleRad) * radius;
+
+          return h('div.carousel-card-wrapper', {
+            key: `${taskWithPointer.pointer.file}-${taskWithPointer.pointer.taskIndex}`,
+            style: {
+              position: 'absolute',
+              transformStyle: 'preserve-3d',
+              transform: `translate3d(${x}px, ${y}px, 0px) rotateZ(90deg) rotateX(-90deg) rotateY(${-cardAngle}deg)`,
+              marginLeft: `-${carousel3DConfig.cardWidth / 2}px`,
+              marginTop: `-${carousel3DConfig.cardHeight / 2}px`,
+              opacity: `${opacity}`,
+              transition: 'opacity 0.3s ease-out',
+            },
+          }, [
+            renderTaskCard(taskWithPointer, callbacks),
+          ]);
+        })
+        .filter((vnode): vnode is VNode => vnode !== null)
+    ]),
   ]);
 }

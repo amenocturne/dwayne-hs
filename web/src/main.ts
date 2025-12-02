@@ -143,7 +143,6 @@ const callbacks: AppCallbacks = {
   onClickParentProject: (parent: TaskWithPointer) => handleTaskSelection(parent),
   onBackToView: () => dispatch({ type: 'BackToViewRequested' }),
   onCarouselRotate: (delta: number) => {
-    console.log('onCarouselRotate called with delta:', delta);
     dispatch({ type: 'CarouselRotate', delta });
   },
 };
