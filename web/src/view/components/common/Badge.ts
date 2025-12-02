@@ -1,19 +1,9 @@
-/**
- * Badge Component
- *
- * Pure function for rendering keyword and priority badges.
- */
-
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 import { cardSizes, fontWeight, fonts, clipPaths } from "../../designSystem.js";
 
 type BadgeSize = keyof typeof cardSizes;
 
-/**
- * Renders a colored keyword badge with hexagonal clip-path.
- * Pure function: (text, color, size) => VNode
- */
 export function renderKeywordBadge(
   text: string,
   color: string,
@@ -45,10 +35,6 @@ export function renderKeywordBadge(
   );
 }
 
-/**
- * Renders a priority badge.
- * Pure function: (priority, color, size) => VNode
- */
 export function renderPriorityBadge(
   priority: number,
   color: string,

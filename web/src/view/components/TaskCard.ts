@@ -1,10 +1,3 @@
-/**
- * Task Card Components
- *
- * Pure functions for rendering task cards in different formats.
- * Refactored to use a unified parametric renderer.
- */
-
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 import type { TaskWithPointer, TaskNode } from "../../types/domain.js";
@@ -18,11 +11,9 @@ import {
   spacing,
   cssClasses,
   fontWeight,
-  // lineHeight,
   colors,
   fonts,
   clipPaths,
-  // shadows,
   transitions,
 } from "../designSystem.js";
 import { carousel3DConfig } from "../constants.js";
@@ -31,27 +22,15 @@ export interface TaskCardCallbacks {
   readonly onTaskClick: (task: TaskWithPointer) => void;
 }
 
-/**
- * Card size variants
- */
 type CardSize = keyof typeof cardSizes;
 
-/**
- * Configuration for card rendering behavior
- */
 interface CardConfig {
   readonly size: CardSize;
   readonly showDescription: boolean;
   readonly showDates: boolean;
-  readonly depth?: number; // For tree rendering with indentation
+  readonly depth?: number;
 }
 
-/**
- * Unified task card renderer.
- * Pure parametric function that handles all card variants through configuration.
- *
- * Pure function: (TaskWithPointer, CardConfig, TaskCardCallbacks) => VNode
- */
 function renderUnifiedCard(
   taskWithPointer: TaskWithPointer,
   config: CardConfig,
@@ -65,16 +44,10 @@ function renderUnifiedCard(
 
   const cardClass = config.size === 'large' ? 'task-card' : 'subtask-card';
   const hoverClass = config.size === 'large' ? cssClasses.hoverable : cssClasses.hoverableSubtle;
-
-  // Determine card variant for styling
   const isPriority = task.priority === 0;
   const isRunning = task.todoKeyword === 'DOING' || task.todoKeyword === 'NEXT';
   const isDone = task.todoKeyword === 'DONE';
-
-  // Card number (for large cards)
   const cardNumber = `${pointer.taskIndex + 1}`.padStart(3, '0');
-
-  // Render description if needed
   const descriptionNodes = config.showDescription && task.description.length > 0
     ? h('p', {
         style: {
@@ -92,8 +65,6 @@ function renderUnifiedCard(
         },
       }, renderTextNodes(task.description))
     : null;
-
-  // Content wrapper for large cards (push footer down)
   const contentWrapper = config.size === 'large'
     ? (children: ReadonlyArray<VNode | null>) => h('div', {
         style: {
@@ -107,7 +78,6 @@ function renderUnifiedCard(
         },
       }, [
         ...children,
-        // Fade overlay for large cards
         h('div', {
           style: {
             position: 'absolute',
@@ -129,7 +99,6 @@ function renderUnifiedCard(
       }, children.filter(Boolean));
 
   const cardContent = [
-    // Header: card number + status badge
     config.size === 'large' ? h('div', {
       style: {
         display: 'flex',
@@ -163,9 +132,8 @@ function renderUnifiedCard(
       task.priority !== null && priorityColor
         ? renderPriorityBadge(task.priority, priorityColor, config.size)
         : null,
-    ].filter(Boolean)),
+      ].filter(Boolean)),
 
-    // Title
     h(config.size === 'large' ? 'h3' : 'div', {
       style: config.size === 'large' ? {
         margin: '0',
@@ -188,10 +156,7 @@ function renderUnifiedCard(
       },
     }, titleNodes),
 
-    // Description (if enabled)
     descriptionNodes,
-
-    // Tags and metadata
     config.size === 'large' ? h('div', {
       style: {
         display: 'flex',
@@ -212,8 +177,6 @@ function renderUnifiedCard(
           : null,
       ]
     : cardContent;
-
-  // Build style object for JDM clipped card design
   const cardStyle: Record<string, string> = {
     backgroundColor: colors.asphalt,
     border: `2px solid ${colors.greyDark}`,
@@ -230,7 +193,6 @@ function renderUnifiedCard(
     flexShrink: '0',
   };
 
-  // Apply width for large cards (carousel)
   if (config.size === 'large') {
     cardStyle['width'] = sizeConfig.width;
     cardStyle['clipPath'] = clipPaths.cardDefault;
@@ -238,7 +200,6 @@ function renderUnifiedCard(
     cardStyle['borderRadius'] = '6px';
   }
 
-  // State-based styling
   if (isPriority && config.size === 'large') {
     cardStyle['borderColor'] = colors.redBright;
     cardStyle['outlineColor'] = 'rgba(255, 51, 51, 0.3)';
@@ -258,8 +219,6 @@ function renderUnifiedCard(
     cardStyle['marginLeft'] = `${config.depth * 16}px`;
     cardStyle['marginBottom'] = spacing.sm;
   }
-
-  // Corner accent (top-right)
   const cornerAccent = config.size === 'large' ? h('div', {
     style: {
       position: 'absolute',
@@ -274,8 +233,6 @@ function renderUnifiedCard(
       pointerEvents: 'none',
     },
   }) : null;
-
-  // Left accent bar (appears on hover)
   const leftAccent = config.size === 'large' ? h('div', {
     class: {
       'task-accent': true,
@@ -315,10 +272,6 @@ function renderUnifiedCard(
   }, cardWithAccents);
 }
 
-/**
- * Renders a full task card with description and dates.
- * Pure function: (TaskWithPointer, TaskCardCallbacks) => VNode
- */
 export function renderTaskCard(
   taskWithPointer: TaskWithPointer,
   callbacks: TaskCardCallbacks
@@ -330,10 +283,6 @@ export function renderTaskCard(
   );
 }
 
-/**
- * Renders a compact subtask card without description.
- * Pure function: (TaskWithPointer, TaskCardCallbacks) => VNode
- */
 export function renderSubtaskCard(
   taskWithPointer: TaskWithPointer,
   callbacks: TaskCardCallbacks
@@ -345,10 +294,6 @@ export function renderSubtaskCard(
   );
 }
 
-/**
- * Renders a task node card with indented children for tree display.
- * Pure function: (TaskNode, number, TaskCardCallbacks) => VNode
- */
 export function renderTaskNodeCard(
   node: TaskNode,
   depth: number,
@@ -368,21 +313,6 @@ export function renderTaskNodeCard(
   ]);
 }
 
-/**
- * Renders a 3D carousel of task cards in a circular arrangement.
- * Pure function: (ReadonlyArray<TaskWithPointer>, number, TaskCardCallbacks, (delta: number) => void) => VNode
- *
- * Based on CSS 3D transforms:
- * - Cards positioned on a circle in 3D space (XZ plane)
- * - Container has perspective to create depth
- * - Rotation controlled via state (carouselRotation)
- * - Supports mouse wheel scrolling
- *
- * @param tasks - Array of tasks to display
- * @param rotation - Current rotation angle in degrees (from state)
- * @param callbacks - Task click callbacks
- * @param onRotate - Callback when user scrolls (dispatches CarouselRotate action)
- */
 export function renderTaskGrid(
   tasks: ReadonlyArray<TaskWithPointer>,
   rotation: number,
@@ -392,12 +322,9 @@ export function renderTaskGrid(
   const totalCards = tasks.length;
   const { radius, perspective, anglePerCard } = carousel3DConfig;
 
-  // Calculate rotation limits (max left/right rotation)
-  // Cards span from -totalSpan/2 to +totalSpan/2
-  // We want to stop when first card is centered (at 0) and last card is centered
   const totalSpan = (totalCards - 1) * anglePerCard;
-  const minRotation = -totalSpan / 2;  // Can't rotate past first card
-  const maxRotation = totalSpan / 2;   // Can't rotate past last card
+  const minRotation = -totalSpan / 2;
+  const maxRotation = totalSpan / 2;
 
   return h('div.carousel-scene', {
     style: {
@@ -409,7 +336,6 @@ export function renderTaskGrid(
       overflow: 'visible',
       marginTop: '400px',
     },
-    // Wheel handler - updates target rotation via callback
     hook: {
       insert: (vnode) => {
         const elm = vnode.elm as HTMLElement;
@@ -419,11 +345,10 @@ export function renderTaskGrid(
           e.preventDefault();
           const delta = e.deltaY * carousel3DConfig.rotationSpeed;
 
-          // Check if rotation would exceed limits
           const newRotation = rotation + delta;
           if (newRotation < minRotation || newRotation > maxRotation) {
             console.log('Rotation clamped:', { current: rotation, newRotation, min: minRotation, max: maxRotation });
-            return; // Don't rotate if we'd exceed limits
+            return;
           }
 
           console.log('Wheel event:', { deltaY: e.deltaY, delta, currentRotation: rotation });
@@ -432,7 +357,6 @@ export function renderTaskGrid(
       },
     },
   }, [
-    // DEBUG: Show current rotation
     h('div', {
       style: {
         position: 'absolute',
@@ -452,11 +376,9 @@ export function renderTaskGrid(
         top: '50%',
         left: '50%',
         transformStyle: 'preserve-3d',
-        // New coordinate system: position on XY plane, then transform
         transform: `rotateZ(-90deg) rotateY(45deg) rotateZ(${rotation}deg)`,
       },
     }, [
-      // DEBUG: Draw circle to visualize
       ...Array.from({ length: 100 }, (_, i) => {
         const angle = i * (360 / 100);
         const angleRad = (angle * Math.PI) / 180;
@@ -480,7 +402,6 @@ export function renderTaskGrid(
       }),
 
       ...tasks.map((taskWithPointer, index) => {
-      // Simple positioning: card N at angle N * anglePerCard
       const cardAngle = index * anglePerCard;
       const angleRad = (cardAngle * Math.PI) / 180;
       const x = Math.cos(angleRad) * radius;
@@ -491,7 +412,6 @@ export function renderTaskGrid(
         style: {
           position: 'absolute',
           transformStyle: 'preserve-3d',
-          // Just position on XY plane, no rotation
           transform: `translate3d(${x}px, ${y}px, 0px) rotateZ(90deg) rotateX(-90deg) rotateY(${-cardAngle}deg)`,
           marginLeft: `-${carousel3DConfig.cardWidth / 2}px`,
           marginTop: `-${carousel3DConfig.cardHeight / 2}px`,

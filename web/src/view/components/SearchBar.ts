@@ -1,9 +1,3 @@
-/**
- * Search Bar Component
- * 
- * Pure function rendering the search input with debouncing logic.
- */
-
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 
@@ -12,10 +6,6 @@ export interface SearchBarCallbacks {
   readonly onClearSearch: () => void;
 }
 
-/**
- * Renders the search bar.
- * Pure function: (string, SearchBarCallbacks) => VNode
- */
 export function renderSearchBar(
   searchQuery: string,
   callbacks: SearchBarCallbacks,
@@ -61,18 +51,9 @@ export function renderSearchBar(
               transition: "border-color 0.2s",
             },
             on: {
-              input: (e: Event) => {
-                const target = e.target as HTMLInputElement;
-                callbacks.onSearchChange(target.value);
-              },
-              focus: (e: Event) => {
-                const target = e.target as HTMLInputElement;
-                target.style.borderColor = "#646cff";
-              },
-              blur: (e: Event) => {
-                const target = e.target as HTMLInputElement;
-                target.style.borderColor = "var(--card-border)";
-              },
+              input: (e: Event) => callbacks.onSearchChange((e.target as HTMLInputElement).value),
+              focus: (e: Event) => ((e.target as HTMLInputElement).style.borderColor = "#646cff"),
+              blur: (e: Event) => ((e.target as HTMLInputElement).style.borderColor = "var(--card-border)"),
             },
           }),
           searchQuery.trim() !== ""
@@ -99,14 +80,8 @@ export function renderSearchBar(
                   },
                   on: {
                     click: callbacks.onClearSearch,
-                    mouseenter: (e: Event) => {
-                      const target = e.target as HTMLElement;
-                      target.style.color = "var(--text-primary)";
-                    },
-                    mouseleave: (e: Event) => {
-                      const target = e.target as HTMLElement;
-                      target.style.color = "var(--text-secondary)";
-                    },
+                    mouseenter: (e: Event) => ((e.target as HTMLElement).style.color = "var(--text-primary)"),
+                    mouseleave: (e: Event) => ((e.target as HTMLElement).style.color = "var(--text-secondary)"),
                   },
                 },
                 "×",

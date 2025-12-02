@@ -1,56 +1,13 @@
-/**
- * View Constants
- *
- * Central configuration for UI behavior and interaction parameters.
- * Immutable constants for easy tuning of scroll speeds, animations, and layouts.
- */
-
-/**
- * 3D Carousel configuration
- * Based on circular rotation approach (not arc-based math)
- */
 export const carousel3DConfig = {
-  // 3D positioning
-  radius: 900,              // Circle radius in pixels (Z-direction distance)
-  perspective: 1000,        // CSS perspective value (distance to screen)
-
-  // Rotation
-  rotationSpeed: 0.3,       // Wheel scroll to rotation multiplier (degrees per deltaY)
-
-  // Card spacing
-  anglePerCard: 20,         // Degrees between each card
-                            // ↓ Smaller = cards closer together (e.g. 20)
-                            // ↑ Larger = cards more spread out (e.g. 40)
-                            // Typical range: 20-40 degrees
-
-  // Animation
-  animationDuration: 20000, // Auto-rotation duration in ms (20 seconds)
-
-  // Card dimensions (must match cardSizes.large from designSystem)
-  cardWidth: 320,           // From designSystem.cardSizes.large.width
-  cardHeight: 450,          // From designSystem.cardSizes.large.height
+  radius: 900,
+  perspective: 1000,
+  rotationSpeed: 0.3,
+  anglePerCard: 20,
+  animationDuration: 20000,
+  cardWidth: 320,
+  cardHeight: 450,
 } as const;
 
-/**
- * Carousel scroll configuration (horizontal fallback)
- */
-// export const carouselConfig = {
-//   // Scroll speed multipliers
-//   dragSpeed: 0.8,           // Mouse drag sensitivity (lower = slower, more controlled)
-//   wheelScrollSpeed: 10.0,    // Mouse wheel/vertical trackpad scroll speed multiplier
-//   trackpadScrollSpeed: 10.0, // Horizontal trackpad swipe (1.0 = native feel)
-//
-//   // Layout
-//   cardGap: '32px',          // Gap between cards in carousel
-//   trackPadding: '20px',     // Left/right padding of carousel track
-//
-//   // Smooth scroll behavior
-//   smoothScrollDuration: '1.5s', // CSS transition duration for smooth scroll
-// } as const;
-
-/**
- * Card animation configuration
- */
 export const cardAnimationConfig = {
   hoverTranslateY: '-8px',  // How far cards lift on hover
   hoverTransition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)', // Hover animation timing
@@ -62,9 +19,6 @@ export const cardAnimationConfig = {
   },
 } as const;
 
-/**
- * Typography configuration
- */
 export const typographyConfig = {
   headerSkew: '-3deg',      // Title skew angle for street racing aesthetic
   badgeLetterSpacing: '0.12em',
@@ -72,19 +26,13 @@ export const typographyConfig = {
   metaLetterSpacing: '0.1em',
 } as const;
 
-/**
- * Visual effects configuration
- */
 export const effectsConfig = {
   noiseOpacity: 0.06,       // Background noise texture opacity
   vignetteIntensity: 0.6,   // Radial vignette darkness (0-1)
   glowBlur: '20px',         // Card hover glow blur radius
-  glowSpread: '30px',       // Card hover glow spread
+  glowSpread: '30px',
 } as const;
 
-/**
- * Responsive breakpoints
- */
 export const breakpoints = {
   mobile: '768px',
   tablet: '1024px',

@@ -1,10 +1,3 @@
-
-/**
- * Sidebar Project Components
- *
- * Components for rendering parent project and subtasks.
- */
-
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 import type { TaskWithPointer, TaskNode, TaskPointer } from "../../../types/domain.js";
@@ -14,10 +7,6 @@ import type { TaskCardCallbacks } from "../TaskCard.js";
 import { todoKeywordColors, renderTextNodes } from "../../helpers.js";
 import { fontSize, fontWeight, spacing, cssClasses } from "../../designSystem.js";
 
-/**
- * Renders the parent project section.
- * Pure function: (parentProject, loading, onClick) => VNode | null
- */
 export function renderParentProjectSection(
   parentProject: TaskWithPointer | null,
   loading: boolean,
@@ -96,10 +85,6 @@ export function renderParentProjectSection(
   return renderSidebarSection('Project', content);
 }
 
-/**
- * Renders the subtasks section.
- * Pure function: (projectTree, loading, pointer, callbacks) => VNode | null
- */
 export function renderSubtasksSection(
   projectTree: TaskNode | null,
   loading: boolean,

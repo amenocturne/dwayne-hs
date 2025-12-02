@@ -1,19 +1,9 @@
-/**
- * Tag Component
- * 
- * Pure function for rendering tags.
- */
-
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 import { cardSizes, fonts, colors, clipPaths, fontWeight } from "../../designSystem.js";
 
 type TagSize = keyof typeof cardSizes;
 
-/**
- * Renders a single tag with angled clip-path.
- * Pure function: (tag, size) => VNode
- */
 export function renderTag(tag: string, size: TagSize = 'medium'): VNode {
   const sizeConfig = cardSizes[size];
   const isLarge = size === 'large';
@@ -41,10 +31,6 @@ export function renderTag(tag: string, size: TagSize = 'medium'): VNode {
   );
 }
 
-/**
- * Renders a collection of tags.
- * Pure function: (tags, size) => VNode | null
- */
 export function renderTags(
   tags: ReadonlyArray<string>,
   size: TagSize = 'medium',

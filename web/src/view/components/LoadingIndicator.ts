@@ -1,16 +1,6 @@
-/**
- * Loading Indicator Component
- * 
- * Pure function rendering a loading spinner.
- */
-
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 
-/**
- * Renders a loading spinner indicator.
- * Pure function: () => VNode
- */
 export function renderLoadingIndicator(): VNode {
   return h(
     "div.loading-indicator",

@@ -1,11 +1,3 @@
-
-/**
- * Root View Function
- *
- * Pure function: AppState => VNode
- * Composes all components into the complete application view.
- */
-
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 import type { AppState } from "../types/state.js";
@@ -32,10 +24,13 @@ export interface AppCallbacks {
   readonly onCarouselRotate: (delta: number) => void;
 }
 
-/**
- * Root view function.
- * Pure transformation: (AppState, AppCallbacks) => VNode
- */
+function createHoverStyle(normalBg: string, hoverBg: string): Record<string, (e: Event) => void> {
+  return {
+    mouseenter: (e: Event) => ((e.target as HTMLElement).style.backgroundColor = hoverBg),
+    mouseleave: (e: Event) => ((e.target as HTMLElement).style.backgroundColor = normalBg),
+  };
+}
+
 export function view(state: AppState, callbacks: AppCallbacks): VNode {
   const filteredTasks = state.tasks;
   const isSearching = state.searchQuery.trim() !== "";
@@ -149,14 +144,7 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                 },
                 on: {
                   click: callbacks.onBackToView,
-                  mouseenter: (e: Event) => {
-                    const target = e.target as HTMLElement;
-                    target.style.backgroundColor = "rgba(100, 108, 255, 0.2)";
-                  },
-                  mouseleave: (e: Event) => {
-                    const target = e.target as HTMLElement;
-                    target.style.backgroundColor = "rgba(100, 108, 255, 0.1)";
-                  },
+                  ...createHoverStyle("rgba(100, 108, 255, 0.1)", "rgba(100, 108, 255, 0.2)"),
                 },
               }, `← Back to ${VIEW_LABELS[state.currentView] || 'All'}`),
             ])

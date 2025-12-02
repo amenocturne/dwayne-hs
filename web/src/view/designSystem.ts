@@ -1,14 +1,4 @@
-/**
- * Design System
- *
- * Central design tokens for consistent styling across the application.
- * Immutable constants following the philosophy of separating data from logic.
- * 
- * JDM Street Racing Theme inspired by Need for Speed Carbon/Underground 2
- */
-
 export const colors = {
-  // Base colors
   void: '#0a0a0a',
   asphalt: '#121212',
   concrete: '#1a1a1a',
@@ -17,14 +7,10 @@ export const colors = {
   greyLight: '#888888',
   grey: '#555555',
   greyDark: '#2a2a2a',
-  
-  // Accent colors - bright
   cyanBright: '#00e5ff',
   pinkBright: '#ff0099',
   greenBright: '#b0ff00',
   redBright: '#ff3333',
-  
-  // Accent colors - dimmed
   cyanDim: '#4a9aa8',
   pinkDim: '#994466',
   greenDim: '#77aa33',
@@ -83,13 +69,9 @@ export const transitions = {
   verySlow: '0.4s',
 } as const;
 
-/**
- * Card configuration by size variant.
- * Large cards now have fixed width for carousel layout.
- */
 export const cardSizes = {
   large: {
-    width: '320px',   // Solitaire card width
+    width: '320px',
     padding: spacing.xxxl,
     titleSize: fontSize.xl,
     badgePadding: '6px 12px',
@@ -100,7 +82,7 @@ export const cardSizes = {
     tagBorderRadius: borderRadius.md,
     gap: spacing.lg,
     descriptionLineClamp: '3',
-    height: '450px',  // Solitaire card height (320/450 ≈ 0.71 ratio)
+    height: '450px',
     cardNumberSize: fontSize.xs,
   },
   medium: {
@@ -135,18 +117,12 @@ export const cardSizes = {
   },
 } as const;
 
-/**
- * Priority colors - using street racing palette
- */
 export const priorityColors = {
   0: colors.redBright,
   1: colors.greenBright,
   2: colors.greenBright,
 } as const;
 
-/**
- * Shadow values with neon glow
- */
 export const shadows = {
   sm: '0 2px 8px rgba(0, 0, 0, 0.3)',
   md: '0 4px 12px rgba(0, 0, 0, 0.4)',
@@ -156,19 +132,12 @@ export const shadows = {
   glowRed: '0 0 20px rgba(255, 51, 51, 0.3)',
 } as const;
 
-/**
- * Clip-path polygons for angular card shapes
- * Smaller clips for solitaire card proportions
- */
 export const clipPaths = {
   cardDefault: 'polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 24px 100%, 0 calc(100% - 24px))',
   badgeHex: 'polygon(15% 0%, 85% 0%, 100% 50%, 85% 100%, 15% 100%, 0% 50%)',
   tagAngled: 'polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%)',
 } as const;
 
-/**
- * Common CSS class names for declarative styling
- */
 export const cssClasses = {
   hoverable: 'hoverable',
   hoverableSubtle: 'hoverable-subtle',

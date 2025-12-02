@@ -1,9 +1,3 @@
-/**
- * View Selector Component
- * 
- * Pure function rendering view selection buttons.
- */
-
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 import type { ViewName } from "../../types/domain.js";
@@ -26,10 +20,6 @@ export interface ViewSelectorCallbacks {
   readonly onViewChange: (view: ViewName) => void;
 }
 
-/**
- * Renders the view selector buttons.
- * Pure function: (ViewName, ViewSelectorCallbacks) => VNode
- */
 export function renderViewSelector(
   currentView: ViewName,
   callbacks: ViewSelectorCallbacks,

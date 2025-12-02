@@ -1,10 +1,3 @@
-/**
- * Sidebar Component
- * 
- * Pure function rendering the task detail sidebar.
- * Refactored to use composable subcomponents.
- */
-
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 import type { TaskWithPointer, TaskPointer } from "../../types/domain.js";
@@ -31,10 +24,6 @@ export interface SidebarCallbacks extends TaskCardCallbacks {
   readonly onClickParentProject: (parent: TaskWithPointer) => void;
 }
 
-/**
- * Renders the sidebar header.
- * Pure function: (onClose) => VNode
- */
 function renderSidebarHeader(onClose: () => void): VNode {
   return h('div.sidebar-header', {
     style: {
@@ -78,10 +67,6 @@ function renderSidebarHeader(onClose: () => void): VNode {
   ]);
 }
 
-/**
- * Renders the task title section with keyword badge.
- * Pure function: (task) => VNode
- */
 function renderTitleSection(taskWithPointer: TaskWithPointer): VNode {
   const { task } = taskWithPointer;
   const keywordColor = getTodoKeywordColor(task.todoKeyword);
@@ -130,10 +115,6 @@ function renderTitleSection(taskWithPointer: TaskWithPointer): VNode {
   ]);
 }
 
-/**
- * Renders the description section.
- * Pure function: (task) => VNode | null
- */
 function renderDescriptionSection(taskWithPointer: TaskWithPointer): VNode | null {
   const { task } = taskWithPointer;
   if (task.description.length === 0) return null;
@@ -151,10 +132,6 @@ function renderDescriptionSection(taskWithPointer: TaskWithPointer): VNode | nul
   return renderSidebarSection('Description', content);
 }
 
-/**
- * Renders the task detail sidebar.
- * Pure function: (TaskWithPointer | null, AppState, SidebarCallbacks) => VNode | null
- */
 export function renderSidebar(
   taskWithPointer: TaskWithPointer | null,
   state: AppState,

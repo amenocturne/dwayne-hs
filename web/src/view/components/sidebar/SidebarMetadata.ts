@@ -1,9 +1,3 @@
-/**
- * Sidebar Metadata Components
- * 
- * Components for rendering task metadata (tags, dates, properties).
- */
-
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 import type { Task } from "../../../types/domain.js";
@@ -11,10 +5,6 @@ import { renderSidebarSection } from "./SidebarSection.js";
 import { renderDetailedDates } from "../common/DateDisplay.js";
 import { fontSize, fontWeight, spacing } from "../../designSystem.js";
 
-/**
- * Renders the tags section.
- * Pure function: (tags) => VNode | null
- */
 export function renderTagsSection(tags: ReadonlyArray<string>): VNode | null {
   if (tags.length === 0) return null;
   
@@ -38,10 +28,6 @@ export function renderTagsSection(tags: ReadonlyArray<string>): VNode | null {
   return renderSidebarSection('Tags', content);
 }
 
-/**
- * Renders the dates section.
- * Pure function: (task) => VNode | null
- */
 export function renderDatesSection(task: Task): VNode | null {
   const content = renderDetailedDates(
     task.scheduled,
@@ -54,10 +40,6 @@ export function renderDatesSection(task: Task): VNode | null {
   return renderSidebarSection('Dates', content);
 }
 
-/**
- * Renders the properties section.
- * Pure function: (properties) => VNode | null
- */
 export function renderPropertiesSection(
   properties: ReadonlyArray<readonly [string, string]>
 ): VNode | null {
@@ -94,10 +76,6 @@ export function renderPropertiesSection(
   return renderSidebarSection('Properties', content);
 }
 
-/**
- * Renders the location section.
- * Pure function: (file, taskIndex) => VNode | null
- */
 export function renderLocationSection(file: string, taskIndex: number): VNode | null {
   const content = h('div', {
     style: {

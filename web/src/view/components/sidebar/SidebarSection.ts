@@ -1,17 +1,7 @@
-/**
- * Sidebar Section Component
- * 
- * Reusable section with heading for the sidebar.
- */
-
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 import { fontSize, fontWeight, spacing } from "../../designSystem.js";
 
-/**
- * Renders a sidebar section with optional heading and content.
- * Pure function: (title, content) => VNode | null
- */
 export function renderSidebarSection(
   title: string,
   content: VNode | ReadonlyArray<VNode | null> | null
@@ -35,10 +25,6 @@ export function renderSidebarSection(
   ]);
 }
 
-/**
- * Renders a section heading with an action button.
- * Pure function: (title, buttonLabel, onClick) => VNode
- */
 export function renderSidebarSectionHeader(
   title: string,
   buttonLabel: string,

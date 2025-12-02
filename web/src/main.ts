@@ -1,10 +1,3 @@
-/**
- * Application Bootstrap
- *
- * Initializes Snabbdom, creates the store, and wires up side effects.
- * All state changes flow through dispatch -> reducer -> effects -> dispatch.
- */
-
 import { init } from "snabbdom/build/init.js";
 import { classModule } from "snabbdom/build/modules/class.js";
 import { propsModule } from "snabbdom/build/modules/props.js";
@@ -20,10 +13,6 @@ import type { AppCallbacks } from "./view/app.js";
 import { createStore } from "./state/store.js";
 import type { Dispatch } from "./state/effects.js";
 import { fetchTasks, fetchProjectTree } from "./api/client.js";
-
-// ============================================================================
-// Initial State
-// ============================================================================
 
 const initialState: AppState = {
   tasks: [],
@@ -41,15 +30,9 @@ const initialState: AppState = {
   projectPointer: null,
   parentProject: null,
   loadingParentProject: false,
-
-  // 3D Carousel state
   carouselRotation: 0,
   carouselTargetRotation: 0,
 };
-
-// ============================================================================
-// Snabbdom Patch Function
-// ============================================================================
 
 const patch = init([
   classModule,
@@ -65,16 +48,8 @@ function render(state: AppState): void {
   vnode = patch(vnode, view(state, callbacks));
 }
 
-// ============================================================================
-// Store Creation
-// ============================================================================
-
 const store = createStore(initialState, render);
 const dispatch: Dispatch = store.dispatch;
-
-// ============================================================================
-// Debounced Search Handler
-// ============================================================================
 
 let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -93,52 +68,49 @@ function debouncedSearch(query: string): void {
   }, 200);
 }
 
-// ============================================================================
-// Task Selection with Side Effect Loading
-// ============================================================================
+async function findParentProject(
+  taskWithPointer: TaskWithPointer
+): Promise<TaskWithPointer | null> {
+  const { task, pointer } = taskWithPointer;
+  const projectsResult = await fetchTasks("project", 0, 1000);
+  const projectsInSameFile = projectsResult.data.filter(
+    (p) => p.pointer.file === pointer.file && p.pointer.taskIndex < pointer.taskIndex
+  );
+
+  for (let i = projectsInSameFile.length - 1; i >= 0; i--) {
+    const candidate = projectsInSameFile[i];
+    if (!candidate || candidate.task.level >= task.level) continue;
+
+    try {
+      const tree = await fetchProjectTree(candidate.pointer.file, candidate.pointer.taskIndex);
+      
+      const containsTask = (node: any): boolean => {
+        if (node.pointer.file === pointer.file && node.pointer.taskIndex === pointer.taskIndex) {
+          return true;
+        }
+        return node.children.some(containsTask);
+      };
+
+      if (containsTask(tree.root)) {
+        return { task: candidate.task, pointer: candidate.pointer };
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
 
 async function handleTaskSelection(taskWithPointer: TaskWithPointer): Promise<void> {
   dispatch({ type: 'TaskSelected', task: taskWithPointer });
 
-  // Load parent project
   const { task, pointer } = taskWithPointer;
+
   if (task.todoKeyword !== "PROJECT") {
     dispatch({ type: 'ParentProjectLoadStarted' });
     try {
-      const projectsResult = await fetchTasks("project", 0, 1000);
-      const projectsInSameFile = projectsResult.data.filter(
-        (p) => p.pointer.file === pointer.file && p.pointer.taskIndex < pointer.taskIndex
-      );
-
-      let parentProject: TaskWithPointer | null = null;
-
-      for (let i = projectsInSameFile.length - 1; i >= 0; i--) {
-        const candidate = projectsInSameFile[i];
-        if (!candidate) continue; // Handle noUncheckedIndexedAccess
-
-        if (candidate.task.level >= task.level) {
-          continue;
-        }
-
-        try {
-          const tree = await fetchProjectTree(candidate.pointer.file, candidate.pointer.taskIndex);
-
-          const containsTask = (node: any): boolean => {
-            if (node.pointer.file === pointer.file && node.pointer.taskIndex === pointer.taskIndex) {
-              return true;
-            }
-            return node.children.some(containsTask);
-          };
-
-          if (containsTask(tree.root)) {
-            parentProject = { task: candidate.task, pointer: candidate.pointer };
-            break;
-          }
-        } catch (err) {
-          continue;
-        }
-      }
-
+      const parentProject = await findParentProject(taskWithPointer);
       dispatch({ type: 'ParentProjectLoaded', project: parentProject });
     } catch (err) {
       console.error("Failed to find parent project:", err);
@@ -146,7 +118,6 @@ async function handleTaskSelection(taskWithPointer: TaskWithPointer): Promise<vo
     }
   }
 
-  // Load project tree
   if (task.todoKeyword === "PROJECT") {
     dispatch({ type: 'ProjectTreeLoadStarted' });
     try {
@@ -159,68 +130,33 @@ async function handleTaskSelection(taskWithPointer: TaskWithPointer): Promise<vo
   }
 }
 
-// ============================================================================
-// Application Callbacks
-// ============================================================================
-
 const callbacks: AppCallbacks = {
   onSearchChange: (query: string) => {
     dispatch({ type: 'SearchQueryChanged', query });
     debouncedSearch(query);
   },
-
-  onClearSearch: () => {
-    dispatch({ type: 'SearchCleared' });
-  },
-
-  onViewChange: (newView) => {
-    dispatch({ type: 'ViewChanged', view: newView });
-  },
-
-  onTaskClick: (taskWithPointer) => {
-    handleTaskSelection(taskWithPointer);
-  },
-
-  onCloseSidebar: () => {
-    dispatch({ type: 'SidebarClosed' });
-  },
-
-  onViewAllSubtasks: (pointer: TaskPointer) => {
-    dispatch({ type: 'ProjectViewRequested', pointer });
-  },
-
-  onClickParentProject: (parent: TaskWithPointer) => {
-    handleTaskSelection(parent);
-  },
-
-  onBackToView: () => {
-    dispatch({ type: 'BackToViewRequested' });
-  },
-
+  onClearSearch: () => dispatch({ type: 'SearchCleared' }),
+  onViewChange: (newView) => dispatch({ type: 'ViewChanged', view: newView }),
+  onTaskClick: (taskWithPointer) => handleTaskSelection(taskWithPointer),
+  onCloseSidebar: () => dispatch({ type: 'SidebarClosed' }),
+  onViewAllSubtasks: (pointer: TaskPointer) => dispatch({ type: 'ProjectViewRequested', pointer }),
+  onClickParentProject: (parent: TaskWithPointer) => handleTaskSelection(parent),
+  onBackToView: () => dispatch({ type: 'BackToViewRequested' }),
   onCarouselRotate: (delta: number) => {
     console.log('onCarouselRotate called with delta:', delta);
     dispatch({ type: 'CarouselRotate', delta });
   },
 };
 
-// ============================================================================
-// Scroll Handler for Infinite Loading
-// ============================================================================
-
 function handleScroll(): void {
   const scrollTop = window.scrollY;
   const scrollHeight = document.documentElement.scrollHeight;
   const clientHeight = window.innerHeight;
 
-  const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-  if (distanceFromBottom < 300) {
+  if (scrollHeight - scrollTop - clientHeight < 300) {
     dispatch({ type: 'LoadMoreStarted' });
   }
 }
-
-// ============================================================================
-// WebSocket Connection for Live Updates
-// ============================================================================
 
 let ws: WebSocket | null = null;
 
@@ -230,22 +166,14 @@ function connectWebSocket(): void {
   try {
     ws = new WebSocket(wsUrl);
 
-    ws.onopen = () => {
-      console.log("WebSocket connected");
-    };
-
+    ws.onopen = () => console.log("WebSocket connected");
     ws.onmessage = (event) => {
-      const message = event.data;
-      if (message === "reload") {
+      if (event.data === "reload") {
         console.log("Files changed, reloading view...");
         dispatch({ type: 'WebSocketReloadReceived' });
       }
     };
-
-    ws.onerror = (error) => {
-      console.error("WebSocket error:", error);
-    };
-
+    ws.onerror = (error) => console.error("WebSocket error:", error);
     ws.onclose = () => {
       console.log("WebSocket disconnected, reconnecting in 5s...");
       setTimeout(connectWebSocket, 5000);
@@ -256,18 +184,9 @@ function connectWebSocket(): void {
   }
 }
 
-// ============================================================================
-// Application Initialization
-// ============================================================================
-
 render(initialState);
 dispatch({ type: 'ViewChanged', view: 'all' });
 
 window.addEventListener("scroll", handleScroll);
 connectWebSocket();
-
-window.addEventListener("beforeunload", () => {
-  if (ws) {
-    ws.close();
-  }
-});
+window.addEventListener("beforeunload", () => ws?.close());
