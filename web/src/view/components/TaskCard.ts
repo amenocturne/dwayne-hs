@@ -447,43 +447,58 @@ export function renderTaskGrid(
       },
     }, `Rotation: ${rotation.toFixed(1)}°`),
     h('div.carousel-container', {
-      // CSS custom properties for formula (like in the video)
       style: {
-        '--quantity': `${totalCards}`,
         position: 'absolute',
         top: '50%',
         left: '50%',
         transformStyle: 'preserve-3d',
-        transform: `rotateX(-45deg) rotateY(${rotation}deg)`,
-        transition: 'none', // No CSS transition, we use RAF interpolation
+        // New coordinate system: position on XY plane, then transform
+        transform: `rotateZ(-90deg) rotateY(45deg) rotateZ(${rotation}deg)`,
       },
-    }, tasks.map((taskWithPointer, index) => {
-      // Calculate position using our pure helper function
-      const pos = calculateCarouselPosition(index, totalCards, 0, radius, anglePerCard);
+    }, [
+      // DEBUG: Draw circle to visualize
+      ...Array.from({ length: 100 }, (_, i) => {
+        const angle = i * (360 / 100);
+        const angleRad = (angle * Math.PI) / 180;
+        const x = Math.cos(angleRad) * (radius / 3);
+        const y = Math.sin(angleRad) * (radius / 3);
 
-      console.log(`Card ${index}:`, {
-        totalCards,
-        anglePerCard,
-        position: pos,
-        rotation
-      });
+        return h('div', {
+          key: `dot-${i}`,
+          style: {
+            position: 'absolute',
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            backgroundColor: 'cyan',
+            transformStyle: 'preserve-3d',
+            transform: `translate3d(${x}px, ${y}px, 0px)`,
+            marginLeft: '-4px',
+            marginTop: '-4px',
+          },
+        });
+      }),
+
+      ...tasks.map((taskWithPointer, index) => {
+      // Simple positioning: card N at angle N * anglePerCard
+      const cardAngle = index * anglePerCard;
+      const angleRad = (cardAngle * Math.PI) / 180;
+      const x = Math.cos(angleRad) * radius;
+      const y = Math.sin(angleRad) * radius;
 
       return h('div.carousel-card-wrapper', {
         key: `${taskWithPointer.pointer.file}-${taskWithPointer.pointer.taskIndex}`,
         style: {
-          '--position': `${index + 1}`, // 1-based position for CSS formula
           position: 'absolute',
           transformStyle: 'preserve-3d',
-          // Position card in 3D space
-          // Use positive rotateY to make cards face outward (away from center)
-          transform: `translate3d(${pos.x}px, 0px, ${pos.z}px) rotateY(${pos.rotateY + 180}deg)`,
-          // Center the card (half width/height offset)
+          // Just position on XY plane, no rotation
+          transform: `translate3d(${x}px, ${y}px, 0px) rotateZ(90deg) rotateX(-90deg) rotateY(${-cardAngle}deg)`,
           marginLeft: `-${carousel3DConfig.cardWidth / 2}px`,
           marginTop: `-${carousel3DConfig.cardHeight / 2}px`,
         },
       }, [
         renderTaskCard(taskWithPointer, callbacks),
       ]);
-    })),
+    })]),
   ]);
 }
