@@ -1,8 +1,8 @@
 export const carousel3DConfig = {
-  radius: 900,
+  radius: 1200,
   perspective: 1000,
   rotationSpeed: 0.3,
-  anglePerCard: 20,
+  anglePerCard: 15,
   animationDuration: 20000,
   cardWidth: 320,
   cardHeight: 450,

@@ -323,18 +323,18 @@ function calculateCardVisibility(
   const viewportAngle = cardAngle + rotation;
   const absAngle = Math.abs(viewportAngle);
   const maxVisibleAngle = visibleAngleRange / 2;
-  
+
   if (absAngle > maxVisibleAngle + fadeTransitionAngle) {
     return { visible: false, opacity: 0 };
   }
-  
+
   if (absAngle <= maxVisibleAngle) {
     return { visible: true, opacity: 1 };
   }
-  
+
   const fadeProgress = (absAngle - maxVisibleAngle) / fadeTransitionAngle;
   const opacity = 1 - fadeProgress;
-  
+
   return { visible: true, opacity };
 }
 
@@ -375,13 +375,15 @@ export function renderTaskGrid(
 
   return h('div.carousel-scene', {
     style: {
-      position: 'relative',
+      position: 'absolute',
+      top: '0',
+      left: '0',
       width: '100%',
-      height: '500px',
+      height: '100%',
       perspective: `${perspective}px`,
       perspectiveOrigin: '50% 100%',
       overflow: 'visible',
-      marginTop: '400px',
+      pointerEvents: 'auto',
     },
     hook: {
       insert: (vnode) => {
@@ -419,29 +421,14 @@ export function renderTaskGrid(
       },
     },
   }, [
-    h('div', {
-      style: {
-        position: 'absolute',
-        top: '10px',
-        left: '10px',
-        color: 'lime',
-        fontSize: '14px',
-        fontWeight: 'bold',
-        zIndex: '1000',
-        backgroundColor: 'rgba(0,0,0,0.9)',
-        padding: '12px',
-        fontFamily: 'monospace',
-        whiteSpace: 'pre-line',
-        borderRadius: '4px',
-      },
-    }, `Visible: ${visibleCards} / ${totalCards} cards`),
     h('div.carousel-container', {
       style: {
         position: 'absolute',
-        top: '50%',
+        bottom: '0px',
         left: '50%',
         transformStyle: 'preserve-3d',
-        transform: `rotateZ(-90deg) rotateY(45deg) rotateZ(${rotation}deg)`,
+        transform: `rotateZ(-90deg) rotateY(56deg) rotateZ(${rotation}deg)`,
+        zIndex: '50',
       },
     }, [
       ...Array.from({ length: 100 }, (_, i) => {

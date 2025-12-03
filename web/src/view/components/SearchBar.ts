@@ -14,12 +14,8 @@ export function renderSearchBar(
     "div.search-bar",
     {
       style: {
-        display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        gap: "12px",
-        maxWidth: "800px",
-        margin: "0 auto 24px auto",
       },
     },
     [

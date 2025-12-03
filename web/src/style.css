@@ -58,6 +58,27 @@ html, body {
   height: 100vh;
 }
 
+.left-panel::-webkit-scrollbar,
+.detail-card::-webkit-scrollbar {
+  width: 8px;
+}
+
+.left-panel::-webkit-scrollbar-track,
+.detail-card::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+.left-panel::-webkit-scrollbar-thumb,
+.detail-card::-webkit-scrollbar-thumb {
+  background: var(--card-border);
+  border-radius: 4px;
+}
+
+.left-panel::-webkit-scrollbar-thumb:hover,
+.detail-card::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
 #app {
   width: 100%;
   height: 100vh;

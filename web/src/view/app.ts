@@ -7,6 +7,7 @@ import { renderViewSelector, VIEW_LABELS } from "./components/ViewSelector.js";
 import { renderTaskGrid, CarouselCallbacks } from "./components/TaskCard.js";
 import { renderLoadingIndicator } from "./components/LoadingIndicator.js";
 import { renderSidebar } from "./components/Sidebar.js";
+import { renderDetailCard, type DetailCardCallbacks } from "./components/DetailCard.js";
 import type { SearchBarCallbacks } from "./components/SearchBar.js";
 import type { ViewSelectorCallbacks } from "./components/ViewSelector.js";
 import type { TaskCardCallbacks } from "./components/TaskCard.js";
@@ -58,11 +59,17 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
     onClickParentProject: callbacks.onClickParentProject,
   };
 
+  const detailCardCallbacks: DetailCardCallbacks = {
+    onTaskClick: callbacks.onTaskClick,
+    onViewAllSubtasks: callbacks.onViewAllSubtasks,
+    onClickParentProject: callbacks.onClickParentProject,
+  };
+
   const carouselCallbacks: CarouselCallbacks = {
     onRotate: callbacks.onCarouselRotate,
     onLoadMore: callbacks.onLoadMore,
   };
-  
+
   // Project view doesn't have pagination - all tasks loaded via tree flattening
   const canLoadMore = !isProjectView && state.hasMore;
   const isLoadingMore = state.loadingMore;
@@ -72,133 +79,169 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
       "div.app",
       {
         style: {
-          padding: "40px 20px",
-          maxWidth: "1400px",
-          margin: "0 auto",
+          display: "flex",
+          flexDirection: "column",
+          height: "100vh",
+          overflow: "hidden",
         },
       },
       [
-        h(
-          "header",
-          {
-            style: {
-              marginBottom: "32px",
-              textAlign: "center",
-            },
+        // Top section: 3 panels side by side
+        h("div.top-section", {
+          style: {
+            display: "flex",
+            height: "50%",
+            flexShrink: "0",
+            position: "relative",
+            zIndex: "1",
+            // borderBottom: "2px solid var(--card-border)",
           },
-          [
-            h(
-              "h1",
-              {
-                style: {
-                  margin: "0 0 8px 0",
-                  fontFamily: "var(--font-display)",
-                  fontSize: "clamp(2rem, 6vw, 3.5rem)",
-                  fontWeight: "700",
-                  letterSpacing: "0.05em",
-                  textTransform: "uppercase",
-                  color: "var(--text-primary)",
-                  transform: "skewX(-3deg)",
-                  display: "inline-block",
-                },
-              },
-              "DWAYNE",
-            ),
-            h(
-              "p",
-              {
-                style: {
-                  margin: "0 0 24px 0",
-                  fontFamily: "var(--font-display)",
-                  fontSize: "0.875rem",
-                  fontWeight: "600",
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  color: "var(--text-secondary)",
-                },
-              },
-              state.loading
-                ? "Loading..."
-                : state.error
-                  ? `Error: ${state.error}`
-                  : isProjectView && isSearching
-                    ? `Found ${filteredTasks.length} tasks in project`
-                    : isProjectView
-                      ? `Viewing project tasks (${state.tasks.length} tasks)`
-                      : isSearching
-                        ? `Showing ${filteredTasks.length} of ${state.tasks.length} tasks`
-                        : `${state.tasks.length} of ${state.totalCount.toLocaleString()} tasks in ${VIEW_LABELS[state.currentView] || 'All'}`,
-            ),
-          ],
-        ),
-        renderSearchBar(state.searchQuery, searchBarCallbacks),
-        isProjectView
-          ? h("div", {
+        }, [
+          // Left panel: View selector
+          h("div.left-panel", {
+            style: {
+              width: "20%",
+              // backgroundColor: "var(--bg-secondary)",
+              // borderRight: "2px solid var(--card-border)",
+              overflowY: "auto",
+              padding: "24px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px",
+            },
+          }, [
+            h("div", {
               style: {
-                display: "flex",
-                justifyContent: "center",
-                marginBottom: "24px",
+                fontFamily: "var(--font-display)",
+                fontSize: "0.75rem",
+                fontWeight: "600",
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                color: "var(--text-secondary)",
+                marginBottom: "-1em",
               },
-            }, [
-              h("button", {
-                style: {
-                  padding: "8px 16px",
-                  borderRadius: "6px",
-                  border: "1px solid var(--link-color)",
-                  backgroundColor: "rgba(100, 108, 255, 0.1)",
-                  color: "var(--link-color)",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  fontSize: "0.875rem",
-                  transition: "all 0.2s",
-                },
-                on: {
-                  click: callbacks.onBackToView,
-                  ...createHoverStyle("rgba(100, 108, 255, 0.1)", "rgba(100, 108, 255, 0.2)"),
-                },
-              }, `← Back to ${VIEW_LABELS[state.currentView] || 'All'}`),
-            ])
-          : renderViewSelector(state.currentView, viewSelectorCallbacks),
-        state.error
-          ? h(
-              "div.error-message",
-              {
-                style: {
-                  padding: "16px",
-                  backgroundColor: "#fee",
-                  border: "1px solid #fcc",
-                  borderRadius: "8px",
-                  color: "#c00",
-                  textAlign: "center",
-                  marginBottom: "20px",
-                },
+            }, "Status"),
+            h("div", {
+              style: {
+                fontSize: "0.875rem",
+                color: "var(--text-primary)",
+                marginBottom: "16px",
               },
-              [
-                h("strong", "Error: "),
-                state.error,
-                h("br"),
-                h(
-                  "small",
-                  "Make sure the API server is running on http://localhost:8080",
-                ),
-              ],
-            )
-          : state.loading
+            }, state.loading
+              ? "⏳ Loading..."
+              : state.error
+                ? `Error: ${state.error}`
+                : `Online`),
+            isProjectView
+              ? h("button", {
+                  style: {
+                    padding: "8px 16px",
+                    borderRadius: "6px",
+                    border: "1px solid var(--link-color)",
+                    backgroundColor: "rgba(0, 229, 255, 0.1)",
+                    color: "var(--link-color)",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    fontSize: "0.875rem",
+                    transition: "all 0.2s",
+                  },
+                  on: {
+                    click: callbacks.onBackToView,
+                    ...createHoverStyle("rgba(0, 229, 255, 0.1)", "rgba(0, 229, 255, 0.2)"),
+                  },
+                }, `← Back to ${VIEW_LABELS[state.currentView] || 'All'}`)
+              : renderViewSelector(state.currentView, viewSelectorCallbacks),
+          ]),
+
+          // Middle panel: Search bar
+          h("div.middle-panel", {
+            style: {
+              flex: "1",
+              backgroundColor: "var(--bg-primary)",
+              padding: "24px",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              gap: "16px",
+            },
+          }, [
+            h("div", {
+              style: {
+                fontFamily: "var(--font-display)",
+                fontSize: "2rem",
+                fontWeight: "700",
+                letterSpacing: "0.05em",
+                textTransform: "uppercase",
+                color: "var(--text-primary)",
+                textAlign: "center",
+              },
+            }, "DWAYNE"),
+            renderSearchBar(state.searchQuery, searchBarCallbacks),
+            h("div", {
+              style: {
+                fontSize: "0.75rem",
+                color: "var(--text-secondary)",
+                textAlign: "center",
+                fontFamily: "var(--font-display)",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+              },
+            }, isProjectView && isSearching
+              ? `Found ${filteredTasks.length} tasks in project`
+              : isProjectView
+                ? `Viewing project (${state.tasks.length} tasks)`
+                : isSearching
+                  ? `${filteredTasks.length} / ${state.tasks.length} tasks`
+                  : `${state.tasks.length} / ${state.totalCount.toLocaleString()} tasks in ${VIEW_LABELS[state.currentView] || 'All'}`),
+          ]),
+
+          // Right panel: Detail card (compact version)
+          renderDetailCard(state.selectedTask, state, detailCardCallbacks),
+        ]),
+
+        // Bottom section: Full-screen carousel
+        h("div.carousel-section", {
+          style: {
+            position: "absolute",
+            top: "0",
+            left: "0",
+            width: "100%",
+            height: "100%",
+            overflow: "hidden",
+            zIndex: "50",
+            pointerEvents: "none",
+          },
+        }, [
+          state.error
             ? h(
-                "div.loading",
+                "div.error-message",
                 {
                   style: {
+                    padding: "16px",
+                    backgroundColor: "#fee",
+                    border: "1px solid #fcc",
+                    borderRadius: "8px",
+                    color: "#c00",
                     textAlign: "center",
-                    padding: "60px 20px",
-                    color: "var(--text-secondary)",
-                    fontSize: "1.125rem",
+                    margin: "20px",
+                    maxWidth: "600px",
+                    marginLeft: "auto",
+                    marginRight: "auto",
                   },
                 },
-                "Loading tasks...",
+                [
+                  h("strong", "Error: "),
+                  state.error,
+                  h("br"),
+                  h(
+                    "small",
+                    "Make sure the API server is running on http://localhost:8080",
+                  ),
+                ],
               )
-            : state.tasks.length === 0
+            : state.loading
               ? h(
-                  "div.empty-state",
+                  "div.loading",
                   {
                     style: {
                       textAlign: "center",
@@ -207,9 +250,9 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                       fontSize: "1.125rem",
                     },
                   },
-                  `No tasks in ${VIEW_LABELS[state.currentView] || 'All'} view`,
+                  "Loading tasks...",
                 )
-              : !hasResults && isSearching
+              : state.tasks.length === 0
                 ? h(
                     "div.empty-state",
                     {
@@ -220,27 +263,41 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                         fontSize: "1.125rem",
                       },
                     },
-                     "No tasks match your search",
+                    `No tasks in ${VIEW_LABELS[state.currentView] || 'All'} view`,
                   )
-                : h("div", [
-                    renderTaskGrid(
-                      filteredTasks,
-                      state.carouselRotation,
-                      taskCardCallbacks,
-                      carouselCallbacks,
-                      canLoadMore,
-                      isLoadingMore,
-                      state.pagesLoaded
-                    ),
-                    ...(state.loadingMore ? [renderLoadingIndicator()] : []),
-                  ]),
-      ],
-    ),
+                : !hasResults && isSearching
+                  ? h(
+                      "div.empty-state",
+                      {
+                        style: {
+                          textAlign: "center",
+                          padding: "60px 20px",
+                          color: "var(--text-secondary)",
+                          fontSize: "1.125rem",
+                        },
+                      },
+                       "No tasks match your search",
+                    )
+                  : h("div", {
+                      style: {
+                        width: "100%",
+                        height: "100%",
+                      },
+                    }, [
+                      renderTaskGrid(
+                        filteredTasks,
+                        state.carouselRotation,
+                        taskCardCallbacks,
+                        carouselCallbacks,
+                        canLoadMore,
+                        isLoadingMore,
+                        state.pagesLoaded
+                      ),
+                      ...(state.loadingMore ? [renderLoadingIndicator()] : []),
+                    ]),
+        ]),
+    ]),
   ];
-
-  if (state.selectedTask) {
-    appChildren.push(renderSidebar(state.selectedTask, state, sidebarCallbacks)!);
-  }
 
   return h("div", appChildren);
 }
