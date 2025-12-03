@@ -23,6 +23,7 @@ const initialState: AppState = {
   offset: 0,
   hasMore: true,
   loadingMore: false,
+  pagesLoaded: 0,
   totalCount: 0,
   selectedTask: null,
   projectTree: null,
@@ -144,6 +145,9 @@ const callbacks: AppCallbacks = {
   onBackToView: () => dispatch({ type: 'BackToViewRequested' }),
   onCarouselRotate: (delta: number) => {
     dispatch({ type: 'CarouselRotate', delta });
+  },
+  onLoadMore: () => {
+    dispatch({ type: 'LoadMoreStarted' });
   },
 };
 

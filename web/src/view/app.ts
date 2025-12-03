@@ -4,7 +4,7 @@ import type { AppState } from "../types/state.js";
 import type { ViewName, TaskPointer, TaskWithPointer } from "../types/domain.js";
 import { renderSearchBar } from "./components/SearchBar.js";
 import { renderViewSelector, VIEW_LABELS } from "./components/ViewSelector.js";
-import { renderTaskGrid } from "./components/TaskCard.js";
+import { renderTaskGrid, CarouselCallbacks } from "./components/TaskCard.js";
 import { renderLoadingIndicator } from "./components/LoadingIndicator.js";
 import { renderSidebar } from "./components/Sidebar.js";
 import type { SearchBarCallbacks } from "./components/SearchBar.js";
@@ -22,6 +22,7 @@ export interface AppCallbacks {
   readonly onClickParentProject: (parent: TaskWithPointer) => void;
   readonly onBackToView: () => void;
   readonly onCarouselRotate: (delta: number) => void;
+  readonly onLoadMore: () => void;
 }
 
 function createHoverStyle(normalBg: string, hoverBg: string): Record<string, (e: Event) => void> {
@@ -56,6 +57,15 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
     onViewAllSubtasks: callbacks.onViewAllSubtasks,
     onClickParentProject: callbacks.onClickParentProject,
   };
+
+  const carouselCallbacks: CarouselCallbacks = {
+    onRotate: callbacks.onCarouselRotate,
+    onLoadMore: callbacks.onLoadMore,
+  };
+  
+  // Project view doesn't have pagination - all tasks loaded via tree flattening
+  const canLoadMore = !isProjectView && state.hasMore;
+  const isLoadingMore = state.loadingMore;
 
   const appChildren = [
     h(
@@ -217,7 +227,10 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                       filteredTasks,
                       state.carouselRotation,
                       taskCardCallbacks,
-                      callbacks.onCarouselRotate
+                      carouselCallbacks,
+                      canLoadMore,
+                      isLoadingMore,
+                      state.pagesLoaded
                     ),
                     ...(state.loadingMore ? [renderLoadingIndicator()] : []),
                   ]),

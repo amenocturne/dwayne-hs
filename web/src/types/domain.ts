@@ -10,20 +10,20 @@
 
 import type { TaskIndex, FilePath, UrlString } from "./branded.js";
 
-export type TimeUnit = "Hour" | "Day" | "Week" | "Month" | "Year";
-export type RepeatType = "NextDate" | "NextFutureDate" | "PlusCompletionDate";
-export type DelayType = "AllOccurrences" | "FirstOccurrence";
+export type TimeUnit = "hour" | "day" | "week" | "month" | "year";
+export type RepeatType = "nextDate" | "nextFutureDate" | "plusCompletionDate";
+export type DelayType = "allOccurrences" | "firstOccurrence";
 
 export interface RepeatInterval {
-  readonly repeatType: RepeatType;
-  readonly repeatValue: number;
-  readonly repeatTimeUnit: TimeUnit;
+  readonly type: RepeatType;
+  readonly value: number;
+  readonly unit: TimeUnit;
 }
 
 export interface DelayInterval {
-  readonly delayType: DelayType;
-  readonly delayValue: number;
-  readonly delayTimeUnit: TimeUnit;
+  readonly type: DelayType;
+  readonly value: number;
+  readonly unit: TimeUnit;
 }
 
 export interface OrgTime {

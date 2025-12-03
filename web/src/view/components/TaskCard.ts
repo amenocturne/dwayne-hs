@@ -18,6 +18,8 @@ import {
 } from "../designSystem.js";
 import { carousel3DConfig } from "../constants.js";
 
+const PAGE_SIZE = 100;
+
 export interface TaskCardCallbacks {
   readonly onTaskClick: (task: TaskWithPointer) => void;
 }
@@ -336,18 +338,35 @@ function calculateCardVisibility(
   return { visible: true, opacity };
 }
 
+export interface CarouselCallbacks {
+  readonly onRotate: (delta: number) => void;
+  readonly onLoadMore: () => void;
+}
+
+interface CarouselData {
+  rotation: number;
+  minRotation: number;
+  maxRotation: number;
+  hasMore: boolean;
+  loadingMore: boolean;
+  pagesLoaded: number;
+}
+
 export function renderTaskGrid(
   tasks: ReadonlyArray<TaskWithPointer>,
   rotation: number,
   callbacks: TaskCardCallbacks,
-  onRotate: (delta: number) => void
+  carouselCallbacks: CarouselCallbacks,
+  hasMore: boolean,
+  loadingMore: boolean,
+  pagesLoaded: number
 ): VNode {
   const totalCards = tasks.length;
   const { radius, perspective, anglePerCard, visibleAngleRange } = carousel3DConfig;
 
   const totalSpan = (totalCards - 1) * anglePerCard;
-  const minRotation = -totalSpan / 2;
-  const maxRotation = totalSpan / 2;
+  const minRotation = -totalSpan;
+  const maxRotation = 0;
 
   const visibleCards = tasks.filter((_, index) => {
     const cardAngle = index * anglePerCard;
@@ -366,18 +385,37 @@ export function renderTaskGrid(
     },
     hook: {
       insert: (vnode) => {
-        const elm = vnode.elm as HTMLElement;
+        const elm = vnode.elm as HTMLElement & { __carouselData?: CarouselData };
+        // Store initial values
+        elm.__carouselData = { rotation, minRotation, maxRotation, hasMore, loadingMore, pagesLoaded };
+
         elm.addEventListener('wheel', (e: WheelEvent) => {
           e.preventDefault();
+          const data = elm.__carouselData!;
           const delta = e.deltaY * carousel3DConfig.rotationSpeed;
+          const newRotation = data.rotation + delta;
 
-          const newRotation = rotation + delta;
-          if (newRotation < minRotation || newRotation > maxRotation) {
+          if (newRotation < data.minRotation || newRotation > data.maxRotation) {
             return;
           }
 
-          onRotate(delta);
+          carouselCallbacks.onRotate(delta);
+
+          // Calculate which card is currently in view
+          const currentCardIndex = Math.floor(Math.abs(newRotation) / carousel3DConfig.anglePerCard);
+
+          // Trigger load when viewing a card in the last loaded page
+          // e.g., pagesLoaded=2 (200 tasks), trigger when currentCardIndex >= 100
+          const loadTriggerIndex = (data.pagesLoaded - 1) * PAGE_SIZE;
+          if (currentCardIndex >= loadTriggerIndex && data.hasMore && !data.loadingMore) {
+            carouselCallbacks.onLoadMore();
+          }
         }, { passive: false });
+      },
+      update: (_oldVnode, vnode) => {
+        const elm = vnode.elm as HTMLElement & { __carouselData?: CarouselData };
+        // Update values on each render so the wheel handler uses fresh data
+        elm.__carouselData = { rotation, minRotation, maxRotation, hasMore, loadingMore, pagesLoaded };
       },
     },
   }, [

@@ -74,18 +74,18 @@ function isRichText(input: unknown): input is RichText {
 function isRepeatInterval(input: unknown): input is RepeatInterval {
     if (!isObject(input)) return false;
     return (
-        typeof input['repeatType'] === 'string' &&
-        typeof input['repeatValue'] === 'number' &&
-        typeof input['repeatTimeUnit'] === 'string'
+        typeof input['type'] === 'string' &&
+        typeof input['value'] === 'number' &&
+        typeof input['unit'] === 'string'
     );
 }
 
 function isDelayInterval(input: unknown): input is DelayInterval {
     if (!isObject(input)) return false;
     return (
-        typeof input['delayType'] === 'string' &&
-        typeof input['delayValue'] === 'number' &&
-        typeof input['delayTimeUnit'] === 'string'
+        typeof input['type'] === 'string' &&
+        typeof input['value'] === 'number' &&
+        typeof input['unit'] === 'string'
     );
 }
 
@@ -147,9 +147,79 @@ function isProjectTreeResponse(input: unknown): input is ProjectTreeResponse {
     return isTaskNode(input['root']);
 }
 
+function debugRichText(input: unknown): void {
+    if (!Array.isArray(input)) {
+        console.error('      RichText is not an array');
+        return;
+    }
+    for (let i = 0; i < input.length; i++) {
+        const node = input[i];
+        if (!isTextNode(node)) {
+            console.error(`      TextNode at index ${i} failed:`, JSON.stringify(node));
+            if (isObject(node) && node['type'] === 'link') {
+                console.error(`        URL validation failed for: "${node['url']}"`);
+            }
+        }
+    }
+}
+
+function debugTask(input: unknown): void {
+    if (!isObject(input)) {
+        console.error('    Task is not an object');
+        return;
+    }
+    if (typeof input['level'] !== 'number') console.error('    level is not a number:', input['level']);
+    if (typeof input['todoKeyword'] !== 'string') console.error('    todoKeyword is not a string:', input['todoKeyword']);
+    if (input['priority'] !== null && typeof input['priority'] !== 'number') console.error('    priority invalid:', input['priority']);
+    if (!isRichText(input['title'])) {
+        console.error('    title failed isRichText');
+        debugRichText(input['title']);
+    }
+    if (!Array.isArray(input['tags'])) console.error('    tags is not an array:', input['tags']);
+    if (input['scheduled'] !== null && !isOrgTime(input['scheduled'])) console.error('    scheduled invalid:', input['scheduled']);
+    if (input['deadline'] !== null && !isOrgTime(input['deadline'])) console.error('    deadline invalid:', input['deadline']);
+    if (input['createdProp'] !== null && !isOrgTime(input['createdProp'])) console.error('    createdProp invalid:', input['createdProp']);
+    if (input['closed'] !== null && !isOrgTime(input['closed'])) console.error('    closed invalid:', input['closed']);
+    if (!Array.isArray(input['properties'])) console.error('    properties is not an array:', input['properties']);
+    if (!isRichText(input['description'])) {
+        console.error('    description failed isRichText');
+        debugRichText(input['description']);
+    }
+}
+
 export async function parsePaginatedResponse(response: Response): Promise<PaginatedResponse> {
     const json = await response.json();
     if (!isPaginatedTasksResponse(json)) {
+        // Debug logging to find the problematic task
+        console.error('=== Validation Error Debug ===');
+        if (isObject(json) && Array.isArray(json['data'])) {
+            const data = json['data'] as unknown[];
+            console.error(`Total items in response: ${data.length}`);
+            for (let i = 0; i < data.length; i++) {
+                const item = data[i];
+                if (!isTaskWithPointer(item)) {
+                    console.error(`Task at index ${i} failed validation:`);
+                    if (isObject(item)) {
+                        if (!isTask(item['task'])) {
+                            console.error('  - task field failed isTask validation');
+                            debugTask(item['task']);
+                        }
+                        if (!isTaskPointer(item['pointer'])) {
+                            console.error('  - pointer field failed isTaskPointer validation:', item['pointer']);
+                        }
+                    } else {
+                        console.error('  - item is not an object:', item);
+                    }
+                    break; // Stop at first failure
+                }
+            }
+        } else if (isObject(json)) {
+            console.error('Response metadata:', json['metadata']);
+            console.error('data is array:', Array.isArray(json['data']));
+        } else {
+            console.error('Response is not an object');
+        }
+        console.error('=== End Debug ===');
         throw new Error('Invalid paginated response from API');
     }
     return json;

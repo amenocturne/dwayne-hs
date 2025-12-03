@@ -6,7 +6,7 @@ export const carousel3DConfig = {
   animationDuration: 20000,
   cardWidth: 320,
   cardHeight: 450,
-  visibleAngleRange: 60,
+  visibleAngleRange: 100,
   fadeTransitionAngle: 10,
 } as const;
 

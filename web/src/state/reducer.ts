@@ -33,9 +33,12 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
           offset: 0,
           hasMore: true,
           loadingMore: false,
-          projectPointer: null,
+        pagesLoaded: 0,
+        projectPointer: null,
           searchQuery: '',
           error: null,
+          carouselRotation: 0,
+          carouselTargetRotation: 0,
         },
         { type: 'FetchTasks', view: action.view, offset: 0, limit: 100 }
       ];
@@ -54,6 +57,8 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
             searchQuery: '',
             loading: true,
             error: null,
+            carouselRotation: 0,
+            carouselTargetRotation: 0,
           },
           { type: 'FetchProjectTree', pointer: state.projectPointer }
         ];
@@ -66,7 +71,10 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
             tasks: [],
             offset: 0,
             hasMore: true,
+            pagesLoaded: 0,
             error: null,
+            carouselRotation: 0,
+            carouselTargetRotation: 0,
           },
           { type: 'FetchTasks', view: state.currentView, offset: 0, limit: 100 }
         ];
@@ -87,7 +95,8 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
         { type: 'None' }
       ];
 
-    case 'TasksLoaded':
+    case 'TasksLoaded': {
+      const hasMore = action.tasks.length === 100;
       return [
         {
           ...state,
@@ -95,11 +104,16 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
           loading: false,
           error: null,
           offset: action.offset,
-          hasMore: action.tasks.length === 100,
+          hasMore,
           totalCount: action.total,
+          pagesLoaded: 1,
+          loadingMore: hasMore,
         },
-        { type: 'None' }
+        hasMore 
+          ? { type: 'LoadMoreTasks', view: state.currentView, offset: action.offset, limit: 100 }
+          : { type: 'None' }
       ];
+    }
 
     case 'TasksLoadFailed':
       return [
@@ -125,6 +139,7 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
           hasMore: action.tasks.length === 100,
           loadingMore: false,
           totalCount: action.total,
+          pagesLoaded: state.pagesLoaded + 1,
         },
         { type: 'None' }
       ];
@@ -289,6 +304,7 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
           tasks: [],
           offset: 0,
           hasMore: true,
+          pagesLoaded: 0,
           error: null,
         },
         { type: 'FetchTasks', view: state.currentView, offset: 0, limit: 100 }
@@ -301,6 +317,8 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
             ...state,
             loading: true,
             error: null,
+            carouselRotation: 0,
+            carouselTargetRotation: 0,
           },
           { type: 'SearchProjectLocally', query: action.query, projectPointer: state.projectPointer }
         ];
@@ -313,6 +331,8 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
             tasks: [],
             offset: 0,
             hasMore: true,
+            carouselRotation: 0,
+            carouselTargetRotation: 0,
           },
           {
             type: 'SearchTasks',

@@ -82,23 +82,21 @@ export function unwrapFilePath(path: FilePath): string {
 }
 
 /**
- * URL string that must be a valid URL format.
+ * URL string that must be non-empty.
  */
 export type UrlString = Brand<string, 'UrlString'>;
 
 /**
  * Smart constructor for UrlString.
- * Tries to parse the URL to validate it.
+ * Only validates that the string is non-empty.
+ * Trusts the backend to send valid URLs.
  */
 export function urlString(s: string): UrlString {
-  try {
-    // Use the URL constructor to validate the URL format.
-    // A relative URL will throw an error if no base is provided, which is fine for our use case.
-    new URL(s);
-    return s as UrlString;
-  } catch (_) {
-    throw new Error(`Invalid URL string: ${s}`);
+  const trimmed = s.trim();
+  if (trimmed.length === 0) {
+    throw new Error('UrlString cannot be empty');
   }
+  return trimmed as UrlString;
 }
 
 /**

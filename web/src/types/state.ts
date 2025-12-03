@@ -15,6 +15,7 @@ export interface AppState {
   readonly offset: number;
   readonly hasMore: boolean;
   readonly loadingMore: boolean;
+  readonly pagesLoaded: number;  // How many pages have been loaded (1 = 100 tasks, 2 = 200 tasks, etc.)
   readonly totalCount: number;
   readonly selectedTask: TaskWithPointer | null;
   readonly projectTree: TaskNode | null;
