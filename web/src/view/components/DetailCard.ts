@@ -4,17 +4,17 @@ import type { TaskWithPointer, TaskPointer } from "../../types/domain.js";
 import type { AppState } from "../../types/state.js";
 import { getTodoKeywordColor, renderTextNodes } from "../helpers.js";
 import { renderKeywordBadge } from "./common/Badge.js";
-import { renderSidebarSection } from "./sidebar/SidebarSection.js";
+import { renderSidebarSection } from "./detail/SidebarSection.js";
 import {
   renderTagsSection,
   renderDatesSection,
   renderPropertiesSection,
   renderLocationSection,
-} from "./sidebar/SidebarMetadata.js";
+} from "./detail/SidebarMetadata.js";
 import {
   renderParentProjectSection,
   renderSubtasksSection,
-} from "./sidebar/SidebarProject.js";
+} from "./detail/SidebarProject.js";
 import { priorityColors, fontSize, fontWeight, lineHeight, spacing, colors, fonts, cssClasses } from "../designSystem.js";
 
 export interface DetailCardCallbacks {

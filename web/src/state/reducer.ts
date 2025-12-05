@@ -187,7 +187,7 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
       ];
     }
 
-    case 'SidebarClosed':
+    case 'DetailCardClosed':
       return [
         { ...state, selectedTask: null },
         { type: 'None' }

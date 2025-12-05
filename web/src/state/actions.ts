@@ -18,7 +18,7 @@ export type Action =
   | { type: 'LoadMoreCompleted'; tasks: ReadonlyArray<TaskWithPointer>; total: number }
   | { type: 'LoadMoreFailed'; error: string }
   | { type: 'TaskClicked'; task: TaskWithPointer }
-  | { type: 'SidebarClosed' }
+  | { type: 'DetailCardClosed' }
   | { type: 'ProjectTreeLoadStarted' }
   | { type: 'ProjectTreeLoaded'; tree: TaskNode; requestId: number }
   | { type: 'ProjectTreeLoadFailed'; requestId: number }

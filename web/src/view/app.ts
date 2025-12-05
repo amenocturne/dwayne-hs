@@ -6,19 +6,17 @@ import { renderSearchBar } from "./components/SearchBar.js";
 import { renderViewSelector, VIEW_LABELS } from "./components/ViewSelector.js";
 import { renderTaskGrid, CarouselCallbacks } from "./components/TaskCard.js";
 import { renderLoadingIndicator } from "./components/LoadingIndicator.js";
-import { renderSidebar } from "./components/Sidebar.js";
 import { renderDetailCard, type DetailCardCallbacks } from "./components/DetailCard.js";
 import type { SearchBarCallbacks } from "./components/SearchBar.js";
 import type { ViewSelectorCallbacks } from "./components/ViewSelector.js";
 import type { TaskCardCallbacks } from "./components/TaskCard.js";
-import type { SidebarCallbacks } from "./components/Sidebar.js";
 
 export interface AppCallbacks {
   readonly onSearchChange: (query: string) => void;
   readonly onClearSearch: () => void;
   readonly onViewChange: (view: ViewName) => void;
   readonly onTaskClick: (task: TaskWithPointer) => void;
-  readonly onCloseSidebar: () => void;
+  readonly onCloseDetailCard: () => void;
   readonly onViewAllSubtasks: (pointer: TaskPointer) => void;
   readonly onClickParentProject: (parent: TaskWithPointer) => void;
   readonly onBackToView: () => void;
@@ -50,13 +48,6 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
 
   const taskCardCallbacks: TaskCardCallbacks = {
     onTaskClick: callbacks.onTaskClick,
-  };
-
-  const sidebarCallbacks: SidebarCallbacks = {
-    onTaskClick: callbacks.onTaskClick,
-    onClose: callbacks.onCloseSidebar,
-    onViewAllSubtasks: callbacks.onViewAllSubtasks,
-    onClickParentProject: callbacks.onClickParentProject,
   };
 
   const detailCardCallbacks: DetailCardCallbacks = {
