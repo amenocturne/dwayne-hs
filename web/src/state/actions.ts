@@ -17,14 +17,14 @@ export type Action =
   | { type: 'LoadMoreStarted' }
   | { type: 'LoadMoreCompleted'; tasks: ReadonlyArray<TaskWithPointer>; total: number }
   | { type: 'LoadMoreFailed'; error: string }
-  | { type: 'TaskSelected'; task: TaskWithPointer }
+  | { type: 'TaskClicked'; task: TaskWithPointer }
   | { type: 'SidebarClosed' }
   | { type: 'ProjectTreeLoadStarted' }
-  | { type: 'ProjectTreeLoaded'; tree: TaskNode }
-  | { type: 'ProjectTreeLoadFailed' }
+  | { type: 'ProjectTreeLoaded'; tree: TaskNode; requestId: number }
+  | { type: 'ProjectTreeLoadFailed'; requestId: number }
   | { type: 'ParentProjectLoadStarted' }
-  | { type: 'ParentProjectLoaded'; project: TaskWithPointer | null }
-  | { type: 'ParentProjectLoadFailed' }
+  | { type: 'ParentProjectLoaded'; project: TaskWithPointer | null; requestId: number }
+  | { type: 'ParentProjectLoadFailed'; requestId: number }
   | { type: 'WebSocketReloadReceived' }
   | { type: 'ProjectViewRequested'; pointer: TaskPointer }
   | { type: 'ProjectTasksLoaded'; tasks: ReadonlyArray<TaskWithPointer>; total: number }

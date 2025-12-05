@@ -59,8 +59,13 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
             error: null,
             carouselRotation: 0,
             carouselTargetRotation: 0,
+            projectTreeRequestId: state.projectTreeRequestId + 1,
           },
-          { type: 'FetchProjectTree', pointer: state.projectPointer }
+          { 
+            type: 'FetchProjectTree', 
+            pointer: state.projectPointer,
+            requestId: state.projectTreeRequestId + 1 
+          }
         ];
       } else {
         return [
@@ -150,18 +155,37 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
         { type: 'None' }
       ];
 
-    case 'TaskSelected':
+    case 'TaskClicked': {
+      const isProject = action.task.task.todoKeyword === "PROJECT";
+      
       return [
         {
           ...state,
           selectedTask: action.task,
           projectTree: null,
-          loadingProjectTree: false,
+          loadingProjectTree: isProject,
           parentProject: null,
-          loadingParentProject: false,
+          loadingParentProject: !isProject,
+          // Increment request IDs to invalidate in-flight requests
+          projectTreeRequestId: isProject ? state.projectTreeRequestId + 1 : state.projectTreeRequestId,
+          parentProjectRequestId: !isProject ? state.parentProjectRequestId + 1 : state.parentProjectRequestId,
         },
-        { type: 'None' }
+        {
+          type: 'Batch',
+          effects: isProject
+            ? [{ 
+                type: 'FetchProjectTree', 
+                pointer: action.task.pointer,
+                requestId: state.projectTreeRequestId + 1 
+              }]
+            : [{ 
+                type: 'FetchParentProject', 
+                pointer: action.task.pointer,
+                requestId: state.parentProjectRequestId + 1 
+              }]
+        }
       ];
+    }
 
     case 'SidebarClosed':
       return [
@@ -176,6 +200,10 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
       ];
 
     case 'ProjectTreeLoaded':
+      // Only update if this response is for the current request
+      if (action.requestId !== state.projectTreeRequestId) {
+        return [state, { type: 'None' }];
+      }
       return [
         {
           ...state,
@@ -186,6 +214,10 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
       ];
 
     case 'ProjectTreeLoadFailed':
+      // Only update if this error is for the current request
+      if (action.requestId !== state.projectTreeRequestId) {
+        return [state, { type: 'None' }];
+      }
       return [
         {
           ...state,
@@ -202,6 +234,10 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
       ];
 
     case 'ParentProjectLoaded':
+      // Only update if this response is for the current request
+      if (action.requestId !== state.parentProjectRequestId) {
+        return [state, { type: 'None' }];
+      }
       return [
         {
           ...state,
@@ -212,6 +248,10 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
       ];
 
     case 'ParentProjectLoadFailed':
+      // Only update if this error is for the current request
+      if (action.requestId !== state.parentProjectRequestId) {
+        return [state, { type: 'None' }];
+      }
       return [
         {
           ...state,
@@ -273,8 +313,15 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
           hasMore: false,
           projectPointer: action.pointer,
           selectedTask: null,
+          projectTreeRequestId: state.projectTreeRequestId + 1,
+          carouselRotation: 0,
+          carouselTargetRotation: 0,
         },
-        { type: 'FetchProjectTree', pointer: action.pointer }
+        { 
+          type: 'FetchProjectTree', 
+          pointer: action.pointer,
+          requestId: state.projectTreeRequestId + 1 
+        }
       ];
 
     case 'ProjectTasksLoaded':
@@ -319,6 +366,7 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
             error: null,
             carouselRotation: 0,
             carouselTargetRotation: 0,
+            projectTreeRequestId: state.projectTreeRequestId + 1,
           },
           { type: 'SearchProjectLocally', query: action.query, projectPointer: state.projectPointer }
         ];

@@ -8,7 +8,7 @@
  * Phase 4: Enhanced with runtime validation and branded types.
  */
 
-import type { ViewName } from "../types/domain.js";
+import type { ViewName, TaskWithPointer } from "../types/domain.js";
 import type { FilePath, TaskIndex } from "../types/branded.js";
 import type { PaginatedResponse, ProjectTreeResponse } from "../types/api.js";
 import { parsePaginatedResponse, parseProjectTreeResponse } from "./validation.js";
@@ -93,4 +93,32 @@ export async function fetchProjectTree(
     );
   }
   return await parseProjectTreeResponse(response);
+}
+
+/**
+ * Fetches the parent project for a given task.
+ * Returns null if the task has no parent project (404 response).
+ */
+export async function fetchParentProject(
+  file: FilePath,
+  taskIndex: TaskIndex,
+): Promise<TaskWithPointer | null> {
+  const fileStr = unwrapFilePath(file);
+  const indexNum = unwrapTaskIndex(taskIndex);
+  const url = `${API_BASE_URL}/api/projects/parent?file=${encodeURIComponent(fileStr)}&taskIndex=${indexNum}`;
+  
+  const response = await fetch(url);
+  
+  // 404 means no parent project - this is normal, not an error
+  if (response.status === 404) {
+    return null;
+  }
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch parent project: ${response.status} ${response.statusText}`);
+  }
+  
+  const result = await parsePaginatedResponse(response);
+  // API returns single-item array, extract first item or null
+  return result.data[0] ?? null;
 }

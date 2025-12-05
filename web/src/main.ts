@@ -7,12 +7,11 @@ import { attributesModule } from "snabbdom/build/modules/attributes.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 
 import type { AppState } from "./types/state.js";
-import type { TaskWithPointer, TaskPointer } from "./types/domain.js";
+import type { TaskPointer, TaskWithPointer } from "./types/domain.js";
 import { view } from "./view/app.js";
 import type { AppCallbacks } from "./view/app.js";
 import { createStore } from "./state/store.js";
 import type { Dispatch } from "./state/effects.js";
-import { fetchTasks, fetchProjectTree } from "./api/client.js";
 
 const initialState: AppState = {
   tasks: [],
@@ -31,6 +30,8 @@ const initialState: AppState = {
   projectPointer: null,
   parentProject: null,
   loadingParentProject: false,
+  parentProjectRequestId: 0,
+  projectTreeRequestId: 0,
   carouselRotation: 0,
   carouselTargetRotation: 0,
 };
@@ -69,68 +70,6 @@ function debouncedSearch(query: string): void {
   }, 200);
 }
 
-async function findParentProject(
-  taskWithPointer: TaskWithPointer
-): Promise<TaskWithPointer | null> {
-  const { task, pointer } = taskWithPointer;
-  const projectsResult = await fetchTasks("project", 0, 1000);
-  const projectsInSameFile = projectsResult.data.filter(
-    (p) => p.pointer.file === pointer.file && p.pointer.taskIndex < pointer.taskIndex
-  );
-
-  for (let i = projectsInSameFile.length - 1; i >= 0; i--) {
-    const candidate = projectsInSameFile[i];
-    if (!candidate || candidate.task.level >= task.level) continue;
-
-    try {
-      const tree = await fetchProjectTree(candidate.pointer.file, candidate.pointer.taskIndex);
-      
-      const containsTask = (node: any): boolean => {
-        if (node.pointer.file === pointer.file && node.pointer.taskIndex === pointer.taskIndex) {
-          return true;
-        }
-        return node.children.some(containsTask);
-      };
-
-      if (containsTask(tree.root)) {
-        return { task: candidate.task, pointer: candidate.pointer };
-      }
-    } catch {
-      continue;
-    }
-  }
-
-  return null;
-}
-
-async function handleTaskSelection(taskWithPointer: TaskWithPointer): Promise<void> {
-  dispatch({ type: 'TaskSelected', task: taskWithPointer });
-
-  const { task, pointer } = taskWithPointer;
-
-  if (task.todoKeyword !== "PROJECT") {
-    dispatch({ type: 'ParentProjectLoadStarted' });
-    try {
-      const parentProject = await findParentProject(taskWithPointer);
-      dispatch({ type: 'ParentProjectLoaded', project: parentProject });
-    } catch (err) {
-      console.error("Failed to find parent project:", err);
-      dispatch({ type: 'ParentProjectLoadFailed' });
-    }
-  }
-
-  if (task.todoKeyword === "PROJECT") {
-    dispatch({ type: 'ProjectTreeLoadStarted' });
-    try {
-      const result = await fetchProjectTree(pointer.file, pointer.taskIndex);
-      dispatch({ type: 'ProjectTreeLoaded', tree: result.root });
-    } catch (err) {
-      console.error("Failed to load project tree:", err);
-      dispatch({ type: 'ProjectTreeLoadFailed' });
-    }
-  }
-}
-
 const callbacks: AppCallbacks = {
   onSearchChange: (query: string) => {
     dispatch({ type: 'SearchQueryChanged', query });
@@ -138,10 +77,10 @@ const callbacks: AppCallbacks = {
   },
   onClearSearch: () => dispatch({ type: 'SearchCleared' }),
   onViewChange: (newView) => dispatch({ type: 'ViewChanged', view: newView }),
-  onTaskClick: (taskWithPointer) => handleTaskSelection(taskWithPointer),
+  onTaskClick: (taskWithPointer) => dispatch({ type: 'TaskClicked', task: taskWithPointer }),
   onCloseSidebar: () => dispatch({ type: 'SidebarClosed' }),
   onViewAllSubtasks: (pointer: TaskPointer) => dispatch({ type: 'ProjectViewRequested', pointer }),
-  onClickParentProject: (parent: TaskWithPointer) => handleTaskSelection(parent),
+  onClickParentProject: (parent: TaskWithPointer) => dispatch({ type: 'TaskClicked', task: parent }),
   onBackToView: () => dispatch({ type: 'BackToViewRequested' }),
   onCarouselRotate: (delta: number) => {
     dispatch({ type: 'CarouselRotate', delta });

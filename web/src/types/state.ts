@@ -23,6 +23,8 @@ export interface AppState {
   readonly projectPointer: TaskPointer | null;
   readonly parentProject: TaskWithPointer | null;
   readonly loadingParentProject: boolean;
+  readonly parentProjectRequestId: number;
+  readonly projectTreeRequestId: number;
   
   // 3D Carousel state
   readonly carouselRotation: number;       // Current rotation in degrees (interpolated, smooth)

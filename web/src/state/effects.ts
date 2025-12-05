@@ -9,15 +9,15 @@
 
 import type { ViewName, TaskPointer, TaskWithPointer, TaskNode } from "../types/domain.js";
 import type { Action } from "./actions.js";
-import { fetchTasks, fetchSearchResults, fetchProjectTree } from "../api/client.js";
+import { fetchTasks, fetchSearchResults, fetchProjectTree, fetchParentProject } from "../api/client.js";
 import { assertNever } from "../types/utils.js";
 
 export type Effect =
   | { type: 'None' }
   | { type: 'FetchTasks'; view: ViewName; offset: number; limit: number }
   | { type: 'SearchTasks'; query: string; view: ViewName | null; offset: number; limit: number }
-  | { type: 'FetchProjectTree'; pointer: TaskPointer }
-  | { type: 'FetchParentProject'; task: TaskWithPointer; allProjects: ReadonlyArray<TaskWithPointer> }
+  | { type: 'FetchProjectTree'; pointer: TaskPointer; requestId: number }
+  | { type: 'FetchParentProject'; pointer: TaskPointer; requestId: number }
   | { type: 'ShowToast'; message: string }
   | { type: 'LoadMoreTasks'; view: ViewName; offset: number; limit: number }
   | { type: 'FetchAllProjects' }
@@ -39,16 +39,6 @@ function flattenTaskTree(node: TaskNode): ReadonlyArray<TaskWithPointer> {
   
   traverse(node);
   return result;
-}
-
-/**
- * Checks if a task tree contains a specific task by pointer.
- */
-function containsTask(tree: TaskNode, pointer: TaskPointer): boolean {
-  if (tree.pointer.file === pointer.file && tree.pointer.taskIndex === pointer.taskIndex) {
-    return true;
-  }
-  return tree.children.some(child => containsTask(child, pointer));
 }
 
 /**
@@ -128,56 +118,42 @@ export async function runEffect(effect: Effect, dispatch: Dispatch): Promise<voi
       try {
         const result = await fetchProjectTree(effect.pointer.file, effect.pointer.taskIndex);
         const flatTasks = flattenTaskTree(result.root);
+        
+        // Dispatch both actions: one for project view, one for detail card
         dispatch({
           type: 'ProjectTasksLoaded',
           tasks: flatTasks,
           total: flatTasks.length,
         });
+        dispatch({
+          type: 'ProjectTreeLoaded',
+          tree: result.root,
+          requestId: effect.requestId,
+        });
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Failed to load project";
         dispatch({ type: 'ProjectTasksLoadFailed', error: errorMessage });
+        dispatch({ 
+          type: 'ProjectTreeLoadFailed',
+          requestId: effect.requestId 
+        });
       }
       break;
 
     case 'FetchParentProject':
       try {
-        const { task, pointer } = effect.task;
-        
-        if (task.todoKeyword === "PROJECT") {
-          dispatch({ type: 'ParentProjectLoaded', project: null });
-          return;
-        }
-
-        const projectsInSameFile = effect.allProjects.filter(
-          (p) => p.pointer.file === pointer.file && p.pointer.taskIndex < pointer.taskIndex
-        );
-
-        let parentProject: TaskWithPointer | null = null;
-        
-        for (let i = projectsInSameFile.length - 1; i >= 0; i--) {
-          const candidate = projectsInSameFile[i];
-          if (!candidate) continue; // Handle noUncheckedIndexedAccess
-          
-          if (candidate.task.level >= task.level) {
-            continue;
-          }
-          
-          try {
-            const tree = await fetchProjectTree(candidate.pointer.file, candidate.pointer.taskIndex);
-            
-            if (containsTask(tree.root, pointer)) {
-              parentProject = { task: candidate.task, pointer: candidate.pointer };
-              break;
-            }
-          } catch (err) {
-            continue;
-          }
-        }
-
-        dispatch({ type: 'ParentProjectLoaded', project: parentProject });
+        const parent = await fetchParentProject(effect.pointer.file, effect.pointer.taskIndex);
+        dispatch({ 
+          type: 'ParentProjectLoaded', 
+          project: parent,
+          requestId: effect.requestId 
+        });
       } catch (err) {
-        console.error("Failed to find parent project:", err);
-        dispatch({ type: 'ParentProjectLoadFailed' });
+        console.error("Failed to fetch parent project:", err);
+        dispatch({ 
+          type: 'ParentProjectLoadFailed',
+          requestId: effect.requestId 
+        });
       }
       break;
 
