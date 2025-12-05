@@ -8,6 +8,7 @@ export const carousel3DConfig = {
   cardHeight: 450,
   visibleAngleRange: 100,
   fadeTransitionAngle: 10,
+  showDebugDots: false, // Set to true to visualize carousel positioning
 } as const;
 
 export const cardAnimationConfig = {

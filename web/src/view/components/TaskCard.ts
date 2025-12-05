@@ -17,6 +17,9 @@ import {
   transitions,
 } from "../designSystem.js";
 import { carousel3DConfig } from "../constants.js";
+import { calculateCardVisibility } from './carousel/positioning.js';
+import { calculateRotationDelta, shouldLoadMore, calculateCarouselBounds } from './carousel/logic.js';
+import { renderDecorativeDots } from './carousel/decorativeDots.js';
 
 const PAGE_SIZE = 100;
 
@@ -315,29 +318,6 @@ export function renderTaskNodeCard(
   ]);
 }
 
-function calculateCardVisibility(
-  cardAngle: number,
-  rotation: number
-): { readonly visible: boolean; readonly opacity: number } {
-  const { visibleAngleRange, fadeTransitionAngle } = carousel3DConfig;
-  const viewportAngle = cardAngle + rotation;
-  const absAngle = Math.abs(viewportAngle);
-  const maxVisibleAngle = visibleAngleRange / 2;
-
-  if (absAngle > maxVisibleAngle + fadeTransitionAngle) {
-    return { visible: false, opacity: 0 };
-  }
-
-  if (absAngle <= maxVisibleAngle) {
-    return { visible: true, opacity: 1 };
-  }
-
-  const fadeProgress = (absAngle - maxVisibleAngle) / fadeTransitionAngle;
-  const opacity = 1 - fadeProgress;
-
-  return { visible: true, opacity };
-}
-
 export interface CarouselCallbacks {
   readonly onRotate: (delta: number) => void;
   readonly onLoadMore: () => void;
@@ -364,9 +344,7 @@ export function renderTaskGrid(
   const totalCards = tasks.length;
   const { radius, perspective, anglePerCard, visibleAngleRange } = carousel3DConfig;
 
-  const totalSpan = (totalCards - 1) * anglePerCard;
-  const minRotation = -totalSpan;
-  const maxRotation = 0;
+  const { minRotation, maxRotation } = calculateCarouselBounds(totalCards, anglePerCard);
 
   const visibleCards = tasks.filter((_, index) => {
     const cardAngle = index * anglePerCard;
@@ -394,22 +372,28 @@ export function renderTaskGrid(
         elm.addEventListener('wheel', (e: WheelEvent) => {
           e.preventDefault();
           const data = elm.__carouselData!;
-          const delta = e.deltaY * carousel3DConfig.rotationSpeed;
-          const newRotation = data.rotation + delta;
-
-          if (newRotation < data.minRotation || newRotation > data.maxRotation) {
-            return;
-          }
-
+          
+          // Use pure function for rotation calculation
+          const delta = calculateRotationDelta(
+            data.rotation,
+            e.deltaY,
+            carousel3DConfig.rotationSpeed,
+            { min: data.minRotation, max: data.maxRotation }
+          );
+          
+          if (delta === null) return; // Out of bounds
+          
           carouselCallbacks.onRotate(delta);
-
-          // Calculate which card is currently in view
-          const currentCardIndex = Math.floor(Math.abs(newRotation) / carousel3DConfig.anglePerCard);
-
-          // Trigger load when viewing a card in the last loaded page
-          // e.g., pagesLoaded=2 (200 tasks), trigger when currentCardIndex >= 100
-          const loadTriggerIndex = (data.pagesLoaded - 1) * PAGE_SIZE;
-          if (currentCardIndex >= loadTriggerIndex && data.hasMore && !data.loadingMore) {
+          
+          // Use pure function for load-more check
+          if (shouldLoadMore(
+            data.rotation + delta,
+            carousel3DConfig.anglePerCard,
+            data.pagesLoaded,
+            PAGE_SIZE,
+            data.hasMore,
+            data.loadingMore
+          )) {
             carouselCallbacks.onLoadMore();
           }
         }, { passive: false });
@@ -431,27 +415,7 @@ export function renderTaskGrid(
         zIndex: '50',
       },
     }, [
-      ...Array.from({ length: 100 }, (_, i) => {
-        const angle = i * (360 / 100);
-        const angleRad = (angle * Math.PI) / 180;
-        const x = Math.cos(angleRad) * (radius / 3);
-        const y = Math.sin(angleRad) * (radius / 3);
-
-        return h('div', {
-          key: `dot-${i}`,
-          style: {
-            position: 'absolute',
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            backgroundColor: 'cyan',
-            transformStyle: 'preserve-3d',
-            transform: `translate3d(${x}px, ${y}px, 0px)`,
-            marginLeft: '-4px',
-            marginTop: '-4px',
-          },
-        });
-      }),
+      ...(carousel3DConfig.showDebugDots ? renderDecorativeDots(radius) : []),
 
       ...tasks
         .map((taskWithPointer, index) => {
