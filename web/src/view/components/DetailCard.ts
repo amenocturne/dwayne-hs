@@ -28,7 +28,7 @@ function renderTitleSection(taskWithPointer: TaskWithPointer): VNode {
   const keywordColor = getTodoKeywordColor(task.todoKeyword);
   const priorityColor = task.priority !== null ? priorityColors[task.priority as keyof typeof priorityColors] : null;
   const titleNodes = renderTextNodes(task.title);
-  
+
   return h('div', {
     style: {
       display: 'flex',
@@ -54,7 +54,7 @@ function renderTitleSection(taskWithPointer: TaskWithPointer): VNode {
           }, `Priority ${task.priority}`)
         : null,
     ].filter(Boolean)),
-    
+
     h('p', {
       style: {
         margin: '0',
@@ -72,7 +72,7 @@ function renderTitleSection(taskWithPointer: TaskWithPointer): VNode {
 function renderDescriptionSection(taskWithPointer: TaskWithPointer): VNode | null {
   const { task } = taskWithPointer;
   if (task.description.length === 0) return null;
-  
+
   const descriptionNodes = renderTextNodes(task.description);
   const content = h('div', {
     style: {
@@ -82,7 +82,7 @@ function renderDescriptionSection(taskWithPointer: TaskWithPointer): VNode | nul
       lineHeight: lineHeight.relaxed,
     },
   }, descriptionNodes);
-  
+
   return renderSidebarSection('Description', content);
 }
 
@@ -142,14 +142,68 @@ export function renderDetailCard(
   if (!taskWithPointer) {
     return h('div.detail-card', {
       style: {
-        width: '400px',
-        height: '100%',
-        backgroundColor: colors.asphalt,
-        borderLeft: `2px solid ${colors.greyDark}`,
-        overflowY: 'auto',
-        flexShrink: '0',
+        position: 'fixed',
+        top: '10%',
+        right: '5%',
+        width: '380px',
+        maxHeight: '85vh',
+        backgroundColor: 'transparent',
+        zIndex: '200',
+        padding: spacing.lg,
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'flex-start',
+        perspective: '1200px',
+        pointerEvents: 'none',
       },
-    }, [renderEmptyState()]);
+    }, [
+      h('div', {
+        style: {
+          backgroundColor: colors.asphalt,
+          border: `2px solid ${colors.greyDark}`,
+          outline: `1px solid ${colors.void}`,
+          outlineOffset: '4px',
+          clipPath: 'polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 24px 100%, 0 calc(100% - 24px))',
+          padding: spacing.lg,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: spacing.sm,
+          width: '100%',
+          opacity: '0.3',
+          position: 'relative',
+          transformStyle: 'preserve-3d',
+          transform: 'rotateY(-12deg) rotateX(3deg)',
+          fontSize: fontSize.sm,
+          minHeight: '400px',
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+      }, [
+        h('div', {
+          style: {
+            textAlign: 'center',
+            color: colors.greyLight,
+          },
+        }, [
+          h('div', {
+            style: {
+              fontSize: '3rem',
+              marginBottom: spacing.md,
+            },
+          }, '→'),
+          h('p', {
+            style: {
+              margin: '0',
+              fontFamily: fonts.display,
+              fontSize: fontSize.lg,
+              fontWeight: fontWeight.bold,
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+            },
+          }, 'Select a card'),
+        ]),
+      ]),
+    ]);
   }
 
   const { task, pointer } = taskWithPointer;
@@ -157,101 +211,151 @@ export function renderDetailCard(
   const keywordColor = getTodoKeywordColor(task.todoKeyword);
   const priorityColor = task.priority !== null ? priorityColors[task.priority as keyof typeof priorityColors] : null;
   const titleNodes = renderTextNodes(task.title);
+  const isPriority = task.priority === 0;
+  const isRunning = task.todoKeyword === 'DOING' || task.todoKeyword === 'NEXT';
+  const isDone = task.todoKeyword === 'DONE';
+  const cardNumber = `${pointer.taskIndex + 1}`.padStart(3, '0');
+
+  const borderColor = isPriority ? colors.redBright : isRunning ? colors.pinkBright : colors.greyDark;
+  const outlineColor = isPriority ? 'rgba(255, 51, 51, 0.3)' : isRunning ? 'rgba(255, 0, 153, 0.3)' : colors.void;
+
+  const descriptionNodes = task.description.length > 0
+    ? h('div', {
+        style: {
+          margin: '0',
+          fontFamily: fonts.body,
+          fontSize: fontSize.sm,
+          fontWeight: '400',
+          color: colors.greyLight,
+          lineHeight: '1.5',
+        },
+      }, renderTextNodes(task.description))
+    : null;
 
   return h('div.detail-card', {
     style: {
-      width: '400px',
-      height: '100%',
-      backgroundColor: colors.asphalt,
-      borderLeft: `2px solid ${colors.greyDark}`,
-      overflowY: 'auto',
-      overflowX: 'hidden',
-      flexShrink: '0',
+      position: 'fixed',
+      top: '10%',
+      right: '5%',
+      width: '380px',
+      maxHeight: '85vh',
+      backgroundColor: 'transparent',
+      zIndex: '200',
+      padding: spacing.lg,
+      display: 'flex',
+      alignItems: 'flex-start',
+      justifyContent: 'flex-start',
+      perspective: '1200px',
+      pointerEvents: 'auto',
     },
   }, [
     h('div', {
       style: {
+        backgroundColor: colors.asphalt,
+        border: `2px solid ${borderColor}`,
+        outline: `1px solid ${outlineColor}`,
+        outlineOffset: '4px',
+        clipPath: 'polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 24px 100%, 0 calc(100% - 24px))',
         padding: spacing.lg,
         display: 'flex',
         flexDirection: 'column',
         gap: spacing.sm,
+        width: '100%',
+        opacity: isDone ? '0.5' : '1',
+        position: 'relative',
+        transformStyle: 'preserve-3d',
+        transform: 'rotateY(-12deg) rotateX(3deg)',
+        fontSize: fontSize.sm,
       },
     }, [
+      // Corner accent
       h('div', {
         style: {
-          fontFamily: fonts.display,
-          fontSize: fontSize.xs,
-          fontWeight: fontWeight.semibold,
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          color: colors.greyDark,
-          marginBottom: spacing.xs,
+          position: 'absolute',
+          top: '0',
+          right: '0',
+          width: '24px',
+          height: '24px',
+          background: `linear-gradient(135deg, ${isPriority ? colors.redBright : isRunning ? colors.pinkBright : colors.cyanDim} 0%, transparent 50%)`,
+          clipPath: 'polygon(0 0, 100% 0, 100% 100%)',
+          opacity: isPriority || isRunning ? '0.5' : '0.3',
+          pointerEvents: 'none',
         },
-      }, 'Selected Task'),
-      
+      }),
+
+      // Header with card number and badge
       h('div', {
         style: {
           display: 'flex',
-          alignItems: 'center',
-          gap: spacing.xs,
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: spacing.md,
+          flexShrink: '0',
+          marginBottom: spacing.sm,
         },
       }, [
-        renderKeywordBadge(task.todoKeyword, keywordColor, 'medium'),
-        task.priority !== null && priorityColor
-          ? h('span', {
-              style: {
-                color: priorityColor,
-                fontSize: fontSize.xs,
-                fontWeight: fontWeight.semibold,
-              },
-            }, `P${task.priority}`)
-          : null,
-      ].filter(Boolean)),
-      
-      h('p', {
-        style: {
-          margin: '0',
-          fontSize: fontSize.sm,
-          fontWeight: fontWeight.semibold,
-          color: colors.white,
-          lineHeight: lineHeight.tight,
-          textDecoration: task.todoKeyword === 'DONE' ? 'line-through' : 'none',
-          opacity: task.todoKeyword === 'DONE' ? '0.7' : '1',
-          display: '-webkit-box',
-          WebkitLineClamp: '3',
-          WebkitBoxOrient: 'vertical',
-          overflow: 'hidden',
-        },
-      }, titleNodes),
-      
-      task.tags.length > 0 ? h('div', {
-        style: {
-          display: 'flex',
-          gap: spacing.xs,
-          flexWrap: 'wrap',
-        },
-      }, task.tags.slice(0, 3).map(tag => 
         h('span', {
           style: {
+            fontFamily: fonts.display,
             fontSize: fontSize.xs,
-            padding: '2px 6px',
-            borderRadius: '3px',
-            backgroundColor: 'var(--tag-bg)',
-            color: 'var(--tag-text)',
-            fontFamily: fonts.body,
-            fontWeight: fontWeight.medium,
+            fontWeight: fontWeight.bold,
+            color: colors.greyDark,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
           },
-        }, tag)
-      )) : null,
-      
-      h('div', {
+        }, cardNumber),
+        renderKeywordBadge(task.todoKeyword, keywordColor, 'medium'),
+      ]),
+
+      // Title
+      h('h3', {
         style: {
-          fontSize: fontSize.xs,
-          color: colors.greyDark,
-          fontFamily: fonts.display,
-          marginTop: spacing.xs,
+          margin: '0',
+          fontFamily: fonts.body,
+          fontSize: fontSize.base,
+          fontWeight: fontWeight.bold,
+          letterSpacing: '-0.02em',
+          color: colors.white,
+          textDecoration: isDone ? 'line-through' : 'none',
+          opacity: isDone ? '0.7' : '1',
+          flexShrink: '0',
+          lineHeight: '1.3',
         },
-      }, `${pointer.file.split('/').pop()} #${pointer.taskIndex + 1}`),
-    ]),
+      }, titleNodes),
+
+      // Description
+      descriptionNodes ? renderSidebarSection('Description', descriptionNodes) : null,
+
+      // Tags
+      renderTagsSection(task.tags),
+
+      // Parent project (only for non-PROJECT tasks)
+      !isProject
+        ? renderParentProjectSection(
+            state.parentProject,
+            state.loadingParentProject,
+            callbacks.onClickParentProject
+          )
+        : null,
+
+      // Dates
+      renderDatesSection(task),
+
+      // Properties
+      renderPropertiesSection(task.properties),
+
+      // Subtasks (only for PROJECT tasks)
+      isProject
+        ? renderSubtasksSection(
+            state.projectTree,
+            state.loadingProjectTree,
+            pointer,
+            callbacks
+          )
+        : null,
+
+      // Location
+      renderLocationSection(pointer.file, pointer.taskIndex),
+    ].filter(Boolean)),
   ]);
 }

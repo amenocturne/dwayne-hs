@@ -43,10 +43,9 @@ export function renderViewSelector(
     {
       style: {
         display: "flex",
-        gap: "8px",
-        flexWrap: "wrap",
-        justifyContent: "center",
-        marginBottom: "32px",
+        flexDirection: "column",
+        gap: "4px",
+        pointerEvents: "auto",
       },
     },
     views.map((view) =>
@@ -56,20 +55,23 @@ export function renderViewSelector(
           key: view,
           style: {
             padding: "8px 16px",
-            borderRadius: "6px",
+            borderRadius: "4px",
             border:
               currentView === view
-                ? "2px solid #646cff"
+                ? "2px solid var(--cyan-bright)"
                 : "1px solid var(--card-border)",
             backgroundColor:
               currentView === view
-                ? "rgba(100, 108, 255, 0.1)"
-                : "var(--card-bg)",
-            color: currentView === view ? "#646cff" : "var(--text-primary)",
+                ? "rgba(0, 229, 255, 0.15)"
+                : "transparent",
+            color: currentView === view ? "var(--cyan-bright)" : "var(--text-primary)",
             fontWeight: currentView === view ? "600" : "400",
             cursor: "pointer",
             transition: "all 0.2s",
             fontSize: "0.875rem",
+            textAlign: "left",
+            fontFamily: "var(--font-body)",
+            pointerEvents: "auto",
           },
           on: {
             click: () => callbacks.onViewChange(view),

@@ -93,7 +93,8 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
             height: "50%",
             flexShrink: "0",
             position: "relative",
-            zIndex: "1",
+            zIndex: "100",
+            pointerEvents: "auto",
             // borderBottom: "2px solid var(--card-border)",
           },
         }, [
@@ -108,6 +109,7 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
               display: "flex",
               flexDirection: "column",
               gap: "16px",
+              pointerEvents: "auto",
             },
           }, [
             h("div", {
@@ -163,6 +165,7 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
               flexDirection: "column",
               justifyContent: "center",
               gap: "16px",
+              pointerEvents: "auto",
             },
           }, [
             h("div", {
@@ -194,9 +197,14 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                   ? `${filteredTasks.length} / ${state.tasks.length} tasks`
                   : `${state.tasks.length} / ${state.totalCount.toLocaleString()} tasks in ${VIEW_LABELS[state.currentView] || 'All'}`),
           ]),
-
-          // Right panel: Detail card (compact version)
-          renderDetailCard(state.selectedTask, state, detailCardCallbacks),
+          
+          // Right panel: Placeholder to reserve space for floating card
+          h("div.right-panel-placeholder", {
+            style: {
+              width: "400px",
+              flexShrink: "0",
+            },
+          }),
         ]),
 
         // Bottom section: Full-screen carousel
@@ -296,6 +304,9 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                       ...(state.loadingMore ? [renderLoadingIndicator()] : []),
                     ]),
         ]),
+        
+        // Floating detail card (rendered outside top section to avoid layout jump)
+        renderDetailCard(state.selectedTask, state, detailCardCallbacks),
     ]),
   ];
 
