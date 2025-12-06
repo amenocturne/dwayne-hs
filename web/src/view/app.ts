@@ -4,12 +4,12 @@ import type { AppState } from "../types/state.js";
 import type { ViewName, TaskPointer, TaskWithPointer } from "../types/domain.js";
 import { renderSearchBar } from "./components/SearchBar.js";
 import { renderViewSelector, VIEW_LABELS } from "./components/ViewSelector.js";
-import { renderTaskGrid, CarouselCallbacks } from "./components/TaskCard.js";
+import { renderCarousel3D, type CarouselCallbacks } from "./components/carousel/Carousel3D.js";
 import { renderLoadingIndicator } from "./components/LoadingIndicator.js";
 import { renderDetailCard, type DetailCardCallbacks } from "./components/DetailCard.js";
 import type { SearchBarCallbacks } from "./components/SearchBar.js";
 import type { ViewSelectorCallbacks } from "./components/ViewSelector.js";
-import type { TaskCardCallbacks } from "./components/TaskCard.js";
+import type { TaskCardCallbacks } from "./components/card/TaskCard.js";
 
 export interface AppCallbacks {
   readonly onSearchChange: (query: string) => void;
@@ -283,7 +283,7 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                         height: "100%",
                       },
                     }, [
-                      renderTaskGrid(
+                      renderCarousel3D(
                         filteredTasks,
                         state.carouselRotation,
                         taskCardCallbacks,
