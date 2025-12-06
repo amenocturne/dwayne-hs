@@ -20,7 +20,6 @@ export type Effect =
   | { type: 'FetchParentProject'; pointer: TaskPointer; requestId: number }
   | { type: 'ShowToast'; message: string }
   | { type: 'LoadMoreTasks'; view: ViewName; offset: number; limit: number }
-  | { type: 'FetchAllProjects' }
   | { type: 'SearchProjectLocally'; query: string; projectPointer: TaskPointer }
   | { type: 'Batch'; effects: ReadonlyArray<Effect> };
 
@@ -168,16 +167,6 @@ export async function runEffect(effect: Effect, dispatch: Dispatch): Promise<voi
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
         dispatch({ type: 'LoadMoreFailed', error: errorMessage });
-      }
-      break;
-
-    case 'FetchAllProjects':
-      try {
-        await fetchTasks("project", 0, 1000);
-        // Store projects in a way accessible to parent project search
-        // This is handled through the effect batching mechanism
-      } catch (err) {
-        console.error("Failed to fetch projects:", err);
       }
       break;
 

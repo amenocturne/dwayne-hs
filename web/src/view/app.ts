@@ -86,15 +86,12 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
             position: "relative",
             zIndex: "100",
             pointerEvents: "auto",
-            // borderBottom: "2px solid var(--card-border)",
           },
         }, [
           // Left panel: View selector
           h("div.left-panel", {
             style: {
               width: "20%",
-              // backgroundColor: "var(--bg-secondary)",
-              // borderRight: "2px solid var(--card-border)",
               overflowY: "auto",
               padding: "24px",
               display: "flex",
