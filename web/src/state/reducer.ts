@@ -1,17 +1,18 @@
 /**
  * Pure Reducer
- * 
+ *
  * update :: (AppState, Action) -> (AppState, Effect)
- * 
+ *
  * The heart of the Elm architecture. Takes current state and an action,
  * returns new state and an effect to execute.
- * 
+ *
  * Must be pure - no side effects, no mutations, no I/O.
- * 
+ *
  * Phase 4: Enhanced with exhaustiveness checking using assertNever.
  */
 
 import type { AppState } from "../types/state.js";
+import { hasMoreTasks } from "../types/state.js";
 import type { Action } from "./actions.js";
 import type { Effect } from "./effects.js";
 import type { TaskWithPointer } from "../types/domain.js";
@@ -27,61 +28,66 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
       return [
         {
           ...state,
-          currentView: action.view,
-          loading: true,
-          tasks: [],
-          offset: 0,
-          hasMore: true,
-          loadingMore: false,
-        pagesLoaded: 0,
-        projectPointer: null,
-          searchQuery: '',
+          taskList: {
+            ...state.taskList,
+            loading: true,
+            tasks: [],
+            offset: 0,
+            loadingMore: false,
+            pagesLoaded: 0,
+          },
+          view: {
+            ...state.view,
+            currentView: action.view,
+            searchQuery: '',
+            projectPointer: null,
+          },
+          carousel: {
+            rotation: 0,
+            targetRotation: 0,
+          },
           error: null,
-          carouselRotation: 0,
-          carouselTargetRotation: 0,
         },
         { type: 'FetchTasks', view: action.view, offset: 0, limit: 100 }
       ];
 
     case 'SearchQueryChanged':
       return [
-        { ...state, searchQuery: action.query },
+        {
+          ...state,
+          view: { ...state.view, searchQuery: action.query },
+        },
         { type: 'None' }
       ];
 
     case 'SearchCleared':
-      if (state.projectPointer) {
+      if (state.view.projectPointer) {
         return [
           {
             ...state,
-            searchQuery: '',
-            loading: true,
+            view: { ...state.view, searchQuery: '' },
+            taskList: { ...state.taskList, loading: true },
+            carousel: { rotation: 0, targetRotation: 0 },
             error: null,
-            carouselRotation: 0,
-            carouselTargetRotation: 0,
-            projectTreeRequestId: state.projectTreeRequestId + 1,
           },
-          { 
-            type: 'FetchProjectTree', 
-            pointer: state.projectPointer,
-            requestId: state.projectTreeRequestId + 1 
-          }
+          { type: 'FetchProjectTree', pointer: state.view.projectPointer, requestId: state.detail.projectTreeRequestId + 1 }
         ];
       } else {
         return [
           {
             ...state,
-            searchQuery: '',
-            loading: true,
-            tasks: [],
-            offset: 0,
-            hasMore: true,
-            pagesLoaded: 0,
+            view: { ...state.view, searchQuery: '' },
+            taskList: {
+              ...state.taskList,
+              loading: true,
+              tasks: [],
+              offset: 0,
+              pagesLoaded: 0,
+            },
+            carousel: { rotation: 0, targetRotation: 0 },
             error: null,
-            carouselRotation: 0,
-            carouselTargetRotation: 0,
           },
-          { type: 'FetchTasks', view: state.currentView, offset: 0, limit: 100 }
+          { type: 'FetchTasks', view: state.view.currentView, offset: 0, limit: 100 }
         ];
       }
 
@@ -89,99 +95,118 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
       return [
         {
           ...state,
-          loading: true,
+          taskList: {
+            ...state.taskList,
+            loading: true,
+            tasks: [],
+            offset: 0,
+            loadingMore: false,
+          },
+          view: { ...state.view, currentView: action.view },
           error: null,
-          currentView: action.view,
-          tasks: [],
-          offset: 0,
-          hasMore: true,
-          loadingMore: false,
         },
         { type: 'None' }
       ];
 
     case 'TasksLoaded': {
-      const hasMore = action.tasks.length === 100;
+      const receivedFull = action.tasks.length === 100;
       return [
         {
           ...state,
-          tasks: action.tasks,
-          loading: false,
+          taskList: {
+            ...state.taskList,
+            tasks: action.tasks,
+            loading: false,
+            offset: action.offset,
+            totalCount: action.total,
+            pagesLoaded: 1,
+            loadingMore: receivedFull,
+          },
           error: null,
-          offset: action.offset,
-          hasMore,
-          totalCount: action.total,
-          pagesLoaded: 1,
-          loadingMore: hasMore,
         },
-        hasMore 
-          ? { type: 'LoadMoreTasks', view: state.currentView, offset: action.offset, limit: 100 }
+        receivedFull
+          ? { type: 'LoadMoreTasks', view: state.view.currentView, offset: action.offset, limit: 100 }
           : { type: 'None' }
       ];
     }
 
     case 'TasksLoadFailed':
       return [
-        { ...state, loading: false, error: action.error },
+        {
+          ...state,
+          taskList: { ...state.taskList, loading: false },
+          error: action.error,
+        },
         { type: 'None' }
       ];
 
     case 'LoadMoreStarted':
-      if (state.loadingMore || !state.hasMore || state.loading) {
+      if (state.taskList.loadingMore || !hasMoreTasks(state) || state.taskList.loading) {
         return [state, { type: 'None' }];
       }
       return [
-        { ...state, loadingMore: true },
-        { type: 'LoadMoreTasks', view: state.currentView, offset: state.offset, limit: 100 }
+        {
+          ...state,
+          taskList: { ...state.taskList, loadingMore: true },
+        },
+        { type: 'LoadMoreTasks', view: state.view.currentView, offset: state.taskList.offset, limit: 100 }
       ];
 
     case 'LoadMoreCompleted':
       return [
         {
           ...state,
-          tasks: [...state.tasks, ...action.tasks] as ReadonlyArray<TaskWithPointer>,
-          offset: state.offset + action.tasks.length,
-          hasMore: action.tasks.length === 100,
-          loadingMore: false,
-          totalCount: action.total,
-          pagesLoaded: state.pagesLoaded + 1,
+          taskList: {
+            ...state.taskList,
+            tasks: [...state.taskList.tasks, ...action.tasks] as ReadonlyArray<TaskWithPointer>,
+            offset: state.taskList.offset + action.tasks.length,
+            loadingMore: false,
+            totalCount: action.total,
+            pagesLoaded: state.taskList.pagesLoaded + 1,
+          },
         },
         { type: 'None' }
       ];
 
     case 'LoadMoreFailed':
       return [
-        { ...state, loadingMore: false, error: action.error },
+        {
+          ...state,
+          taskList: { ...state.taskList, loadingMore: false },
+          error: action.error,
+        },
         { type: 'None' }
       ];
 
     case 'TaskClicked': {
       const isProject = action.task.task.todoKeyword === "PROJECT";
-      
+
       return [
         {
           ...state,
-          selectedTask: action.task,
-          projectTree: null,
-          loadingProjectTree: isProject,
-          parentProject: null,
-          loadingParentProject: !isProject,
-          // Increment request IDs to invalidate in-flight requests
-          projectTreeRequestId: isProject ? state.projectTreeRequestId + 1 : state.projectTreeRequestId,
-          parentProjectRequestId: !isProject ? state.parentProjectRequestId + 1 : state.parentProjectRequestId,
+          detail: {
+            ...state.detail,
+            selectedTask: action.task,
+            projectTree: null,
+            loadingProjectTree: isProject,
+            parentProject: null,
+            loadingParentProject: !isProject,
+            projectTreeRequestId: isProject ? state.detail.projectTreeRequestId + 1 : state.detail.projectTreeRequestId,
+            parentProjectRequestId: !isProject ? state.detail.parentProjectRequestId + 1 : state.detail.parentProjectRequestId,
+          },
         },
         {
           type: 'Batch',
           effects: isProject
-            ? [{ 
-                type: 'FetchProjectTree', 
+            ? [{
+                type: 'FetchProjectTree',
                 pointer: action.task.pointer,
-                requestId: state.projectTreeRequestId + 1 
+                requestId: state.detail.projectTreeRequestId + 1
               }]
-            : [{ 
-                type: 'FetchParentProject', 
+            : [{
+                type: 'FetchParentProject',
                 pointer: action.task.pointer,
-                requestId: state.parentProjectRequestId + 1 
+                requestId: state.detail.parentProjectRequestId + 1
               }]
         }
       ];
@@ -189,96 +214,113 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
 
     case 'DetailCardClosed':
       return [
-        { ...state, selectedTask: null },
+        {
+          ...state,
+          detail: { ...state.detail, selectedTask: null },
+        },
         { type: 'None' }
       ];
 
     case 'ProjectTreeLoadStarted':
       return [
-        { ...state, loadingProjectTree: true },
+        {
+          ...state,
+          detail: { ...state.detail, loadingProjectTree: true },
+        },
         { type: 'None' }
       ];
 
     case 'ProjectTreeLoaded':
-      // Only update if this response is for the current request
-      if (action.requestId !== state.projectTreeRequestId) {
+      if (action.requestId !== state.detail.projectTreeRequestId) {
         return [state, { type: 'None' }];
       }
       return [
         {
           ...state,
-          projectTree: action.tree,
-          loadingProjectTree: false,
+          detail: {
+            ...state.detail,
+            projectTree: action.tree,
+            loadingProjectTree: false,
+          },
         },
         { type: 'None' }
       ];
 
     case 'ProjectTreeLoadFailed':
-      // Only update if this error is for the current request
-      if (action.requestId !== state.projectTreeRequestId) {
+      if (action.requestId !== state.detail.projectTreeRequestId) {
         return [state, { type: 'None' }];
       }
       return [
         {
           ...state,
-          projectTree: null,
-          loadingProjectTree: false,
+          detail: {
+            ...state.detail,
+            projectTree: null,
+            loadingProjectTree: false,
+          },
         },
         { type: 'None' }
       ];
 
     case 'ParentProjectLoadStarted':
       return [
-        { ...state, loadingParentProject: true },
+        {
+          ...state,
+          detail: { ...state.detail, loadingParentProject: true },
+        },
         { type: 'None' }
       ];
 
     case 'ParentProjectLoaded':
-      // Only update if this response is for the current request
-      if (action.requestId !== state.parentProjectRequestId) {
+      if (action.requestId !== state.detail.parentProjectRequestId) {
         return [state, { type: 'None' }];
       }
       return [
         {
           ...state,
-          parentProject: action.project,
-          loadingParentProject: false,
+          detail: {
+            ...state.detail,
+            parentProject: action.project,
+            loadingParentProject: false,
+          },
         },
         { type: 'None' }
       ];
 
     case 'ParentProjectLoadFailed':
-      // Only update if this error is for the current request
-      if (action.requestId !== state.parentProjectRequestId) {
+      if (action.requestId !== state.detail.parentProjectRequestId) {
         return [state, { type: 'None' }];
       }
       return [
         {
           ...state,
-          parentProject: null,
-          loadingParentProject: false,
+          detail: {
+            ...state.detail,
+            parentProject: null,
+            loadingParentProject: false,
+          },
         },
         { type: 'None' }
       ];
 
     case 'WebSocketReloadReceived':
-      if (state.searchQuery.trim() !== "") {
+      if (state.view.searchQuery.trim() !== "") {
         return [
           {
             ...state,
-            loading: true,
+            taskList: { ...state.taskList, loading: true },
             error: null,
           },
           {
             type: 'Batch',
             effects: [
               { type: 'ShowToast', message: 'Files updated, reloading...' },
-              state.projectPointer
-                ? { type: 'SearchProjectLocally', query: state.searchQuery, projectPointer: state.projectPointer }
-                : { 
-                    type: 'SearchTasks', 
-                    query: state.searchQuery, 
-                    view: state.currentView === "all" ? null : state.currentView,
+              state.view.projectPointer
+                ? { type: 'SearchProjectLocally', query: state.view.searchQuery, projectPointer: state.view.projectPointer }
+                : {
+                    type: 'SearchTasks',
+                    query: state.view.searchQuery,
+                    view: state.view.currentView === "all" ? null : state.view.currentView,
                     offset: 0,
                     limit: 100
                   }
@@ -289,14 +331,14 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
         return [
           {
             ...state,
-            loading: true,
+            taskList: { ...state.taskList, loading: true },
             error: null,
           },
           {
             type: 'Batch',
             effects: [
               { type: 'ShowToast', message: 'Files updated, reloading...' },
-              { type: 'FetchTasks', view: state.currentView, offset: 0, limit: 100 }
+              { type: 'FetchTasks', view: state.view.currentView, offset: 0, limit: 100 }
             ]
           }
         ];
@@ -306,21 +348,24 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
       return [
         {
           ...state,
-          loading: true,
+          taskList: {
+            ...state.taskList,
+            loading: true,
+            tasks: [],
+            offset: 0,
+          },
+          view: { ...state.view, projectPointer: action.pointer },
+          detail: {
+            ...state.detail,
+            selectedTask: null,
+            projectTreeRequestId: state.detail.projectTreeRequestId + 1,
+          },
           error: null,
-          tasks: [],
-          offset: 0,
-          hasMore: false,
-          projectPointer: action.pointer,
-          selectedTask: null,
-          projectTreeRequestId: state.projectTreeRequestId + 1,
-          carouselRotation: 0,
-          carouselTargetRotation: 0,
         },
-        { 
-          type: 'FetchProjectTree', 
+        {
+          type: 'FetchProjectTree',
           pointer: action.pointer,
-          requestId: state.projectTreeRequestId + 1 
+          requestId: state.detail.projectTreeRequestId + 1
         }
       ];
 
@@ -328,17 +373,24 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
       return [
         {
           ...state,
-          tasks: action.tasks,
-          loading: false,
+          taskList: {
+            ...state.taskList,
+            tasks: action.tasks,
+            loading: false,
+            totalCount: action.total,
+          },
           error: null,
-          totalCount: action.total,
         },
         { type: 'None' }
       ];
 
     case 'ProjectTasksLoadFailed':
       return [
-        { ...state, loading: false, error: action.error },
+        {
+          ...state,
+          taskList: { ...state.taskList, loading: false },
+          error: action.error,
+        },
         { type: 'None' }
       ];
 
@@ -346,46 +398,47 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
       return [
         {
           ...state,
-          projectPointer: null,
-          loading: true,
-          tasks: [],
-          offset: 0,
-          hasMore: true,
-          pagesLoaded: 0,
+          taskList: {
+            ...state.taskList,
+            loading: true,
+            tasks: [],
+            offset: 0,
+            pagesLoaded: 0,
+          },
+          view: { ...state.view, projectPointer: null },
           error: null,
         },
-        { type: 'FetchTasks', view: state.currentView, offset: 0, limit: 100 }
+        { type: 'FetchTasks', view: state.view.currentView, offset: 0, limit: 100 }
       ];
 
     case 'GlobalSearchStarted':
-      if (state.projectPointer) {
+      if (state.view.projectPointer) {
         return [
           {
             ...state,
-            loading: true,
+            taskList: { ...state.taskList, loading: true },
+            carousel: { rotation: 0, targetRotation: 0 },
             error: null,
-            carouselRotation: 0,
-            carouselTargetRotation: 0,
-            projectTreeRequestId: state.projectTreeRequestId + 1,
           },
-          { type: 'SearchProjectLocally', query: action.query, projectPointer: state.projectPointer }
+          { type: 'SearchProjectLocally', query: action.query, projectPointer: state.view.projectPointer }
         ];
       } else {
         return [
           {
             ...state,
-            loading: true,
+            taskList: {
+              ...state.taskList,
+              loading: true,
+              tasks: [],
+              offset: 0,
+            },
+            carousel: { rotation: 0, targetRotation: 0 },
             error: null,
-            tasks: [],
-            offset: 0,
-            hasMore: true,
-            carouselRotation: 0,
-            carouselTargetRotation: 0,
           },
           {
             type: 'SearchTasks',
             query: action.query,
-            view: state.currentView === "all" ? null : state.currentView,
+            view: state.view.currentView === "all" ? null : state.view.currentView,
             offset: 0,
             limit: 100
           }
@@ -396,19 +449,25 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
       return [
         {
           ...state,
-          tasks: action.tasks,
-          loading: false,
+          taskList: {
+            ...state.taskList,
+            tasks: action.tasks,
+            loading: false,
+            offset: 100,
+            totalCount: action.total,
+          },
           error: null,
-          offset: 100,
-          hasMore: action.tasks.length === 100,
-          totalCount: action.total,
         },
         { type: 'None' }
       ];
 
     case 'GlobalSearchFailed':
       return [
-        { ...state, loading: false, error: action.error },
+        {
+          ...state,
+          taskList: { ...state.taskList, loading: false },
+          error: action.error,
+        },
         { type: 'None' }
       ];
 
@@ -416,39 +475,46 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
       return [
         {
           ...state,
-          tasks: action.tasks,
-          loading: false,
+          taskList: {
+            ...state.taskList,
+            tasks: action.tasks,
+            loading: false,
+            totalCount: action.total,
+          },
           error: null,
-          totalCount: action.total,
         },
         { type: 'None' }
       ];
 
     case 'ProjectSearchFailed':
       return [
-        { ...state, loading: false, error: action.error },
+        {
+          ...state,
+          taskList: { ...state.taskList, loading: false },
+          error: action.error,
+        },
         { type: 'None' }
       ];
 
-    // 3D Carousel actions
     case 'CarouselRotate':
-      const newTargetRotation = state.carouselTargetRotation + action.delta;
-      
+      const newTargetRotation = state.carousel.targetRotation + action.delta;
+
       return [
         {
           ...state,
-          carouselTargetRotation: newTargetRotation,
-          carouselRotation: newTargetRotation,
+          carousel: {
+            targetRotation: newTargetRotation,
+            rotation: newTargetRotation,
+          },
         },
         { type: 'None' }
       ];
 
     case 'CarouselUpdateCurrent':
-      // Animation loop interpolated to new current rotation
       return [
         {
           ...state,
-          carouselRotation: action.rotation,
+          carousel: { ...state.carousel, rotation: action.rotation },
         },
         { type: 'None' }
       ];

@@ -332,8 +332,8 @@ export function renderDetailCard(
       // Parent project (only for non-PROJECT tasks)
       !isProject
         ? renderParentProjectSection(
-            state.parentProject,
-            state.loadingParentProject,
+            state.detail.parentProject,
+            state.detail.loadingParentProject,
             callbacks.onClickParentProject
           )
         : null,
@@ -347,8 +347,8 @@ export function renderDetailCard(
       // Subtasks (only for PROJECT tasks)
       isProject
         ? renderSubtasksSection(
-            state.projectTree,
-            state.loadingProjectTree,
+            state.detail.projectTree,
+            state.detail.loadingProjectTree,
             pointer,
             callbacks
           )

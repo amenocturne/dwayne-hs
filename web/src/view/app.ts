@@ -1,6 +1,7 @@
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 import type { AppState } from "../types/state.js";
+import { hasMoreTasks, isProjectView, isSearching } from "../types/state.js";
 import type { ViewName, TaskPointer, TaskWithPointer } from "../types/domain.js";
 import { renderSearchBar } from "./components/SearchBar.js";
 import { renderViewSelector, VIEW_LABELS } from "./components/ViewSelector.js";
@@ -32,10 +33,10 @@ function createHoverStyle(normalBg: string, hoverBg: string): Record<string, (e:
 }
 
 export function view(state: AppState, callbacks: AppCallbacks): VNode {
-  const filteredTasks = state.tasks;
-  const isSearching = state.searchQuery.trim() !== "";
+  const filteredTasks = state.taskList.tasks;
+  const searching = isSearching(state);
   const hasResults = filteredTasks.length > 0;
-  const isProjectView = state.projectPointer !== null;
+  const projectView = isProjectView(state);
 
   const searchBarCallbacks: SearchBarCallbacks = {
     onSearchChange: callbacks.onSearchChange,
@@ -62,8 +63,8 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
   };
 
   // Project view doesn't have pagination - all tasks loaded via tree flattening
-  const canLoadMore = !isProjectView && state.hasMore;
-  const isLoadingMore = state.loadingMore;
+  const canLoadMore = !projectView && hasMoreTasks(state);
+  const isLoadingMore = state.taskList.loadingMore;
 
   const appChildren = [
     h(
@@ -117,12 +118,12 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                 color: "var(--text-primary)",
                 marginBottom: "16px",
               },
-            }, state.loading
+            }, state.taskList.loading
               ? "⏳ Loading..."
               : state.error
                 ? `Error: ${state.error}`
                 : `Online`),
-            isProjectView
+            projectView
               ? h("button", {
                   style: {
                     padding: "8px 16px",
@@ -139,8 +140,8 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                     click: callbacks.onBackToView,
                     ...createHoverStyle("rgba(0, 229, 255, 0.1)", "rgba(0, 229, 255, 0.2)"),
                   },
-                }, `← Back to ${VIEW_LABELS[state.currentView] || 'All'}`)
-              : renderViewSelector(state.currentView, viewSelectorCallbacks),
+                }, `← Back to ${VIEW_LABELS[state.view.currentView] || 'All'}`)
+              : renderViewSelector(state.view.currentView, viewSelectorCallbacks),
           ]),
 
           // Middle panel: Search bar
@@ -167,7 +168,7 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                 textAlign: "center",
               },
             }, "DWAYNE"),
-            renderSearchBar(state.searchQuery, searchBarCallbacks),
+            renderSearchBar(state.view.searchQuery, searchBarCallbacks),
             h("div", {
               style: {
                 fontSize: "0.75rem",
@@ -177,13 +178,13 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
               },
-            }, isProjectView && isSearching
+            }, projectView && searching
               ? `Found ${filteredTasks.length} tasks in project`
-              : isProjectView
-                ? `Viewing project (${state.tasks.length} tasks)`
-                : isSearching
-                  ? `${filteredTasks.length} / ${state.tasks.length} tasks`
-                  : `${state.tasks.length} / ${state.totalCount.toLocaleString()} tasks in ${VIEW_LABELS[state.currentView] || 'All'}`),
+              : projectView
+                ? `Viewing project (${state.taskList.tasks.length} tasks)`
+                : searching
+                  ? `${filteredTasks.length} / ${state.taskList.tasks.length} tasks`
+                  : `${state.taskList.tasks.length} / ${state.taskList.totalCount.toLocaleString()} tasks in ${VIEW_LABELS[state.view.currentView] || 'All'}`),
           ]),
           
           // Right panel: Placeholder to reserve space for floating card
@@ -235,7 +236,7 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                   ),
                 ],
               )
-            : state.loading
+            : state.taskList.loading
               ? h(
                   "div.loading",
                   {
@@ -248,7 +249,7 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                   },
                   "Loading tasks...",
                 )
-              : state.tasks.length === 0
+              : state.taskList.tasks.length === 0
                 ? h(
                     "div.empty-state",
                     {
@@ -259,9 +260,9 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                         fontSize: "1.125rem",
                       },
                     },
-                    `No tasks in ${VIEW_LABELS[state.currentView] || 'All'} view`,
+                    `No tasks in ${VIEW_LABELS[state.view.currentView] || 'All'} view`,
                   )
-                : !hasResults && isSearching
+                : !hasResults && searching
                   ? h(
                       "div.empty-state",
                       {
@@ -282,19 +283,19 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                     }, [
                       renderCarousel3D(
                         filteredTasks,
-                        state.carouselRotation,
+                        state.carousel.rotation,
                         taskCardCallbacks,
                         carouselCallbacks,
                         canLoadMore,
                         isLoadingMore,
-                        state.pagesLoaded
+                        state.taskList.pagesLoaded
                       ),
-                      ...(state.loadingMore ? [renderLoadingIndicator()] : []),
+                      ...(state.taskList.loadingMore ? [renderLoadingIndicator()] : []),
                     ]),
         ]),
         
         // Floating detail card (rendered outside top section to avoid layout jump)
-        renderDetailCard(state.selectedTask, state, detailCardCallbacks),
+        renderDetailCard(state.detail.selectedTask, state, detailCardCallbacks),
     ]),
   ];
 

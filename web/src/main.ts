@@ -14,26 +14,33 @@ import { createStore } from "./state/store.js";
 import type { Dispatch } from "./state/effects.js";
 
 const initialState: AppState = {
-  tasks: [],
-  loading: true,
+  taskList: {
+    tasks: [],
+    loading: true,
+    loadingMore: false,
+    offset: 0,
+    pagesLoaded: 0,
+    totalCount: 0,
+  },
+  view: {
+    currentView: "all",
+    searchQuery: "",
+    projectPointer: null,
+  },
+  detail: {
+    selectedTask: null,
+    parentProject: null,
+    loadingParentProject: false,
+    parentProjectRequestId: 0,
+    projectTree: null,
+    loadingProjectTree: false,
+    projectTreeRequestId: 0,
+  },
+  carousel: {
+    rotation: 0,
+    targetRotation: 0,
+  },
   error: null,
-  currentView: "all",
-  searchQuery: "",
-  offset: 0,
-  hasMore: true,
-  loadingMore: false,
-  pagesLoaded: 0,
-  totalCount: 0,
-  selectedTask: null,
-  projectTree: null,
-  loadingProjectTree: false,
-  projectPointer: null,
-  parentProject: null,
-  loadingParentProject: false,
-  parentProjectRequestId: 0,
-  projectTreeRequestId: 0,
-  carouselRotation: 0,
-  carouselTargetRotation: 0,
 };
 
 const patch = init([
