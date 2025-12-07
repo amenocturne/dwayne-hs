@@ -1,7 +1,8 @@
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 import type { TaskWithPointer, TaskNode } from "../../../types/domain.js";
-import { getTodoKeywordColor, renderTextNodes } from "../../helpers.js";
+import { getTodoKeywordColor } from "../../designSystem.js";
+import { renderTextNodes } from "../common/TextNodes.js";
 import { renderKeywordBadge, renderPriorityBadge } from "../common/Badge.js";
 import { renderTags } from "../common/Tag.js";
 import { renderCompactDates } from "../common/DateDisplay.js";

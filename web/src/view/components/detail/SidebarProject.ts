@@ -3,8 +3,8 @@ import type { VNode } from "snabbdom/build/vnode.js";
 import type { TaskWithPointer, TaskNode, TaskPointer } from "../../../types/domain.js";
 import { renderSidebarSection, renderSidebarSectionHeader } from "./SidebarSection.js";
 import { renderTaskNodeCard, type TaskCardCallbacks } from "../card/TaskCard.js";
-import { todoKeywordColors, renderTextNodes } from "../../helpers.js";
-import { fontSize, fontWeight, spacing, cssClasses } from "../../designSystem.js";
+import { todoKeywordColors, fontSize, fontWeight, spacing, cssClasses } from "../../designSystem.js";
+import { renderTextNodes } from "../common/TextNodes.js";
 
 export function renderParentProjectSection(
   parentProject: TaskWithPointer | null,

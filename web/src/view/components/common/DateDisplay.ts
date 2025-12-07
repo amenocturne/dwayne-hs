@@ -1,8 +1,17 @@
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 import type { OrgTime } from "../../../types/domain.js";
-import { formatDate } from "../../helpers.js";
 import { fontSize, fontWeight, spacing } from "../../designSystem.js";
+
+function formatDate(orgTime: OrgTime | null): string {
+  if (!orgTime) return "";
+  const date = new Date(orgTime.date);
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
 export function renderCompactDate(icon: string, date: OrgTime | null): VNode | null {
   if (!date) return null;

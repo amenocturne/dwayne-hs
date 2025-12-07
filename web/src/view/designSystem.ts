@@ -144,3 +144,21 @@ export const cssClasses = {
   hoverableProject: 'hoverable-project',
   hoverableButton: 'hoverable-button',
 } as const;
+
+// Todo keyword colors
+export const todoKeywordColors = {
+  TODO: "#646cff",
+  INBOX: "#888",
+  WAITING: "#f59e0b",
+  DONE: "#10b981",
+  PROJECT: "#8b5cf6",
+  SOMEDAY: "#6b7280",
+  RELEVANT: "#3b82f6",
+  NOTES: "#ec4899",
+  LIST: "#14b8a6",
+  TRASH: "#ef4444",
+} as const satisfies Record<string, string>;
+
+export function getTodoKeywordColor(keyword: string): string {
+  return (todoKeywordColors as Record<string, string>)[keyword] ?? "#888";
+}

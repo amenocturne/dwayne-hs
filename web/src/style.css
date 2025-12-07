@@ -16,18 +16,18 @@
   --text-primary: #e8e8e8;
   --text-secondary: #888888;
   --text-tertiary: #555555;
-  
+
   /* Accent colors - bright */
   --cyan-bright: #00e5ff;
   --pink-bright: #ff0099;
   --green-bright: #b0ff00;
   --red-bright: #ff3333;
-  
+
   /* Accent colors - dimmed */
   --cyan-dim: #4a9aa8;
   --pink-dim: #994466;
   --green-dim: #77aa33;
-  
+
   --tag-bg: rgba(74, 154, 168, 0.15);
   --tag-text: #4a9aa8;
   --link-color: #00e5ff;

@@ -2,7 +2,8 @@ import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 import type { TaskWithPointer, TaskPointer } from "../../types/domain.js";
 import type { AppState } from "../../types/state.js";
-import { getTodoKeywordColor, renderTextNodes } from "../helpers.js";
+import { getTodoKeywordColor } from "../designSystem.js";
+import { renderTextNodes } from "./common/TextNodes.js";
 import { renderKeywordBadge } from "./common/Badge.js";
 import { renderSidebarSection } from "./detail/SidebarSection.js";
 import {
