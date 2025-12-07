@@ -70,7 +70,7 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
             carousel: { rotation: 0, targetRotation: 0 },
             error: null,
           },
-          { type: 'FetchProjectTree', pointer: state.view.projectPointer, requestId: state.detail.projectTreeRequestId + 1 }
+          { type: 'FetchProjectTree', pointer: state.view.projectPointer, requestId: state.detail.projectTreeRequestId + 1, updateTaskList: true }
         ];
       } else {
         return [
@@ -201,7 +201,8 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
             ? [{
                 type: 'FetchProjectTree',
                 pointer: action.task.pointer,
-                requestId: state.detail.projectTreeRequestId + 1
+                requestId: state.detail.projectTreeRequestId + 1,
+                updateTaskList: false  // Only update detail card, not carousel
               }]
             : [{
                 type: 'FetchParentProject',
@@ -360,12 +361,17 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
             selectedTask: null,
             projectTreeRequestId: state.detail.projectTreeRequestId + 1,
           },
+          carousel: {
+            rotation: 0,
+            targetRotation: 0,
+          },
           error: null,
         },
         {
           type: 'FetchProjectTree',
           pointer: action.pointer,
-          requestId: state.detail.projectTreeRequestId + 1
+          requestId: state.detail.projectTreeRequestId + 1,
+          updateTaskList: true  // Update both detail card AND carousel
         }
       ];
 
@@ -406,6 +412,10 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
             pagesLoaded: 0,
           },
           view: { ...state.view, projectPointer: null },
+          carousel: {
+            rotation: 0,
+            targetRotation: 0,
+          },
           error: null,
         },
         { type: 'FetchTasks', view: state.view.currentView, offset: 0, limit: 100 }

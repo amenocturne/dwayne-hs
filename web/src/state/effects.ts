@@ -16,7 +16,7 @@ export type Effect =
   | { type: 'None' }
   | { type: 'FetchTasks'; view: ViewName; offset: number; limit: number }
   | { type: 'SearchTasks'; query: string; view: ViewName | null; offset: number; limit: number }
-  | { type: 'FetchProjectTree'; pointer: TaskPointer; requestId: number }
+  | { type: 'FetchProjectTree'; pointer: TaskPointer; requestId: number; updateTaskList: boolean }
   | { type: 'FetchParentProject'; pointer: TaskPointer; requestId: number }
   | { type: 'ShowToast'; message: string }
   | { type: 'LoadMoreTasks'; view: ViewName; offset: number; limit: number }
@@ -118,12 +118,16 @@ export async function runEffect(effect: Effect, dispatch: Dispatch): Promise<voi
         const result = await fetchProjectTree(effect.pointer.file, effect.pointer.taskIndex);
         const flatTasks = flattenTaskTree(result.root);
         
-        // Dispatch both actions: one for project view, one for detail card
-        dispatch({
-          type: 'ProjectTasksLoaded',
-          tasks: flatTasks,
-          total: flatTasks.length,
-        });
+        // Only update task list when explicitly requested (e.g., ProjectViewRequested)
+        if (effect.updateTaskList) {
+          dispatch({
+            type: 'ProjectTasksLoaded',
+            tasks: flatTasks,
+            total: flatTasks.length,
+          });
+        }
+        
+        // Always update detail card tree
         dispatch({
           type: 'ProjectTreeLoaded',
           tree: result.root,
@@ -131,7 +135,9 @@ export async function runEffect(effect: Effect, dispatch: Dispatch): Promise<voi
         });
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Failed to load project";
-        dispatch({ type: 'ProjectTasksLoadFailed', error: errorMessage });
+        if (effect.updateTaskList) {
+          dispatch({ type: 'ProjectTasksLoadFailed', error: errorMessage });
+        }
         dispatch({ 
           type: 'ProjectTreeLoadFailed',
           requestId: effect.requestId 
