@@ -25,12 +25,7 @@ export interface AppCallbacks {
   readonly onLoadMore: () => void;
 }
 
-function createHoverStyle(normalBg: string, hoverBg: string): Record<string, (e: Event) => void> {
-  return {
-    mouseenter: (e: Event) => ((e.target as HTMLElement).style.backgroundColor = hoverBg),
-    mouseleave: (e: Event) => ((e.target as HTMLElement).style.backgroundColor = normalBg),
-  };
-}
+
 
 export function view(state: AppState, callbacks: AppCallbacks): VNode {
   const filteredTasks = state.taskList.tasks;
@@ -124,7 +119,7 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                 ? `Error: ${state.error}`
                 : `Online`),
             projectView
-              ? h("button", {
+              ? h("button.hover-brighten", {
                   style: {
                     padding: "8px 16px",
                     borderRadius: "6px",
@@ -138,7 +133,6 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                   },
                   on: {
                     click: callbacks.onBackToView,
-                    ...createHoverStyle("rgba(0, 229, 255, 0.1)", "rgba(0, 229, 255, 0.2)"),
                   },
                 }, `← Back to ${VIEW_LABELS[state.view.currentView] || 'All'}`)
               : renderViewSelector(state.view.currentView, viewSelectorCallbacks),

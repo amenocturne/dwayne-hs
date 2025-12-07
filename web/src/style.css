@@ -255,12 +255,22 @@ body::after {
   border-color: var(--cyan-bright) !important;
 }
 
-.hoverable-button {
-  transition: all 0.2s;
+/* Brighten any background color on hover */
+.hover-brighten {
+  transition: background-color 0.2s, filter 0.2s;
 }
 
-.hoverable-button:hover {
-  background-color: rgba(0, 229, 255, 0.15) !important;
+.hover-brighten:hover {
+  filter: brightness(1.2);
+}
+
+/* Brighten text color on hover */
+.hover-brighten-text {
+  transition: color 0.2s;
+}
+
+.hover-brighten-text:hover {
+  color: var(--text-primary) !important;
 }
 
 /* Horizontal carousel styles */

@@ -54,7 +54,7 @@ export function renderSearchBar(
           }),
           searchQuery.trim() !== ""
             ? h(
-                "button",
+                "button.hover-brighten-text",
                 {
                   props: {
                     type: "button",
@@ -76,8 +76,6 @@ export function renderSearchBar(
                   },
                   on: {
                     click: callbacks.onClearSearch,
-                    mouseenter: (e: Event) => ((e.target as HTMLElement).style.color = "var(--text-primary)"),
-                    mouseleave: (e: Event) => ((e.target as HTMLElement).style.color = "var(--text-secondary)"),
                   },
                 },
                 "×",

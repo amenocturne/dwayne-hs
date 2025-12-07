@@ -48,7 +48,7 @@ export function renderSidebarSectionHeader(
         letterSpacing: '0.05em',
       },
     }, title),
-    h('button.hoverable-button', {
+    h('button.hover-brighten', {
       props: { type: 'button' },
       style: {
         padding: `${spacing.xs} ${spacing.md}`,
