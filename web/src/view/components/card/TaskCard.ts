@@ -193,6 +193,7 @@ function renderUnifiedCard(
     position: 'relative',
     transition: `all ${transitions.verySlow} cubic-bezier(0.4, 0, 0.2, 1)`,
     flexShrink: '0',
+    userSelect: 'none',
   };
 
   if (config.size === 'large') {
