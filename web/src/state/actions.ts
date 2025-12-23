@@ -37,4 +37,7 @@ export type Action =
   | { type: 'ProjectSearchFailed'; error: string }
   // 3D Carousel actions
   | { type: 'CarouselRotate'; delta: number }           // User scrolls wheel, change target rotation
-  | { type: 'CarouselUpdateCurrent'; rotation: number }; // Animation loop updates current rotation
+  | { type: 'CarouselUpdateCurrent'; rotation: number }
+  // Debug mode actions
+  | { type: 'DebugToggled' }
+  | { type: 'DebugParamChanged'; param: keyof import("../types/state.js").Carousel3DParams; value: number | boolean }; // Animation loop updates current rotation

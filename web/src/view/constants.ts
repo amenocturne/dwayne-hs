@@ -1,3 +1,6 @@
+// Feature flags
+export const ENABLE_DEBUG_MODE = false; // Set to false to disable debug mode entirely
+
 export const carousel3DConfig = {
   radius: 1200,
   perspective: 1000,

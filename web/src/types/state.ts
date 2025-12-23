@@ -49,6 +49,32 @@ export interface CarouselState {
 }
 
 /**
+ * Debug state for 3D carousel parameter tweaking
+ */
+export interface DebugState {
+  readonly enabled: boolean;
+  readonly params: Carousel3DParams;
+}
+
+export interface Carousel3DParams {
+  readonly radius: number;
+  readonly perspective: number;
+  readonly rotationSpeed: number;
+  readonly anglePerCard: number;
+  readonly visibleAngleRange: number;
+  readonly fadeTransitionAngle: number;
+  readonly rotateX: number;  // Base rotation on X axis
+  readonly rotateY: number;  // Base rotation on Y axis
+  readonly rotateZ: number;  // Base rotation on Z axis (always -90)
+  readonly perspectiveOriginY: number;  // Perspective origin Y (percentage)
+  readonly originX: number;  // X position offset (px)
+  readonly originY: number;  // Y position offset (px)
+  readonly originZ: number;  // Z position offset (px)
+  readonly cardScale: number;  // Card size scaling factor
+  readonly showDebugDots: boolean;
+}
+
+/**
  * Root application state
  */
 export interface AppState {
@@ -56,6 +82,7 @@ export interface AppState {
   readonly view: ViewState;
   readonly detail: DetailCardState;
   readonly carousel: CarouselState;
+  readonly debug: DebugState;
   readonly error: string | null;
 }
 

@@ -8,9 +8,11 @@ import { renderViewSelector, VIEW_LABELS } from "./components/ViewSelector.js";
 import { renderCarousel3D, type CarouselCallbacks } from "./components/carousel/Carousel3D.js";
 import { renderLoadingIndicator } from "./components/LoadingIndicator.js";
 import { renderDetailCard, type DetailCardCallbacks } from "./components/DetailCard.js";
+import { renderDebugPanel, renderDebugToggleButton, type DebugPanelCallbacks } from "./components/DebugPanel.js";
 import type { SearchBarCallbacks } from "./components/SearchBar.js";
 import type { ViewSelectorCallbacks } from "./components/ViewSelector.js";
 import type { TaskCardCallbacks } from "./components/card/TaskCard.js";
+import { ENABLE_DEBUG_MODE } from "./constants.js";
 
 export interface AppCallbacks {
   readonly onSearchChange: (query: string) => void;
@@ -23,6 +25,8 @@ export interface AppCallbacks {
   readonly onBackToView: () => void;
   readonly onCarouselRotate: (delta: number) => void;
   readonly onLoadMore: () => void;
+  readonly onDebugToggle: () => void;
+  readonly onDebugParamChange: (param: keyof import("../types/state.js").Carousel3DParams, value: number | boolean) => void;
 }
 
 
@@ -55,6 +59,11 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
   const carouselCallbacks: CarouselCallbacks = {
     onRotate: callbacks.onCarouselRotate,
     onLoadMore: callbacks.onLoadMore,
+  };
+
+  const debugPanelCallbacks: DebugPanelCallbacks = {
+    onToggle: callbacks.onDebugToggle,
+    onParamChange: callbacks.onDebugParamChange,
   };
 
   // Project view doesn't have pagination - all tasks loaded via tree flattening
@@ -282,7 +291,8 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                         carouselCallbacks,
                         canLoadMore,
                         isLoadingMore,
-                        state.taskList.pagesLoaded
+                        state.taskList.pagesLoaded,
+                        state.debug.params
                       ),
                       ...(state.taskList.loadingMore ? [renderLoadingIndicator()] : []),
                     ]),
@@ -290,6 +300,12 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
         
         // Floating detail card (rendered outside top section to avoid layout jump)
         renderDetailCard(state.detail.selectedTask, state, detailCardCallbacks),
+        
+        // Debug panel and toggle (only if feature flag enabled)
+        ...(ENABLE_DEBUG_MODE ? [
+          renderDebugToggleButton(state.debug.enabled, debugPanelCallbacks),
+          renderDebugPanel(state.debug.enabled, state.debug.params, debugPanelCallbacks),
+        ] : []),
     ]),
   ];
 

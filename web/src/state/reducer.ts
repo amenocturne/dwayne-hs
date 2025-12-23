@@ -529,6 +529,27 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
         { type: 'None' }
       ];
 
+    case 'DebugToggled':
+      return [
+        {
+          ...state,
+          debug: { ...state.debug, enabled: !state.debug.enabled },
+        },
+        { type: 'None' }
+      ];
+
+    case 'DebugParamChanged':
+      return [
+        {
+          ...state,
+          debug: {
+            ...state.debug,
+            params: { ...state.debug.params, [action.param]: action.value },
+          },
+        },
+        { type: 'None' }
+      ];
+
     default:
       // Exhaustiveness check - ensures all action types are handled at compile time
       // If a new action is added but not handled, TypeScript will error here

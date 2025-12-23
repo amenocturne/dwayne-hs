@@ -5,6 +5,7 @@
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 import type { TaskWithPointer } from "../../../types/domain.js";
+import type { Carousel3DParams } from "../../../types/state.js";
 import { carousel3DConfig } from "../../constants.js";
 import { renderTaskCard, type TaskCardCallbacks } from "../card/TaskCard.js";
 import { calculateCardVisibility } from "./positioning.js";
@@ -34,10 +35,11 @@ export function renderCarousel3D(
   carouselCallbacks: CarouselCallbacks,
   hasMore: boolean,
   loadingMore: boolean,
-  pagesLoaded: number
+  pagesLoaded: number,
+  params: Carousel3DParams
 ): VNode {
   const totalCards = tasks.length;
-  const { radius, perspective, anglePerCard } = carousel3DConfig;
+  const { radius, perspective, anglePerCard, rotationSpeed, visibleAngleRange, fadeTransitionAngle, showDebugDots } = params;
 
   const { minRotation, maxRotation } = calculateCarouselBounds(totalCards, anglePerCard);
 
@@ -49,7 +51,7 @@ export function renderCarousel3D(
       width: '100%',
       height: '100%',
       perspective: `${perspective}px`,
-      perspectiveOrigin: '50% 100%',
+      perspectiveOrigin: `50% ${params.perspectiveOriginY}%`,
       overflow: 'visible',
       pointerEvents: 'auto',
     },
@@ -67,7 +69,7 @@ export function renderCarousel3D(
           const delta = calculateRotationDelta(
             data.rotation,
             e.deltaY,
-            carousel3DConfig.rotationSpeed,
+            rotationSpeed,
             { min: data.minRotation, max: data.maxRotation }
           );
           
@@ -101,16 +103,16 @@ export function renderCarousel3D(
         bottom: '0px',
         left: '50%',
         transformStyle: 'preserve-3d',
-        transform: `rotateZ(-90deg) rotateY(56deg) rotateZ(${rotation}deg)`,
+        transform: `translate3d(${params.originX}px, ${params.originY}px, ${params.originZ}px) rotateZ(${params.rotateZ}deg) rotateY(${params.rotateY}deg) rotateX(${params.rotateX}deg) rotateZ(${rotation}deg)`,
         zIndex: '50',
       },
     }, [
-      ...(carousel3DConfig.showDebugDots ? renderDecorativeDots(radius) : []),
+      ...(showDebugDots ? renderDecorativeDots(radius) : []),
 
       ...tasks
         .map((taskWithPointer, index) => {
           const cardAngle = index * anglePerCard;
-          const { visible, opacity } = calculateCardVisibility(cardAngle, rotation);
+          const { visible, opacity } = calculateCardVisibility(cardAngle, rotation, visibleAngleRange, fadeTransitionAngle);
 
           if (!visible) {
             return null;
@@ -125,7 +127,7 @@ export function renderCarousel3D(
             style: {
               position: 'absolute',
               transformStyle: 'preserve-3d',
-              transform: `translate3d(${x}px, ${y}px, 0px) rotateZ(90deg) rotateX(-90deg) rotateY(${-cardAngle}deg)`,
+              transform: `translate3d(${x}px, ${y}px, 0px) rotateZ(90deg) rotateX(-90deg) rotateY(${-cardAngle}deg) scale(${params.cardScale})`,
               marginLeft: `-${carousel3DConfig.cardWidth / 2}px`,
               marginTop: `-${carousel3DConfig.cardHeight / 2}px`,
               opacity: `${opacity}`,

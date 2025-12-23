@@ -27,6 +27,10 @@
   --cyan-dim: #4a9aa8;
   --pink-dim: #994466;
   --green-dim: #77aa33;
+  
+  /* Shared accent aliases */
+  --accent-blue: #00e5ff;
+  --border-color: #2a2a2a;
 
   --tag-bg: rgba(74, 154, 168, 0.15);
   --tag-text: #4a9aa8;
@@ -35,6 +39,7 @@
   /* Typography */
   --font-display: 'Rajdhani', sans-serif;
   --font-body: 'Rubik', sans-serif;
+  --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
 
   color: var(--text-primary);
   background-color: var(--bg-primary);
@@ -329,4 +334,28 @@ body::after {
   50% {
     box-shadow: 0 0 30px rgba(255, 51, 51, 0.5);
   }
+}
+
+/* Debug Panel Styles */
+.debug-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.debug-panel::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.debug-panel::-webkit-scrollbar-thumb {
+  background: var(--accent-blue);
+  border-radius: 4px;
+}
+
+.debug-panel::-webkit-scrollbar-thumb:hover {
+  background: var(--cyan-bright);
+}
+
+.debug-toggle-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(0, 229, 255, 0.4) !important;
 }

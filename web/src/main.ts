@@ -12,6 +12,7 @@ import { view } from "./view/app.js";
 import type { AppCallbacks } from "./view/app.js";
 import { createStore } from "./state/store.js";
 import type { Dispatch } from "./state/effects.js";
+import { carousel3DConfig } from "./view/constants.js";
 
 const initialState: AppState = {
   taskList: {
@@ -39,6 +40,26 @@ const initialState: AppState = {
   carousel: {
     rotation: 0,
     targetRotation: 0,
+  },
+  debug: {
+    enabled: false,
+    params: {
+      radius: 2300,
+      perspective: 1000,
+      rotationSpeed: 0.3,
+      anglePerCard: 15,
+      visibleAngleRange: 60,
+      fadeTransitionAngle: 10,
+      rotateX: 0,
+      rotateY: 61,
+      rotateZ: -90,
+      perspectiveOriginY: 110,
+      originX: 0,
+      originY: 360,
+      originZ: 220,
+      cardScale: 1.7,
+      showDebugDots: true,
+    },
   },
   error: null,
 };
@@ -94,6 +115,12 @@ const callbacks: AppCallbacks = {
   },
   onLoadMore: () => {
     dispatch({ type: 'LoadMoreStarted' });
+  },
+  onDebugToggle: () => {
+    dispatch({ type: 'DebugToggled' });
+  },
+  onDebugParamChange: (param, value) => {
+    dispatch({ type: 'DebugParamChanged', param, value });
   },
 };
 
