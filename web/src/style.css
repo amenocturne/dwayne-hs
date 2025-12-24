@@ -42,7 +42,11 @@
   --font-mono: 'Space Mono', 'SF Mono', Monaco, Consolas, monospace;
 
   color: var(--text-primary);
-  background-color: var(--bg-primary);
+  background: radial-gradient(
+    ellipse 120% 100% at center 40%,
+    #151518 0%,
+    #0a0a0a 60%
+  );
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -157,6 +161,58 @@ body::after {
   );
   pointer-events: none;
   z-index: 0;
+}
+
+/* Light trail SVG - curved gradient streak */
+.light-trail-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+/* Overhead glow pulsing animations - NFS Carbon atmosphere */
+@keyframes glowPulse1 {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1.0;
+  }
+}
+
+@keyframes glowPulse2 {
+  0%, 100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+@keyframes glowPulse3 {
+  0%, 100% {
+    opacity: 0.65;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+.overhead-glow.glow-left {
+  animation: glowPulse1 9s ease-in-out infinite;
+  animation-delay: 0s;
+}
+
+.overhead-glow.glow-center {
+  animation: glowPulse2 10s ease-in-out infinite;
+  animation-delay: 3s;
+}
+
+.overhead-glow.glow-right {
+  animation: glowPulse3 8.5s ease-in-out infinite;
+  animation-delay: 1.5s;
 }
 
 /* Loading spinner animation */

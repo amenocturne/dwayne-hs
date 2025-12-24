@@ -40,7 +40,7 @@ export function renderSearchBar(
               padding: "12px 40px 12px 16px",
               borderRadius: "8px",
               border: "1px solid var(--card-border)",
-              backgroundColor: "var(--card-bg)",
+              backgroundColor: "rgba(26, 26, 26, 0.6)",
               color: "var(--text-primary)",
               fontSize: "1rem",
               outline: "none",

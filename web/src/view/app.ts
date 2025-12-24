@@ -13,6 +13,7 @@ import type { SearchBarCallbacks } from "./components/SearchBar.js";
 import type { ViewSelectorCallbacks } from "./components/ViewSelector.js";
 import type { TaskCardCallbacks } from "./components/card/TaskCard.js";
 import { ENABLE_DEBUG_MODE } from "./constants.js";
+import { renderAtmosphere } from "./components/Atmosphere.js";
 
 export interface AppCallbacks {
   readonly onSearchChange: (query: string) => void;
@@ -72,6 +73,9 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
   const isLoadingMore = state.taskList.loadingMore;
 
   const appChildren = [
+    // Atmospheric overhead glows - rendered first, sits between vignette (z:0) and content (z:50+)
+    renderAtmosphere(),
+
     h(
       "div.app",
       {
@@ -152,7 +156,6 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
           h("div.middle-panel", {
             style: {
               flex: "1",
-              backgroundColor: "var(--bg-primary)",
               padding: "24px",
               display: "flex",
               flexDirection: "column",
