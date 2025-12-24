@@ -16,7 +16,7 @@ export function renderKeywordBadge(
     'span.keyword-badge',
     {
       style: {
-        fontFamily: fonts.display,
+        fontFamily: fonts.mono,
         backgroundColor: `rgba(0, 0, 0, 0.${isLarge ? '5' : '4'})`,
         color: color,
         border: `1px solid ${color}`,
@@ -46,6 +46,7 @@ export function renderPriorityBadge(
     'span.priority',
     {
       style: {
+        fontFamily: fonts.mono,
         color,
         fontSize: sizeConfig.badgeFontSize,
         fontWeight: fontWeight.semibold,

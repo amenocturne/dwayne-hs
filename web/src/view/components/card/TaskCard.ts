@@ -236,7 +236,7 @@ function renderCard(
   const isRunning = task.todoKeyword === 'DOING' || task.todoKeyword === 'NEXT';
   const isDone = task.todoKeyword === 'DONE';
   const cardNumber = `${pointer.taskIndex + 1}`.padStart(3, '0');
-  const accentColor = isPriority ? colors.redBright : isRunning ? colors.pinkBright : colors.cyanBright;
+  const accentColor = keywordColor;
 
   // Description element
   const descriptionStyle: Record<string, string> = {
@@ -395,7 +395,7 @@ function renderCard(
           right: '0',
           width: layout.cornerAccentSize,
           height: layout.cornerAccentSize,
-          background: `linear-gradient(135deg, ${isPriority ? colors.redBright : isRunning ? colors.pinkBright : colors.cyanDim} 0%, transparent 50%)`,
+          background: `linear-gradient(135deg, ${keywordColor} 0%, transparent 50%)`,
           clipPath: 'polygon(0 0, 100% 0, 100% 100%)',
           opacity: isPriority || isRunning ? '0.5' : '0.3',
           transition: `opacity ${transitions.normal}`,
@@ -424,6 +424,31 @@ function renderCard(
       })
     : null;
 
+  // Convert hex to rgba for CSS variables
+  const hexToRgba = (hex: string, alpha: number): string => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  // Brighten grey/neutral colors for underglow visibility
+  const getBrightenedGlowColor = (hex: string, alpha: number): string => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+
+    // Check if color is grey/neutral (all RGB values close to each other)
+    const isGrey = Math.abs(r - g) < 30 && Math.abs(g - b) < 30 && Math.abs(r - b) < 30;
+
+    if (isGrey && r < 160) {
+      // For grey colors, use white/light grey for the glow
+      return `rgba(220, 220, 220, ${alpha})`;
+    }
+
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
   // Card style
   const cardStyle: Record<string, string> = {
     backgroundColor: colors.asphalt,
@@ -438,6 +463,11 @@ function renderCard(
     position: 'relative',
     flexShrink: '0',
     userSelect: 'none',
+    '--keyword-color': keywordColor,
+    '--keyword-color-dim': hexToRgba(keywordColor, 0.3),
+    '--keyword-color-medium': hexToRgba(keywordColor, 0.4),
+    '--keyword-color-bright': hexToRgba(keywordColor, 0.5),
+    '--keyword-color-glow': getBrightenedGlowColor(keywordColor, 0.6),
   };
 
   if (layout.width !== 'auto') {
@@ -460,12 +490,9 @@ function renderCard(
   }
 
   if (layout.showStatusBorder) {
-    if (isPriority) {
-      cardStyle['borderColor'] = colors.redBright;
-      cardStyle['outlineColor'] = 'rgba(255, 51, 51, 0.3)';
-    } else if (isRunning) {
-      cardStyle['borderColor'] = colors.pinkBright;
-      cardStyle['outlineColor'] = 'rgba(255, 0, 153, 0.3)';
+    if (isPriority || isRunning) {
+      cardStyle['borderColor'] = keywordColor;
+      cardStyle['outlineColor'] = hexToRgba(keywordColor, 0.3);
     }
   }
 
@@ -501,11 +528,30 @@ function renderCard(
     };
   }
 
-  return h(elementSelector, nodeData, [
+  const cardElement = h(elementSelector, nodeData, [
     cornerAccent,
     leftAccent,
     ...cardBody,
   ].filter(Boolean));
+
+  // Only wrap carousel cards (not subtasks or modal) to add detached underglow effect
+  if (layout.showHoverEffects && layout.useClipPath) {
+    return h('div.card-wrapper', {
+      key: `wrapper-${pointer.file}-${pointer.taskIndex}`,
+      class: {
+        'priority': isPriority,
+        'running': isRunning,
+      },
+      style: {
+        position: 'relative',
+        '--keyword-color': keywordColor,
+        '--keyword-color-glow': getBrightenedGlowColor(keywordColor, 0.6),
+        // Don't add width/height - let card define size
+      },
+    }, [cardElement]);
+  }
+
+  return cardElement;
 }
 
 export function renderTaskCard(

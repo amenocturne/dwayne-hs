@@ -17,8 +17,9 @@ export const colors = {
 } as const;
 
 export const fonts = {
-  display: 'Rajdhani',
-  body: 'Rubik',
+  display: 'Audiowide',
+  body: 'Tektur',
+  mono: 'Space Mono',
 } as const;
 
 export const spacing = {
@@ -163,7 +164,7 @@ export const cssClasses = {
 // Todo keyword colors
 export const todoKeywordColors = {
   TODO: "#646cff",
-  INBOX: "#888",
+  INBOX: "#888888",
   WAITING: "#f59e0b",
   DONE: "#10b981",
   PROJECT: "#8b5cf6",

@@ -1,7 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Rubik:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Audiowide&family=Tektur:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
 :root {
-  font-family: 'Rubik', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'Tektur', system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
@@ -36,10 +36,10 @@
   --tag-text: #4a9aa8;
   --link-color: #00e5ff;
 
-  /* Typography */
-  --font-display: 'Rajdhani', sans-serif;
-  --font-body: 'Rubik', sans-serif;
-  --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  /* Typography - JDM Street Racing */
+  --font-display: 'Audiowide', sans-serif;
+  --font-body: 'Tektur', sans-serif;
+  --font-mono: 'Space Mono', 'SF Mono', Monaco, Consolas, monospace;
 
   color: var(--text-primary);
   background-color: var(--bg-primary);
@@ -142,7 +142,7 @@ body::before {
   mix-blend-mode: overlay;
 }
 
-/* Radial vignette */
+/* Radial vignette - enhanced for depth */
 body::after {
   content: '';
   position: fixed;
@@ -150,7 +150,11 @@ body::after {
   left: 0;
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle at center, transparent 20%, rgba(0, 0, 0, 0.6) 100%);
+  background: radial-gradient(ellipse at center,
+    transparent 20%,
+    rgba(0, 0, 0, 0.4) 60%,
+    rgba(0, 0, 0, 0.8) 100%
+  );
   pointer-events: none;
   z-index: 0;
 }
@@ -209,33 +213,39 @@ body::after {
 
 /* Hoverable component styles - JDM street racing theme */
 .hoverable {
+  position: relative;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .hoverable:hover {
   transform: translateY(-8px);
-  border-color: var(--cyan-bright) !important;
-  outline-color: var(--cyan-dim) !important;
+  border-color: var(--keyword-color) !important;
+  outline-color: var(--keyword-color-bright) !important;
+  box-shadow: 0 0 30px var(--keyword-color-medium);
 }
 
-.hoverable:hover::before {
-  opacity: 0.8 !important;
+/* Detached underglow wrapper for carousel cards */
+.card-wrapper {
+  position: relative;
 }
 
-.hoverable.priority:hover {
-  border-color: var(--red-bright) !important;
-  outline-color: rgba(255, 51, 51, 0.5) !important;
-  box-shadow: 0 0 30px rgba(255, 51, 51, 0.4);
+.card-wrapper::after {
+  content: '';
+  position: absolute;
+  bottom: -60px;  /* Position below the card */
+  left: 10%;
+  right: 10%;
+  height: 40px;
+  background: radial-gradient(ellipse 100% 100%, var(--keyword-color-glow) 0%, transparent 70%);
+  filter: blur(20px);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+  z-index: -1;
 }
 
-.hoverable.running:hover {
-  border-color: var(--pink-bright) !important;
-  outline-color: rgba(255, 0, 153, 0.5) !important;
-  box-shadow: 0 0 30px rgba(255, 0, 153, 0.4);
-}
-
-.hoverable:not(.priority):not(.running):hover {
-  box-shadow: 0 0 30px rgba(0, 229, 255, 0.4);
+.card-wrapper:hover::after {
+  opacity: 1;
 }
 
 .hoverable:hover .task-accent {
@@ -308,33 +318,12 @@ body::after {
   background-color: rgba(0, 0, 0, 0.6) !important;
 }
 
-/* Glow animation for cards */
-@keyframes cardGlow {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 30px rgba(0, 229, 255, 0.5);
-  }
+/* Apply base glow to priority and running cards at rest */
+.hoverable.priority,
+.hoverable.running {
+  box-shadow: 0 0 25px var(--keyword-color-medium), 0 0 50px var(--keyword-color-dim);
 }
 
-@keyframes cardGlowPink {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(255, 0, 153, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 30px rgba(255, 0, 153, 0.5);
-  }
-}
-
-@keyframes cardGlowRed {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(255, 51, 51, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 30px rgba(255, 51, 51, 0.5);
-  }
-}
 
 /* Debug Panel Styles */
 .debug-panel::-webkit-scrollbar {

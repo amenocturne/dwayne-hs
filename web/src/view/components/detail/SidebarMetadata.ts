@@ -3,7 +3,7 @@ import type { VNode } from "snabbdom/build/vnode.js";
 import type { Task } from "../../../types/domain.js";
 import { renderSidebarSection } from "./SidebarSection.js";
 import { renderDetailedDates } from "../common/DateDisplay.js";
-import { fontSize, fontWeight, spacing } from "../../designSystem.js";
+import { fontSize, fontWeight, fonts, spacing } from "../../designSystem.js";
 
 export function renderTagsSection(tags: ReadonlyArray<string>): VNode | null {
   if (tags.length === 0) return null;
@@ -81,7 +81,7 @@ export function renderLocationSection(file: string, taskIndex: number): VNode | 
     style: {
       fontSize: fontSize.md,
       color: 'var(--text-secondary)',
-      fontFamily: 'monospace',
+      fontFamily: fonts.mono,
       backgroundColor: 'var(--tag-bg)',
       padding: `${spacing.sm} ${spacing.md}`,
       borderRadius: '4px',
