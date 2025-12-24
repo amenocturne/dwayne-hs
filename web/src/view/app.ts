@@ -54,6 +54,7 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
     onTaskClick: callbacks.onTaskClick,
     onViewAllSubtasks: callbacks.onViewAllSubtasks,
     onClickParentProject: callbacks.onClickParentProject,
+    onClose: callbacks.onCloseDetailCard,
   };
 
   const carouselCallbacks: CarouselCallbacks = {
@@ -190,13 +191,6 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
                   : `${state.taskList.tasks.length} / ${state.taskList.totalCount.toLocaleString()} tasks in ${VIEW_LABELS[state.view.currentView] || 'All'}`),
           ]),
           
-          // Right panel: Placeholder to reserve space for floating card
-          h("div.right-panel-placeholder", {
-            style: {
-              width: "400px",
-              flexShrink: "0",
-            },
-          }),
         ]),
 
         // Bottom section: Full-screen carousel

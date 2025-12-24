@@ -22,65 +22,343 @@ export interface TaskCardCallbacks {
   readonly onTaskClick: (task: TaskWithPointer) => void;
 }
 
-export type CardVariant = 'task' | 'subtask' | 'tree-node';
-
 type CardSize = keyof typeof cardSizes;
 
-interface CardConfig {
-  readonly size: CardSize;
-  readonly showDescription: boolean;
+interface CardLayout {
+  // Card container
+  readonly width: string;
+  readonly height: string;
+  readonly padding: string;
+  readonly gap: string;
+  readonly useClipPath: boolean;
+  readonly borderRadius: string;
+
+  // Scrolling & overflow
+  readonly scrollable: boolean;
+  readonly clipContent: boolean;
+  readonly showGradientFade: boolean;
+
+  // Interactions
+  readonly clickable: boolean;
+  readonly showHoverEffects: boolean;
+  readonly showLeftAccent: boolean;
+
+  // Typography
+  readonly titleTag: 'h3' | 'div';
+  readonly titleSize: string;
+  readonly titleFontWeight: string;
+  readonly descriptionSize: string;
+  readonly cardNumberSize: string;
+
+  // Description behavior
+  readonly descriptionLineClamp: string;
+  readonly descriptionPreserveWhitespace: boolean;
+  readonly descriptionAtEnd: boolean;
+
+  // Visual elements
+  readonly cornerAccentSize: string;
+  readonly showCornerAccent: boolean;
+  readonly showStatusBorder: boolean;
+  readonly tagSize: CardSize;
+  readonly badgeSize: CardSize;
+  readonly tagGap: string;
+  readonly tagsMarginTop: string;
+
+  // Header layout
+  readonly headerLayout: 'split' | 'inline';
+  readonly showCardNumber: boolean;
+  readonly showPriorityBadge: boolean;
+
+  // Content
   readonly showDates: boolean;
-  readonly depth?: number;
+  readonly extraContent: ReadonlyArray<VNode | null>;
+
+  // Classes
+  readonly cardClass: string;
+  readonly hoverClass: string;
+
+  // Depth (for tree nodes)
+  readonly depth: number;
 }
 
-function renderUnifiedCard(
+const CAROUSEL_LAYOUT: CardLayout = {
+  width: cardSizes.large.width,
+  height: cardSizes.large.height,
+  padding: cardSizes.large.padding,
+  gap: cardSizes.large.gap,
+  useClipPath: true,
+  borderRadius: '0',
+
+  scrollable: false,
+  clipContent: true,
+  showGradientFade: true,
+
+  clickable: true,
+  showHoverEffects: true,
+  showLeftAccent: true,
+
+  titleTag: 'h3',
+  titleSize: cardSizes.large.titleSize,
+  titleFontWeight: fontWeight.bold,
+  descriptionSize: '0.875rem',
+  cardNumberSize: cardSizes.large.cardNumberSize,
+
+  descriptionLineClamp: cardSizes.large.descriptionLineClamp,
+  descriptionPreserveWhitespace: false,
+  descriptionAtEnd: false,
+
+  cornerAccentSize: '24px',
+  showCornerAccent: true,
+  showStatusBorder: true,
+  tagSize: 'large',
+  badgeSize: 'large',
+  tagGap: '6px',
+  tagsMarginTop: 'auto',
+
+  headerLayout: 'split',
+  showCardNumber: true,
+  showPriorityBadge: false,
+
+  showDates: true,
+  extraContent: [],
+
+  cardClass: 'task-card',
+  hoverClass: cssClasses.hoverable,
+
+  depth: 0,
+};
+
+const MODAL_LAYOUT: CardLayout = {
+  width: cardSizes.modal.width,
+  height: cardSizes.modal.height,
+  padding: cardSizes.modal.padding,
+  gap: cardSizes.modal.gap,
+  useClipPath: true,
+  borderRadius: '0',
+
+  scrollable: true,
+  clipContent: false,
+  showGradientFade: false,
+
+  clickable: false,
+  showHoverEffects: false,
+  showLeftAccent: false,
+
+  titleTag: 'h3',
+  titleSize: cardSizes.modal.titleSize,
+  titleFontWeight: fontWeight.bold,
+  descriptionSize: '0.875rem',
+  cardNumberSize: cardSizes.modal.cardNumberSize,
+
+  descriptionLineClamp: 'none',
+  descriptionPreserveWhitespace: true,
+  descriptionAtEnd: true,
+
+  cornerAccentSize: '36px',
+  showCornerAccent: true,
+  showStatusBorder: true,
+  tagSize: 'large',
+  badgeSize: 'large',
+  tagGap: '6px',
+  tagsMarginTop: '0',
+
+  headerLayout: 'split',
+  showCardNumber: true,
+  showPriorityBadge: false,
+
+  showDates: false,
+  extraContent: [],
+
+  cardClass: 'task-card',
+  hoverClass: '',
+
+  depth: 0,
+};
+
+const SUBTASK_LAYOUT: CardLayout = {
+  width: cardSizes.medium.width,
+  height: cardSizes.medium.height,
+  padding: cardSizes.medium.padding,
+  gap: cardSizes.medium.gap,
+  useClipPath: false,
+  borderRadius: '6px',
+
+  scrollable: false,
+  clipContent: false,
+  showGradientFade: false,
+
+  clickable: true,
+  showHoverEffects: true,
+  showLeftAccent: false,
+
+  titleTag: 'div',
+  titleSize: cardSizes.medium.titleSize,
+  titleFontWeight: fontWeight.medium,
+  descriptionSize: cardSizes.medium.titleSize,
+  cardNumberSize: cardSizes.medium.cardNumberSize,
+
+  descriptionLineClamp: cardSizes.medium.descriptionLineClamp,
+  descriptionPreserveWhitespace: false,
+  descriptionAtEnd: false,
+
+  cornerAccentSize: '0',
+  showCornerAccent: false,
+  showStatusBorder: false,
+  tagSize: 'medium',
+  badgeSize: 'medium',
+  tagGap: '4px',
+  tagsMarginTop: '0',
+
+  headerLayout: 'inline',
+  showCardNumber: false,
+  showPriorityBadge: true,
+
+  showDates: false,
+  extraContent: [],
+
+  cardClass: 'subtask-card',
+  hoverClass: cssClasses.hoverableSubtle,
+
+  depth: 0,
+};
+
+function renderCard(
   taskWithPointer: TaskWithPointer,
-  config: CardConfig,
-  callbacks: TaskCardCallbacks
+  layout: CardLayout,
+  callbacks: TaskCardCallbacks | null
 ): VNode {
   const { task, pointer } = taskWithPointer;
-  const sizeConfig = cardSizes[config.size];
   const keywordColor = getTodoKeywordColor(task.todoKeyword);
   const titleNodes = renderTextNodes(task.title);
   const priorityColor = task.priority !== null ? priorityColors[task.priority as keyof typeof priorityColors] : null;
 
-  const cardClass = config.size === 'large' ? 'task-card' : 'subtask-card';
-  const hoverClass = config.size === 'large' ? cssClasses.hoverable : cssClasses.hoverableSubtle;
   const isPriority = task.priority === 0;
   const isRunning = task.todoKeyword === 'DOING' || task.todoKeyword === 'NEXT';
   const isDone = task.todoKeyword === 'DONE';
   const cardNumber = `${pointer.taskIndex + 1}`.padStart(3, '0');
-  const descriptionNodes = config.showDescription && task.description.length > 0
-    ? h('p', {
-        style: {
-          margin: '0',
-          fontFamily: fonts.body,
-          fontSize: config.size === 'large' ? '0.875rem' : sizeConfig.titleSize,
-          fontWeight: '400',
-          color: colors.greyLight,
-          lineHeight: '1.7',
-          overflow: 'hidden',
-          display: '-webkit-box',
-          WebkitLineClamp: sizeConfig.descriptionLineClamp,
-          WebkitBoxOrient: 'vertical',
-          flexShrink: '1',
-        },
-      }, renderTextNodes(task.description))
+  const accentColor = isPriority ? colors.redBright : isRunning ? colors.pinkBright : colors.cyanBright;
+
+  // Description element
+  const descriptionStyle: Record<string, string> = {
+    margin: '0',
+    fontFamily: fonts.body,
+    fontSize: layout.descriptionSize,
+    fontWeight: '400',
+    color: colors.greyLight,
+    lineHeight: '1.7',
+  };
+
+  if (layout.descriptionPreserveWhitespace) {
+    descriptionStyle['whiteSpace'] = 'pre-wrap';
+  }
+
+  if (layout.clipContent && layout.descriptionLineClamp !== 'none') {
+    descriptionStyle['overflow'] = 'hidden';
+    descriptionStyle['display'] = '-webkit-box';
+    descriptionStyle['WebkitLineClamp'] = layout.descriptionLineClamp;
+    descriptionStyle['WebkitBoxOrient'] = 'vertical';
+    descriptionStyle['flexShrink'] = '1';
+  }
+
+  const descriptionNode = task.description.length > 0
+    ? h('p', { style: descriptionStyle }, renderTextNodes(task.description))
     : null;
-  const contentWrapper = config.size === 'large'
-    ? (children: ReadonlyArray<VNode | null>) => h('div', {
+
+  // Header element
+  const header = layout.headerLayout === 'split'
+    ? h('div', {
+        style: {
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: spacing.md,
+          flexShrink: '0',
+          marginBottom: spacing.sm,
+        },
+      }, [
+        layout.showCardNumber ? h('span', {
+          style: {
+            fontFamily: fonts.display,
+            fontSize: layout.cardNumberSize,
+            fontWeight: fontWeight.bold,
+            color: colors.greyDark,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+          },
+        }, cardNumber) : null,
+        renderKeywordBadge(task.todoKeyword, keywordColor, layout.badgeSize),
+      ].filter(Boolean))
+    : h('div', {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: spacing.sm,
+          flexShrink: '0',
+        },
+      }, [
+        renderKeywordBadge(task.todoKeyword, keywordColor, layout.badgeSize),
+        layout.showPriorityBadge && task.priority !== null && priorityColor
+          ? renderPriorityBadge(task.priority, priorityColor, layout.badgeSize)
+          : null,
+      ].filter(Boolean));
+
+  // Title element
+  const titleStyle = layout.titleTag === 'h3'
+    ? {
+        margin: '0',
+        fontFamily: fonts.body,
+        fontSize: layout.titleSize,
+        fontWeight: layout.titleFontWeight,
+        letterSpacing: '-0.02em',
+        color: colors.white,
+        textDecoration: isDone ? 'line-through' : 'none',
+        opacity: isDone ? '0.7' : '1',
+        flexShrink: '0',
+        lineHeight: '1.3',
+      }
+    : {
+        margin: '0',
+        fontSize: layout.titleSize,
+        fontWeight: layout.titleFontWeight,
+        color: 'var(--text-primary)',
+        textDecoration: isDone ? 'line-through' : 'none',
+        opacity: isDone ? '0.7' : '1',
+      };
+
+  const title = h(layout.titleTag, { style: titleStyle }, titleNodes);
+
+  // Tags element
+  const tags = h('div', {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: spacing.md,
+      marginTop: layout.tagsMarginTop,
+    },
+  }, [
+    renderTags(task.tags, layout.tagSize, layout.tagGap),
+  ]);
+
+  // Build content array based on layout
+  const contentItems: Array<VNode | null> = layout.descriptionAtEnd
+    ? [header, title, tags, ...layout.extraContent, descriptionNode]
+    : [header, title, descriptionNode, tags];
+
+  // Wrap content if clipping with gradient
+  const content = layout.clipContent
+    ? h('div', {
         style: {
           display: 'flex',
           flexDirection: 'column',
-          gap: sizeConfig.gap,
+          gap: layout.gap,
           flex: '1',
           minHeight: '0',
           overflow: 'hidden',
           position: 'relative',
         },
       }, [
-        ...children,
-        h('div', {
+        ...contentItems.filter(Boolean),
+        layout.showGradientFade ? h('div', {
           style: {
             position: 'absolute',
             bottom: '0',
@@ -90,211 +368,158 @@ function renderUnifiedCard(
             background: 'linear-gradient(to bottom, transparent, var(--card-bg))',
             pointerEvents: 'none',
           },
-        }),
+        }) : null,
       ].filter(Boolean))
-    : (children: ReadonlyArray<VNode | null>) => h('div', {
+    : h('div', {
         style: {
           display: 'flex',
           flexDirection: 'column',
-          gap: sizeConfig.gap,
+          gap: layout.gap,
         },
-      }, children.filter(Boolean));
+      }, contentItems.filter(Boolean));
 
-  const cardContent = [
-    config.size === 'large' ? h('div', {
-      style: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        gap: spacing.md,
-        flexShrink: '0',
-        marginBottom: spacing.sm,
-      },
-    }, [
-      h('span', {
+  // Card body with optional dates
+  const cardBody = [
+    content,
+    layout.showDates
+      ? renderCompactDates(task.scheduled, task.deadline, task.closed, task.createdProp)
+      : null,
+  ].filter(Boolean);
+
+  // Corner accent
+  const cornerAccent = layout.showCornerAccent
+    ? h('div', {
         style: {
-          fontFamily: fonts.display,
-          fontSize: sizeConfig.cardNumberSize,
-          fontWeight: fontWeight.bold,
-          color: colors.greyDark,
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
+          position: 'absolute',
+          top: '0',
+          right: '0',
+          width: layout.cornerAccentSize,
+          height: layout.cornerAccentSize,
+          background: `linear-gradient(135deg, ${isPriority ? colors.redBright : isRunning ? colors.pinkBright : colors.cyanDim} 0%, transparent 50%)`,
+          clipPath: 'polygon(0 0, 100% 0, 100% 100%)',
+          opacity: isPriority || isRunning ? '0.5' : '0.3',
+          transition: `opacity ${transitions.normal}`,
+          pointerEvents: 'none',
         },
-      }, cardNumber),
-      renderKeywordBadge(task.todoKeyword, keywordColor, config.size),
-    ]) : h('div', {
-      style: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: spacing.sm,
-        flexShrink: '0',
-      },
-    }, [
-      renderKeywordBadge(task.todoKeyword, keywordColor, config.size),
-      task.priority !== null && priorityColor
-        ? renderPriorityBadge(task.priority, priorityColor, config.size)
-        : null,
-      ].filter(Boolean)),
+      })
+    : null;
 
-    h(config.size === 'large' ? 'h3' : 'div', {
-      style: config.size === 'large' ? {
-        margin: '0',
-        fontFamily: fonts.body,
-        fontSize: sizeConfig.titleSize,
-        fontWeight: fontWeight.bold,
-        letterSpacing: '-0.02em',
-        color: colors.white,
-        textDecoration: isDone ? 'line-through' : 'none',
-        opacity: isDone ? '0.7' : '1',
-        flexShrink: '0',
-        lineHeight: '1.3',
-      } : {
-        margin: '0',
-        fontSize: sizeConfig.titleSize,
-        fontWeight: fontWeight.medium,
-        color: 'var(--text-primary)',
-        textDecoration: isDone ? 'line-through' : 'none',
-        opacity: isDone ? '0.7' : '1',
-      },
-    }, titleNodes),
+  // Left accent (hover glow)
+  const leftAccent = layout.showLeftAccent
+    ? h('div', {
+        class: { 'task-accent': true },
+        style: {
+          position: 'absolute',
+          left: '0',
+          top: '20%',
+          bottom: '20%',
+          width: '6px',
+          background: accentColor,
+          boxShadow: `0 0 15px ${accentColor}`,
+          clipPath: 'polygon(0 0, 100% 0, 100% 40%, 0 45%, 0 55%, 100% 60%, 100% 100%, 0 100%)',
+          opacity: '0',
+          transition: `opacity ${transitions.normal}`,
+          pointerEvents: 'none',
+        },
+      })
+    : null;
 
-    descriptionNodes,
-    config.size === 'large' ? h('div', {
-      style: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: spacing.md,
-        marginTop: 'auto',
-      },
-    }, [
-      renderTags(task.tags, config.size, '6px'),
-    ]) : renderTags(task.tags, config.size, '4px'),
-  ];
-
-  const cardBody = config.size === 'large'
-    ? [
-        contentWrapper(cardContent),
-        config.showDates
-          ? renderCompactDates(task.scheduled, task.deadline, task.closed, task.createdProp)
-          : null,
-      ]
-    : cardContent;
+  // Card style
   const cardStyle: Record<string, string> = {
     backgroundColor: colors.asphalt,
     border: `2px solid ${colors.greyDark}`,
     outline: `1px solid ${colors.void}`,
     outlineOffset: '4px',
-    padding: sizeConfig.padding,
+    padding: layout.padding,
     display: 'flex',
     flexDirection: 'column',
-    gap: sizeConfig.gap,
-    cursor: 'pointer',
-    height: sizeConfig.height,
+    gap: layout.gap,
+    height: layout.height,
     position: 'relative',
-    transition: `all ${transitions.verySlow} cubic-bezier(0.4, 0, 0.2, 1)`,
     flexShrink: '0',
     userSelect: 'none',
   };
 
-  if (config.size === 'large') {
-    cardStyle['width'] = sizeConfig.width;
-    cardStyle['clipPath'] = clipPaths.cardDefault;
-  } else {
-    cardStyle['borderRadius'] = '6px';
+  if (layout.width !== 'auto') {
+    cardStyle['width'] = layout.width;
   }
 
-  if (isPriority && config.size === 'large') {
-    cardStyle['borderColor'] = colors.redBright;
-    cardStyle['outlineColor'] = 'rgba(255, 51, 51, 0.3)';
-  } else if (isRunning && config.size === 'large') {
-    cardStyle['borderColor'] = colors.pinkBright;
-    cardStyle['outlineColor'] = 'rgba(255, 0, 153, 0.3)';
-  } else if (config.size === 'large') {
-    cardStyle['borderColor'] = colors.greyDark;
-    cardStyle['outlineColor'] = colors.void;
+  if (layout.useClipPath) {
+    cardStyle['clipPath'] = clipPaths.cardDefault;
+  } else {
+    cardStyle['borderRadius'] = layout.borderRadius;
+  }
+
+  if (layout.clickable) {
+    cardStyle['cursor'] = 'pointer';
+    cardStyle['transition'] = `all ${transitions.verySlow} cubic-bezier(0.4, 0, 0.2, 1)`;
+  }
+
+  if (layout.scrollable) {
+    cardStyle['overflowY'] = 'auto';
+  }
+
+  if (layout.showStatusBorder) {
+    if (isPriority) {
+      cardStyle['borderColor'] = colors.redBright;
+      cardStyle['outlineColor'] = 'rgba(255, 51, 51, 0.3)';
+    } else if (isRunning) {
+      cardStyle['borderColor'] = colors.pinkBright;
+      cardStyle['outlineColor'] = 'rgba(255, 0, 153, 0.3)';
+    }
   }
 
   if (isDone) {
     cardStyle['opacity'] = '0.5';
   }
 
-  if (config.depth !== undefined) {
-    cardStyle['marginLeft'] = `${config.depth * 16}px`;
+  if (layout.depth > 0) {
+    cardStyle['marginLeft'] = `${layout.depth * 16}px`;
     cardStyle['marginBottom'] = spacing.sm;
   }
-  const cornerAccent = config.size === 'large' ? h('div', {
-    style: {
-      position: 'absolute',
-      top: '0',
-      right: '0',
-      width: '24px',
-      height: '24px',
-      background: `linear-gradient(135deg, ${isPriority ? colors.redBright : isRunning ? colors.pinkBright : colors.cyanDim} 0%, transparent 50%)`,
-      clipPath: 'polygon(0 0, 100% 0, 100% 100%)',
-      opacity: isPriority || isRunning ? '0.5' : '0.3',
-      transition: `opacity ${transitions.normal}`,
-      pointerEvents: 'none',
-    },
-  }) : null;
-  const leftAccent = config.size === 'large' ? h('div', {
-    class: {
-      'task-accent': true,
-    },
-    style: {
-      position: 'absolute',
-      left: '0',
-      top: '20%',
-      bottom: '20%',
-      width: '6px',
-      background: isPriority ? colors.redBright : isRunning ? colors.pinkBright : colors.cyanBright,
-      boxShadow: `0 0 15px ${isPriority ? colors.redBright : isRunning ? colors.pinkBright : colors.cyanBright}`,
-      clipPath: 'polygon(0 0, 100% 0, 100% 40%, 0 45%, 0 55%, 100% 60%, 100% 100%, 0 100%)',
-      opacity: '0',
-      transition: `opacity ${transitions.normal}`,
-      pointerEvents: 'none',
-    },
-  }) : null;
 
-  const cardWithAccents = [
-    cornerAccent,
-    leftAccent,
-    ...cardBody.filter(Boolean),
-  ].filter(Boolean);
+  // Build final element
+  const classNames = [layout.cardClass, layout.hoverClass].filter(Boolean).join('.');
+  const elementSelector = classNames ? `div.${classNames}` : 'div';
 
-  return h(`div.${cardClass}.${hoverClass}`, {
+  const nodeData: Record<string, unknown> = {
     key: `${pointer.file}-${pointer.taskIndex}`,
     class: {
-      'priority': isPriority && config.size === 'large',
-      'running': isRunning && config.size === 'large',
+      'priority': isPriority && layout.showStatusBorder,
+      'running': isRunning && layout.showStatusBorder,
       'completed': isDone,
     },
     style: cardStyle,
-    on: {
-      click: () => callbacks.onTaskClick(taskWithPointer),
-    },
-  }, cardWithAccents);
+  };
+
+  if (callbacks && layout.clickable) {
+    nodeData['on'] = {
+      click: (e: MouseEvent) => {
+        e.stopPropagation();
+        callbacks.onTaskClick(taskWithPointer);
+      },
+    };
+  }
+
+  return h(elementSelector, nodeData, [
+    cornerAccent,
+    leftAccent,
+    ...cardBody,
+  ].filter(Boolean));
 }
 
 export function renderTaskCard(
   taskWithPointer: TaskWithPointer,
   callbacks: TaskCardCallbacks
 ): VNode {
-  return renderUnifiedCard(
-    taskWithPointer,
-    { size: 'large', showDescription: true, showDates: true },
-    callbacks
-  );
+  return renderCard(taskWithPointer, CAROUSEL_LAYOUT, callbacks);
 }
 
 export function renderSubtaskCard(
   taskWithPointer: TaskWithPointer,
   callbacks: TaskCardCallbacks
 ): VNode {
-  return renderUnifiedCard(
-    taskWithPointer,
-    { size: 'medium', showDescription: false, showDates: false },
-    callbacks
-  );
+  return renderCard(taskWithPointer, SUBTASK_LAYOUT, callbacks);
 }
 
 export function renderTaskNodeCard(
@@ -307,11 +532,22 @@ export function renderTaskNodeCard(
   return h('div', {
     key: `${pointer.file}-${pointer.taskIndex}`,
   }, [
-    renderUnifiedCard(
+    renderCard(
       { task, pointer },
-      { size: 'medium', showDescription: false, showDates: false, depth },
+      { ...SUBTASK_LAYOUT, depth },
       callbacks
     ),
     ...children.map((child) => renderTaskNodeCard(child, depth + 1, callbacks)),
   ]);
+}
+
+export function renderModalCard(
+  taskWithPointer: TaskWithPointer,
+  extraContent: ReadonlyArray<VNode | null>
+): VNode {
+  return renderCard(
+    taskWithPointer,
+    { ...MODAL_LAYOUT, extraContent },
+    null
+  );
 }
