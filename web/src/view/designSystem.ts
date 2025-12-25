@@ -161,18 +161,18 @@ export const cssClasses = {
   hoverableButton: 'hoverable-button',
 } as const;
 
-// Todo keyword colors
+// Todo keyword colors (JDM racing palette)
 export const todoKeywordColors = {
-  TODO: "#646cff",
-  INBOX: "#888888",
-  WAITING: "#f59e0b",
-  DONE: "#10b981",
-  PROJECT: "#8b5cf6",
-  SOMEDAY: "#6b7280",
-  RELEVANT: "#3b82f6",
-  NOTES: "#ec4899",
-  LIST: "#14b8a6",
-  TRASH: "#ef4444",
+  TODO: "#fbbf24",      // racing gold
+  INBOX: "#e2e8f0",     // off-white
+  WAITING: "#a855f7",   // violet
+  DONE: "#585b70",      // muted (dimmed)
+  PROJECT: "#84cc16",   // lime green
+  SOMEDAY: "#f97316",   // racing orange
+  RELEVANT: "#c084fc",  // lavender purple
+  NOTES: "#22c55e",     // pure green
+  LIST: "#2dd4bf",      // JDM teal
+  TRASH: "#585b70",     // muted (dimmed)
 } as const satisfies Record<string, string>;
 
 export function getTodoKeywordColor(keyword: string): string {

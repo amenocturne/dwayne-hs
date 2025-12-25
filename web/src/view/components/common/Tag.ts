@@ -15,8 +15,8 @@ export function renderTag(tag: string, size: TagSize = 'medium'): VNode {
       style: {
         fontFamily: fonts.display,
         backgroundColor: 'rgba(0, 0, 0, 0.4)',
-        color: colors.grey,
-        border: `1px solid ${colors.greyDark}`,
+        color: '#9ca3af',  // neutral grey
+        border: `1px solid ${colors.grey}`,
         padding: sizeConfig.tagPadding,
         fontSize: sizeConfig.tagFontSize,
         fontWeight: fontWeight.semibold,

@@ -91,7 +91,7 @@ const CAROUSEL_LAYOUT: CardLayout = {
 
   scrollable: false,
   clipContent: true,
-  showGradientFade: true,
+  showGradientFade: false,
 
   clickable: true,
   showHoverEffects: true,
@@ -104,7 +104,7 @@ const CAROUSEL_LAYOUT: CardLayout = {
   cardNumberSize: cardSizes.large.cardNumberSize,
 
   descriptionLineClamp: cardSizes.large.descriptionLineClamp,
-  descriptionPreserveWhitespace: false,
+  descriptionPreserveWhitespace: true,
   descriptionAtEnd: false,
 
   cornerAccentSize: '24px',
@@ -233,8 +233,9 @@ function renderCard(
   const priorityColor = task.priority !== null ? priorityColors[task.priority as keyof typeof priorityColors] : null;
 
   const isPriority = task.priority === 0;
-  const isRunning = task.todoKeyword === 'DOING' || task.todoKeyword === 'NEXT';
   const isDone = task.todoKeyword === 'DONE';
+  const isTrash = task.todoKeyword === 'TRASH';
+  const isDimmed = isDone || isTrash;
   const cardNumber = `${pointer.taskIndex + 1}`.padStart(3, '0');
   const accentColor = keywordColor;
 
@@ -312,7 +313,7 @@ function renderCard(
         letterSpacing: '-0.02em',
         color: colors.white,
         textDecoration: isDone ? 'line-through' : 'none',
-        opacity: isDone ? '0.7' : '1',
+        opacity: isDimmed ? '0.7' : '1',
         flexShrink: '0',
         lineHeight: '1.3',
       }
@@ -322,7 +323,7 @@ function renderCard(
         fontWeight: layout.titleFontWeight,
         color: 'var(--text-primary)',
         textDecoration: isDone ? 'line-through' : 'none',
-        opacity: isDone ? '0.7' : '1',
+        opacity: isDimmed ? '0.7' : '1',
       };
 
   const title = h(layout.titleTag, { style: titleStyle }, titleNodes);
@@ -397,7 +398,7 @@ function renderCard(
           height: layout.cornerAccentSize,
           background: `linear-gradient(135deg, ${keywordColor} 0%, transparent 50%)`,
           clipPath: 'polygon(0 0, 100% 0, 100% 100%)',
-          opacity: isPriority || isRunning ? '0.5' : '0.3',
+          opacity: isPriority ? '0.5' : '0.3',
           transition: `opacity ${transitions.normal}`,
           pointerEvents: 'none',
         },
@@ -490,13 +491,13 @@ function renderCard(
   }
 
   if (layout.showStatusBorder) {
-    if (isPriority || isRunning) {
+    if (isPriority) {
       cardStyle['borderColor'] = keywordColor;
       cardStyle['outlineColor'] = hexToRgba(keywordColor, 0.3);
     }
   }
 
-  if (isDone) {
+  if (isDimmed) {
     cardStyle['opacity'] = '0.5';
   }
 
@@ -513,8 +514,8 @@ function renderCard(
     key: `${pointer.file}-${pointer.taskIndex}`,
     class: {
       'priority': isPriority && layout.showStatusBorder,
-      'running': isRunning && layout.showStatusBorder,
       'completed': isDone,
+      'dimmed': isDimmed,
     },
     style: cardStyle,
   };
@@ -540,7 +541,6 @@ function renderCard(
       key: `wrapper-${pointer.file}-${pointer.taskIndex}`,
       class: {
         'priority': isPriority,
-        'running': isRunning,
       },
       style: {
         position: 'relative',

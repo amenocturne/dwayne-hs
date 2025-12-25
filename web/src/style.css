@@ -374,9 +374,8 @@ body::after {
   background-color: rgba(0, 0, 0, 0.6) !important;
 }
 
-/* Apply base glow to priority and running cards at rest */
-.hoverable.priority,
-.hoverable.running {
+/* Apply base glow to priority cards at rest */
+.hoverable.priority {
   box-shadow: 0 0 25px var(--keyword-color-medium), 0 0 50px var(--keyword-color-dim);
 }
 
