@@ -403,3 +403,8 @@ body::after {
   transform: scale(1.05);
   box-shadow: 0 6px 20px rgba(0, 229, 255, 0.4) !important;
 }
+
+/* View selector arrow hover effects */
+.view-selector-arrow.arrow-interactive:hover {
+  transform: scale(1.1);
+}

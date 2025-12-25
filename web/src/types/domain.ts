@@ -89,3 +89,21 @@ export type ViewName =
   | "todo"
   | "done"
   | "trash";
+
+/**
+ * Ordered list of views for navigation.
+ * Used by keyboard navigation and view selector component.
+ */
+export const VIEW_ORDER: ReadonlyArray<ViewName> = [
+  "all",
+  "inbox",
+  "relevant",
+  "todo",
+  "waiting",
+  "project",
+  "someday",
+  "notes",
+  "list",
+  "done",
+  "trash",
+];

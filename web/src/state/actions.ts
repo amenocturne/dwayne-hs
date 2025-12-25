@@ -40,4 +40,7 @@ export type Action =
   | { type: 'CarouselUpdateCurrent'; rotation: number }
   // Debug mode actions
   | { type: 'DebugToggled' }
-  | { type: 'DebugParamChanged'; param: keyof import("../types/state.js").Carousel3DParams; value: number | boolean }; // Animation loop updates current rotation
+  | { type: 'DebugParamChanged'; param: keyof import("../types/state.js").Carousel3DParams; value: number | boolean }
+  // View navigation actions (keyboard-driven)
+  | { type: 'ViewNavigateLeft' }
+  | { type: 'ViewNavigateRight' };

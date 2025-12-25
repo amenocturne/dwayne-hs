@@ -6,7 +6,6 @@ import type { ViewName, TaskPointer, TaskWithPointer } from "../types/domain.js"
 import { renderSearchBar } from "./components/SearchBar.js";
 import { renderViewSelector, VIEW_LABELS } from "./components/ViewSelector.js";
 import { renderCarousel3D, type CarouselCallbacks } from "./components/carousel/Carousel3D.js";
-import { renderLoadingIndicator } from "./components/LoadingIndicator.js";
 import { renderDetailCard, type DetailCardCallbacks } from "./components/DetailCard.js";
 import { renderDebugPanel, renderDebugToggleButton, type DebugPanelCallbacks } from "./components/DebugPanel.js";
 import type { SearchBarCallbacks } from "./components/SearchBar.js";
@@ -35,7 +34,6 @@ export interface AppCallbacks {
 export function view(state: AppState, callbacks: AppCallbacks): VNode {
   const filteredTasks = state.taskList.tasks;
   const searching = isSearching(state);
-  const hasResults = filteredTasks.length > 0;
   const projectView = isProjectView(state);
 
   const searchBarCallbacks: SearchBarCallbacks = {
@@ -87,113 +85,89 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
         },
       },
       [
-        // Top section: 3 panels side by side
+        // Top section: NFS Carbon style layout
         h("div.top-section", {
           style: {
             display: "flex",
-            height: "50%",
-            flexShrink: "0",
+            flexDirection: "column",
+            alignItems: "center",
+            paddingTop: "24px",
             position: "relative",
             zIndex: "100",
-            pointerEvents: "auto",
+            pointerEvents: "none",
           },
         }, [
-          // Left panel: View selector
-          h("div.left-panel", {
+          // Title
+          h("div", {
             style: {
-              width: "20%",
-              overflowY: "auto",
-              padding: "24px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "16px",
+              fontFamily: "var(--font-display)",
+              fontSize: "2.5rem",
+              fontWeight: "700",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "var(--text-primary)",
+              textAlign: "center",
+              marginBottom: "16px",
+              pointerEvents: "auto",
+            },
+          }, "DWAYNE"),
+
+          // View selector (NFS Carbon horizontal bar)
+          projectView
+            ? h("button.hover-brighten", {
+                style: {
+                  padding: "8px 24px",
+                  borderRadius: "2px",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                  backgroundColor: "rgba(255, 255, 255, 0.05)",
+                  color: "#ffffff",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  fontSize: "0.875rem",
+                  transition: "all 0.2s",
+                  fontFamily: "var(--font-body)",
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                  pointerEvents: "auto",
+                },
+                on: {
+                  click: callbacks.onBackToView,
+                },
+              }, `← BACK TO ${(VIEW_LABELS[state.view.currentView] || 'All').toUpperCase()}`)
+            : renderViewSelector(state.view.currentView, viewSelectorCallbacks),
+
+          // Search bar
+          h("div", {
+            style: {
+              marginTop: "20px",
+              width: "100%",
+              maxWidth: "500px",
               pointerEvents: "auto",
             },
           }, [
-            h("div", {
-              style: {
-                fontFamily: "var(--font-display)",
-                fontSize: "0.75rem",
-                fontWeight: "600",
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                color: "var(--text-secondary)",
-                marginBottom: "-1em",
-              },
-            }, "Status"),
-            h("div", {
-              style: {
-                fontSize: "0.875rem",
-                color: "var(--text-primary)",
-                marginBottom: "16px",
-              },
-            }, state.taskList.loading
-              ? "⏳ Loading..."
-              : state.error
-                ? `Error: ${state.error}`
-                : `Online`),
-            projectView
-              ? h("button.hover-brighten", {
-                  style: {
-                    padding: "8px 16px",
-                    borderRadius: "6px",
-                    border: "1px solid var(--link-color)",
-                    backgroundColor: "rgba(0, 229, 255, 0.1)",
-                    color: "var(--link-color)",
-                    fontWeight: "600",
-                    cursor: "pointer",
-                    fontSize: "0.875rem",
-                    transition: "all 0.2s",
-                  },
-                  on: {
-                    click: callbacks.onBackToView,
-                  },
-                }, `← Back to ${VIEW_LABELS[state.view.currentView] || 'All'}`)
-              : renderViewSelector(state.view.currentView, viewSelectorCallbacks),
+            renderSearchBar(state.view.searchQuery, searchBarCallbacks),
           ]),
 
-          // Middle panel: Search bar
-          h("div.middle-panel", {
+          // Task count info
+          h("div", {
             style: {
-              flex: "1",
-              padding: "24px",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-              gap: "16px",
+              fontSize: "0.7rem",
+              color: "var(--text-secondary)",
+              textAlign: "center",
+              fontFamily: "var(--font-mono)",
+              letterSpacing: "0.05em",
+              textTransform: "uppercase",
+              marginTop: "12px",
               pointerEvents: "auto",
             },
-          }, [
-            h("div", {
-              style: {
-                fontFamily: "var(--font-display)",
-                fontSize: "2rem",
-                fontWeight: "700",
-                letterSpacing: "0.05em",
-                textTransform: "uppercase",
-                color: "var(--text-primary)",
-                textAlign: "center",
-              },
-            }, "DWAYNE"),
-            renderSearchBar(state.view.searchQuery, searchBarCallbacks),
-            h("div", {
-              style: {
-                fontSize: "0.75rem",
-                color: "var(--text-secondary)",
-                textAlign: "center",
-                fontFamily: "var(--font-display)",
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-              },
-            }, projectView && searching
-              ? `Found ${filteredTasks.length} tasks in project`
-              : projectView
-                ? `Viewing project (${state.taskList.tasks.length} tasks)`
-                : searching
-                  ? `${filteredTasks.length} / ${state.taskList.tasks.length} tasks`
-                  : `${state.taskList.tasks.length} / ${state.taskList.totalCount.toLocaleString()} tasks in ${VIEW_LABELS[state.view.currentView] || 'All'}`),
-          ]),
-          
+          }, projectView && searching
+            ? `Found ${filteredTasks.length} tasks in project`
+            : projectView
+              ? `Viewing project (${state.taskList.tasks.length} tasks)`
+              : searching
+                ? `${filteredTasks.length} / ${state.taskList.tasks.length} tasks`
+                : `${state.taskList.tasks.length} / ${state.taskList.totalCount.toLocaleString()} tasks`),
+
         ]),
 
         // Bottom section: Full-screen carousel
@@ -209,90 +183,25 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
             pointerEvents: "none",
           },
         }, [
-          state.error
-            ? h(
-                "div.error-message",
-                {
-                  style: {
-                    padding: "16px",
-                    backgroundColor: "#fee",
-                    border: "1px solid #fcc",
-                    borderRadius: "8px",
-                    color: "#c00",
-                    textAlign: "center",
-                    margin: "20px",
-                    maxWidth: "600px",
-                    marginLeft: "auto",
-                    marginRight: "auto",
-                  },
-                },
-                [
-                  h("strong", "Error: "),
-                  state.error,
-                  h("br"),
-                  h(
-                    "small",
-                    "Make sure the API server is running on http://localhost:8080",
-                  ),
-                ],
-              )
-            : state.taskList.loading
-              ? h(
-                  "div.loading",
-                  {
-                    style: {
-                      textAlign: "center",
-                      padding: "60px 20px",
-                      color: "var(--text-secondary)",
-                      fontSize: "1.125rem",
-                    },
-                  },
-                  "Loading tasks...",
-                )
-              : state.taskList.tasks.length === 0
-                ? h(
-                    "div.empty-state",
-                    {
-                      style: {
-                        textAlign: "center",
-                        padding: "60px 20px",
-                        color: "var(--text-secondary)",
-                        fontSize: "1.125rem",
-                      },
-                    },
-                    `No tasks in ${VIEW_LABELS[state.view.currentView] || 'All'} view`,
-                  )
-                : !hasResults && searching
-                  ? h(
-                      "div.empty-state",
-                      {
-                        style: {
-                          textAlign: "center",
-                          padding: "60px 20px",
-                          color: "var(--text-secondary)",
-                          fontSize: "1.125rem",
-                        },
-                      },
-                       "No tasks match your search",
-                    )
-                  : h("div", {
-                      style: {
-                        width: "100%",
-                        height: "100%",
-                      },
-                    }, [
-                      renderCarousel3D(
-                        filteredTasks,
-                        state.carousel.rotation,
-                        taskCardCallbacks,
-                        carouselCallbacks,
-                        canLoadMore,
-                        isLoadingMore,
-                        state.taskList.pagesLoaded,
-                        state.debug.params
-                      ),
-                      ...(state.taskList.loadingMore ? [renderLoadingIndicator()] : []),
-                    ]),
+          ...(filteredTasks.length > 0 ? [
+            h("div", {
+              style: {
+                width: "100%",
+                height: "100%",
+              },
+            }, [
+              renderCarousel3D(
+                filteredTasks,
+                state.carousel.rotation,
+                taskCardCallbacks,
+                carouselCallbacks,
+                canLoadMore,
+                isLoadingMore,
+                state.taskList.pagesLoaded,
+                state.debug.params
+              ),
+            ]),
+          ] : []),
         ]),
         
         // Floating detail card (rendered outside top section to avoid layout jump)

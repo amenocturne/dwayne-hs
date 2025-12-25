@@ -134,6 +134,19 @@ function handleScroll(): void {
   }
 }
 
+function handleKeydown(e: KeyboardEvent): void {
+  // Don't handle if user is typing in an input
+  if ((e.target as HTMLElement).tagName === "INPUT") return;
+
+  if (e.key === "ArrowLeft") {
+    e.preventDefault();
+    dispatch({ type: 'ViewNavigateLeft' });
+  } else if (e.key === "ArrowRight") {
+    e.preventDefault();
+    dispatch({ type: 'ViewNavigateRight' });
+  }
+}
+
 let ws: WebSocket | null = null;
 
 function connectWebSocket(): void {
@@ -164,5 +177,6 @@ render(initialState);
 dispatch({ type: 'ViewChanged', view: 'all' });
 
 window.addEventListener("scroll", handleScroll);
+window.addEventListener("keydown", handleKeydown);
 connectWebSocket();
 window.addEventListener("beforeunload", () => ws?.close());

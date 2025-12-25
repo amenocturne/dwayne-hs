@@ -16,6 +16,7 @@ import { hasMoreTasks } from "../types/state.js";
 import type { Action } from "./actions.js";
 import type { Effect } from "./effects.js";
 import type { TaskWithPointer } from "../types/domain.js";
+import { VIEW_ORDER } from "../types/domain.js";
 import { assertNever } from "../types/utils.js";
 
 /**
@@ -549,6 +550,74 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
         },
         { type: 'None' }
       ];
+
+    case 'ViewNavigateLeft': {
+      const currentIndex = VIEW_ORDER.indexOf(state.view.currentView);
+      const newIndex = currentIndex - 1;
+      if (currentIndex <= 0 || newIndex < 0) {
+        return [state, { type: 'None' }];
+      }
+      const newView = VIEW_ORDER[newIndex]!;
+      return [
+        {
+          ...state,
+          taskList: {
+            ...state.taskList,
+            loading: true,
+            tasks: [],
+            offset: 0,
+            loadingMore: false,
+            pagesLoaded: 0,
+          },
+          view: {
+            ...state.view,
+            currentView: newView,
+            searchQuery: '',
+            projectPointer: null,
+          },
+          carousel: {
+            rotation: 0,
+            targetRotation: 0,
+          },
+          error: null,
+        },
+        { type: 'FetchTasks', view: newView, offset: 0, limit: 100 }
+      ];
+    }
+
+    case 'ViewNavigateRight': {
+      const currentIndex = VIEW_ORDER.indexOf(state.view.currentView);
+      const newIndex = currentIndex + 1;
+      if (currentIndex < 0 || newIndex >= VIEW_ORDER.length) {
+        return [state, { type: 'None' }];
+      }
+      const newView = VIEW_ORDER[newIndex]!;
+      return [
+        {
+          ...state,
+          taskList: {
+            ...state.taskList,
+            loading: true,
+            tasks: [],
+            offset: 0,
+            loadingMore: false,
+            pagesLoaded: 0,
+          },
+          view: {
+            ...state.view,
+            currentView: newView,
+            searchQuery: '',
+            projectPointer: null,
+          },
+          carousel: {
+            rotation: 0,
+            targetRotation: 0,
+          },
+          error: null,
+        },
+        { type: 'FetchTasks', view: newView, offset: 0, limit: 100 }
+      ];
+    }
 
     default:
       // Exhaustiveness check - ensures all action types are handled at compile time
