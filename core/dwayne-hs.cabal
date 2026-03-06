@@ -81,6 +81,7 @@ library
         DB.Export
         DB.Import
         DB.TaskRow
+        DB.TaskStore
         Core.Filters
         FileWatcher
         Model.Injection
@@ -200,6 +201,7 @@ test-suite spec
         DB.MigrationSpec
         DB.ExportSpec
         DB.ImportSpec
+        DB.TaskStoreSpec
         Parser.ParserSpec
         Parser.StandardParsersSpec
         Parser.OrgParserSpec
