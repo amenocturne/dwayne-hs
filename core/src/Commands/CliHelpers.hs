@@ -54,4 +54,8 @@ loadFileState = do
 formatTaskLine :: Task -> TaskPointer -> String
 formatTaskLine task ptr =
   T.unpack (formatHeaderLine (_level task) (_todoKeyword task) (_priority task) (_title task) (_tags task))
-    <> "  (" <> _file ptr <> ":" <> show (_taskIndex ptr) <> ")"
+    <> "  ("
+    <> _file ptr
+    <> ":"
+    <> show (_taskIndex ptr)
+    <> ")"
