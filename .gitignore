@@ -17,3 +17,5 @@ web/pnpm-debug.log*
 web/yarn-debug.log*
 web/yarn-error.log*
 .DS_Store
+.opencode/
+AGENTS.md
