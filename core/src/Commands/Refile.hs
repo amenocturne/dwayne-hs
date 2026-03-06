@@ -3,13 +3,16 @@
 module Commands.Refile (refileCommand, openRefileDialog) where
 
 import Brick (get, modify)
-import Commands.Command (Command (..))
+import Commands.Command (Command (..), TuiBinding (..))
 import Commands.ErrorDialog (showError)
 import Control.Lens
 import qualified Core.Operations as Ops
 import Model.OrgMode (Task)
+import qualified Tui.Contexts as Ctx
+import Tui.Keybindings (toKeySeq)
 import Tui.Types
   ( GlobalAppState,
+    KeyEvent (..),
     RefileDialog (..),
     appState,
     fileStateLens,
@@ -23,7 +26,15 @@ refileCommand =
     { cmdName = "Refile Task",
       cmdAlias = "refile",
       cmdDescription = "Refile the current task to a project by showing a project selection dialog",
-      cmdTui = Nothing,
+      cmdTui =
+        Just $
+          TuiBinding
+            { tuiKeyEvent = Refile,
+              tuiKeybinding = toKeySeq "gr",
+              tuiDescription = "Refile task to project",
+              tuiAction = openRefileDialog,
+              tuiContext = Ctx.normalOrSelectionContext
+            },
       cmdCli = Nothing,
       cmdApi = Nothing
     }

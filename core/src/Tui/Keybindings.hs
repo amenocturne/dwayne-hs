@@ -24,7 +24,6 @@ import Brick
 import Commands.Command (getEnabledCommands)
 import qualified Commands.Command as Cmd
 import Control.Lens
-import Data.Aeson (Object)
 import Data.Char (isUpper, toLower)
 import Data.List.NonEmpty (NonEmpty (..), fromList)
 import qualified Data.Map.Strict as M
@@ -67,7 +66,7 @@ commandToKeyBinding cmd =
 -- Takes a list of commands and optional config object to filter them
 -- If enabledCommands is Nothing, all commands are enabled
 -- If enabledCommands is Just object, only commands not explicitly disabled are included
-orgKeyBindings :: [Cmd.Command Task] -> Maybe Object -> [KeyBinding Task]
+orgKeyBindings :: [Cmd.Command Task] -> S.Set T.Text -> [KeyBinding Task]
 orgKeyBindings allCommands commandsConfig =
   mapMaybe commandToKeyBinding (getEnabledCommands commandsConfig allCommands)
 

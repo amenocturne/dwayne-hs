@@ -1,5 +1,5 @@
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
@@ -12,19 +12,20 @@ import Brick.Widgets.Dialog (Dialog)
 import Control.Lens
 import Control.Monad.ST (runST)
 import Core.Types (FileState, TaskPointer (..), file, taskIndex)
-import Data.Aeson (Object, Options (..), defaultOptions)
-import Data.Aeson.Types (genericParseJSON)
+import Data.Aeson (Value (..), withObject, (.:?))
+import qualified Data.Aeson.Key as K
+import qualified Data.Aeson.KeyMap as KM
 import Data.List (nub)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map.Strict as M
 import Data.Set (Set)
+import qualified Data.Set as S
 import qualified Data.Text as T
 import Data.Time (UTCTime)
 import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms as VA
 import qualified Data.Vector.Algorithms.Intro as VA
 import Data.Yaml.Aeson (FromJSON (..))
-import GHC.Generics hiding (to)
 import qualified Graphics.Vty.Input.Events as E
 import Model.LinearHistory
 import Model.OrgMode
@@ -99,15 +100,31 @@ data AppConfig a = AppConfig
     _scrollingMargin :: Int,
     _keyTimeoutMs :: Int,
     _colorScheme :: String,
-    _commands :: Maybe Object -- Optional map of command aliases to Bool (default: all enabled)
+    _commands :: Set T.Text
   }
-  deriving (Generic, Show)
+  deriving (Show)
 
 instance FromJSON (AppConfig a) where
-  parseJSON =
-    genericParseJSON
-      defaultOptions
-        { fieldLabelModifier = drop 1 -- drops the leading underscore
+  parseJSON = withObject "AppConfig" $ \o -> do
+    files' <- o .:? "files"
+    inboxFile' <- o .:? "inboxFile"
+    projectsFile' <- o .:? "projectsFile"
+    scrollingMargin' <- o .:? "scrollingMargin"
+    keyTimeoutMs' <- o .:? "keyTimeoutMs"
+    colorScheme' <- o .:? "colorScheme"
+    mCommandsObj <- o .:? "commands"
+    let disabledSet = case mCommandsObj of
+          Nothing -> S.empty
+          Just obj -> S.fromList [K.toText k | (k, v) <- KM.toList obj, v == Bool False]
+    return
+      AppConfig
+        { _files = maybe [] id files',
+          _inboxFile = maybe "" id inboxFile',
+          _projectsFile = maybe "" id projectsFile',
+          _scrollingMargin = maybe 5 id scrollingMargin',
+          _keyTimeoutMs = maybe 500 id keyTimeoutMs',
+          _colorScheme = maybe "dark" id colorScheme',
+          _commands = disabledSet
         }
 
 expandConfigPaths :: AppConfig a -> IO (AppConfig a)

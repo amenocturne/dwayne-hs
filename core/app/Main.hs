@@ -10,9 +10,10 @@ module Main (main) where
 
 import Api.Server (runServer)
 import Commands.Registry (allCommands)
-import Data.Aeson (Object)
 import qualified Data.Map.Strict as M
 import Data.Maybe (mapMaybe)
+import qualified Data.Set as S
+import qualified Data.Text as T
 import Data.Yaml.Aeson (ParseException, decodeFileEither)
 import Model.OrgMode (Task, TaskFile)
 import Parser.OrgParser (anyTaskparser, orgFileParser)
@@ -96,10 +97,10 @@ startTui = do
 
   let commandsConfig = case parsedConfig of
         Right appConfig -> _commands appConfig
-        Left _ -> Nothing
+        Left _ -> S.empty
   tui (mkSystemConfig commandsConfig)
 
-mkSystemConfig :: Maybe Object -> SystemConfig Task
+mkSystemConfig :: S.Set T.Text -> SystemConfig Task
 mkSystemConfig commandsConfig =
   SystemConfig
     { _taskParser = anyTaskparser,

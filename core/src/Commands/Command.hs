@@ -3,10 +3,8 @@
 module Commands.Command where
 
 import Api.Types (ApiBinding)
-import Data.Aeson (Object, Value (..))
-import qualified Data.Aeson.Key as K
-import qualified Data.Aeson.KeyMap as KM
 import Data.List.NonEmpty (NonEmpty)
+import qualified Data.Set as Set
 import qualified Data.Text as T
 import Options.Applicative (Parser)
 import Tui.Types (AppContext, GlobalAppState, KeyEvent, KeyPress)
@@ -46,17 +44,7 @@ data Command a = Command
     cmdApi :: Maybe (ApiBinding a)
   }
 
--- | Filter commands based on optional commands config object.
--- Commands are enabled by default unless explicitly set to false in config.
-getEnabledCommands :: Maybe Object -> [Command a] -> [Command a]
-getEnabledCommands Nothing cmds = cmds
-getEnabledCommands (Just commandsObj) cmds =
-  filter (isCommandEnabled commandsObj) cmds
-  where
-    isCommandEnabled :: Object -> Command a -> Bool
-    isCommandEnabled obj cmd =
-      case KM.lookup (K.fromText $ cmdAlias cmd) obj of
-        Nothing -> True
-        Just (Bool False) -> False
-        Just (Bool True) -> True
-        _ -> True
+-- | Filter commands based on disabled commands set.
+-- Commands are enabled by default unless their alias is in the disabled set.
+getEnabledCommands :: Set.Set T.Text -> [Command a] -> [Command a]
+getEnabledCommands disabled = filter (\cmd -> not $ Set.member (cmdAlias cmd) disabled)
