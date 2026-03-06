@@ -3,23 +3,13 @@
 module Commands.Refile (refileCommand, openRefileDialog) where
 
 import Brick (get, modify)
-import Commands.Command (Command (..), TuiBinding (..))
+import Commands.Command (Command (..))
 import Commands.ErrorDialog (showError)
 import Control.Lens
 import qualified Core.Operations as Ops
-import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.Set as Set
-import qualified Graphics.Vty.Input.Events as E
 import Model.OrgMode (Task)
-import qualified Tui.Contexts as Ctx
-import Tui.Keybindings
-import qualified Tui.Keybindings as KB
 import Tui.Types
-  ( AppContext,
-    AppMode (..),
-    GlobalAppState,
-    KeyEvent (..),
-    KeyPress (..),
+  ( GlobalAppState,
     RefileDialog (..),
     appState,
     fileStateLens,
@@ -33,15 +23,7 @@ refileCommand =
     { cmdName = "Refile Task",
       cmdAlias = "refile",
       cmdDescription = "Refile the current task to a project by showing a project selection dialog",
-      cmdTui =
-        Just $
-          TuiBinding
-            { tuiKeyEvent = Refile,
-              tuiKeybinding = toKeySeq "rf", -- 'r' then 'f' -- TODO: fix the shortcut doesn't work because we have 'r' for refresh
-              tuiDescription = "Refile task to project",
-              tuiAction = openRefileDialog,
-              tuiContext = Ctx.modeKeyContext NormalMode
-            },
+      cmdTui = Nothing,
       cmdCli = Nothing,
       cmdApi = Nothing
     }
