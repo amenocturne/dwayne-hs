@@ -46,7 +46,8 @@ import Servant
     type (:>),
   )
 import TextUtils (readFileExample)
-import Tui.Types (AppContext, commands, config, fileParser, fileStateLens, getAllFiles, system)
+import Core.Types (TaskStoreOps (..))
+import Tui.Types (AppContext, commands, config, fileParser, fileStateLens, getAllFiles, system, taskStoreOps)
 
 -- | API type for view endpoints — catch-all route that dispatches at runtime
 type ViewsAPI =
@@ -99,13 +100,16 @@ data ServerState = ServerState
 -- This ensures the API always returns the most current data
 reloadContext :: AppContext Task -> IO (AppContext Task)
 reloadContext ctx = do
-  let fps = getAllFiles (view config ctx)
-      parser = view (system . fileParser) ctx
-  results <- forM fps $ \fp -> do
-    txt <- readFileExample fp
-    let (_, _, parsed) = runParser parser txt
-    return (fp, parsed)
-  let newFileState = M.fromList results
+  newFileState <- case view (system . taskStoreOps) ctx of
+    Just ops -> storeLoad ops
+    Nothing -> do
+      let fps = getAllFiles (view config ctx)
+          parser = view (system . fileParser) ctx
+      results <- forM fps $ \fp -> do
+        txt <- readFileExample fp
+        let (_, _, parsed) = runParser parser txt
+        return (fp, parsed)
+      return $ M.fromList results
   return $ set fileStateLens newFileState ctx
 
 -- | Find the API handler for a given endpoint in the command list
