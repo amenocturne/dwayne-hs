@@ -206,13 +206,4 @@ runServer port initialCtx = do
           (app serverState)
 
   putStrLn $ "Starting server on http://localhost:" ++ show port
-  putStrLn "  API endpoints:"
-  putStrLn "    - Views: http://localhost:8080/api/views/*"
-  putStrLn "    - Search: http://localhost:8080/api/search?query=<text>"
-  putStrLn "    - Projects (by pointer): http://localhost:8080/api/projects/by-pointer?file=<path>&taskIndex=<idx>"
-  putStrLn "    - Projects (tree): http://localhost:8080/api/projects/tasks?file=<path>&taskIndex=<idx>"
-  putStrLn "    - Projects (parent): http://localhost:8080/api/projects/parent?file=<path>&taskIndex=<idx>"
-  putStrLn "    - Capture: POST http://localhost:8080/api/tasks/capture"
-  putStrLn "  WebSocket: ws://localhost:8080/ws"
-  putStrLn "  Static files: http://localhost:8080/"
   run port wsApp
