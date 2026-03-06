@@ -260,7 +260,7 @@ handleEvent (AppEvent event) = case event of
             results <- liftIO $ case view (system . taskStoreOps) ctx of
               Just ops -> do
                 storeSave ops (M.fromList changedFiles)
-                return [Right () | _ <- changedFiles]
+                traverse (uncurry writeTaskFile) changedFiles
               Nothing ->
                 traverse (uncurry writeTaskFile) changedFiles
             let errors = [err | Left err <- results]
@@ -290,7 +290,7 @@ handleEvent (AppEvent event) = case event of
         results <- liftIO $ case view (system . taskStoreOps) ctx of
           Just ops -> do
             storeSave ops (M.fromList changedFiles)
-            return [Right () | _ <- changedFiles]
+            traverse (uncurry writeTaskFile) changedFiles
           Nothing ->
             traverse (uncurry writeTaskFile) changedFiles
         let errors = [err | Left err <- results]
