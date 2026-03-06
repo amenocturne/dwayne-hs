@@ -32,6 +32,13 @@ import Model.OrgMode
 import Parser.Parser
 import TextUtils (expandPath)
 
+-- | Backend-agnostic task storage operations.
+-- Captured as closures so SystemConfig doesn't need existential types.
+data TaskStoreOps = TaskStoreOps
+  { storeLoad :: IO (FileState Task),
+    storeSave :: FileState Task -> IO ()
+  }
+
 data AppContext a = AppContext
   { _appState :: AppState a,
     _config :: AppConfig a,
@@ -149,7 +156,8 @@ data SystemConfig a = SystemConfig
     _taskParser :: Parser a,
     _keybindings :: [KeyBinding a],
     _defaultFilters :: [a -> Bool],
-    _defaultSorter :: a -> a -> Ordering
+    _defaultSorter :: a -> a -> Ordering,
+    _taskStoreOps :: Maybe TaskStoreOps
   }
 
 data AppState a = AppState

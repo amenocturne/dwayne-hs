@@ -107,5 +107,6 @@ mkSystemConfig commandsConfig =
       _fileParser = orgFileParser,
       _keybindings = orgKeyBindings allCommands commandsConfig,
       _defaultFilters = [todoKeywordFilter "INBOX"],
-      _defaultSorter = sortByCreatedDesc
+      _defaultSorter = sortByCreatedDesc,
+      _taskStoreOps = Nothing
     }
