@@ -14,10 +14,11 @@ module Commands.Views
     viewProjectCommand,
     viewDoneCommand,
     viewTrashCommand,
+    workQueueCommand,
   )
 where
 
-import Api.Handlers (makeKeywordViewHandler, viewAllHandler)
+import Api.Handlers (makeKeywordViewHandler, makeViewHandler, viewAllHandler)
 import Api.Types (ApiBinding (..), ApiMethod (..))
 import Commands.CliHelpers (formatTaskLine, loadFileState)
 import Commands.Command (Command (..), TuiBinding (..))
@@ -167,3 +168,36 @@ viewDoneCommand = viewCommand orgDoneKeyword " ad" "viewDone" "views/done" Nothi
 -- | View TRASH tasks
 viewTrashCommand :: Command Task
 viewTrashCommand = viewCommand orgTrashKeyword " ax" "viewTrash" "views/trash" Nothing
+
+workQueueCommand :: Command Task
+workQueueCommand =
+  Command
+    { cmdName = "Work Queue",
+      cmdAlias = "viewWorkQueue",
+      cmdDescription = "Show TODAY and SOON tasks by priority and deadline",
+      cmdTui =
+        Just $
+          TuiBinding
+            { tuiKeyEvent = View "work-queue",
+              tuiKeybinding = KB.toKeySeq " aq",
+              tuiDescription = "Show work queue (TODAY + SOON)",
+              tuiAction = do
+                CmdProjects.saveForJump $ Helpers.applyFilterToAllTasks workQueueFilter
+                Helpers.applySorter KB.sortByPriorityThenDeadline,
+              tuiContext = Ctx.modeKeyContext NormalMode
+            },
+      cmdCli = Just $ pure $ do
+        (_, fState) <- loadFileState
+        let results = computeFilteredSortedView [workQueueFilter] KB.sortByPriorityThenDeadline fState
+        mapM_ (\(task, ptr) -> putStrLn $ formatTaskLine task ptr) (V.toList results),
+      cmdApi =
+        Just $
+          ApiBinding
+            { apiEndpoint = "views/work-queue",
+              apiMethod = GET,
+              apiHandler = makeViewHandler [workQueueFilter] KB.sortByPriorityThenDeadline
+            }
+    }
+
+workQueueFilter :: Task -> Bool
+workQueueFilter task = KB.todoKeywordFilter orgTodayKeyword task || KB.todoKeywordFilter orgSoonKeyword task

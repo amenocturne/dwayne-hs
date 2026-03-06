@@ -90,6 +90,7 @@ import Commands.Views
     viewTodoCommand,
     viewTrashCommand,
     viewWaitingCommand,
+    workQueueCommand,
   )
 import Model.OrgMode (Task)
 
@@ -140,6 +141,7 @@ allCommands =
     viewProjectCommand,
     viewDoneCommand,
     viewTrashCommand,
+    workQueueCommand,
     -- Navigation commands
     jumpToEndCommand,
     jumpToBeginningCommand,

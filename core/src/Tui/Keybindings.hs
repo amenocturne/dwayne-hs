@@ -8,6 +8,7 @@ module Tui.Keybindings
   ( orgKeyBindings,
     sortByPriorityAsc,
     sortByPriorityDesc,
+    sortByPriorityThenDeadline,
     sortByCreatedAsc,
     sortByCreatedDesc,
     todoKeywordFilter,
@@ -82,6 +83,17 @@ sortByPriorityDesc :: Task -> Task -> Ordering
 sortByPriorityDesc t1 t2 = comparing getPriority t2 t1
   where
     getPriority t = fromMaybe maxBound (_priority t)
+
+sortByPriorityThenDeadline :: Task -> Task -> Ordering
+sortByPriorityThenDeadline t1 t2 =
+  case sortByPriorityAsc t1 t2 of
+    EQ -> comparing getDeadline t1 t2
+    other -> other
+  where
+    getDeadline t = case fmap time (_deadline t) of
+      Nothing -> LocalTime (fromGregorian 9999 12 31) midnight
+      Just (Left d) -> LocalTime d midnight
+      Just (Right lt) -> lt
 
 sortByCreatedAsc :: Task -> Task -> Ordering
 sortByCreatedAsc = comparing getCreated
