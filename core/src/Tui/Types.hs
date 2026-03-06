@@ -30,7 +30,8 @@ import qualified Graphics.Vty.Input.Events as E
 import Model.LinearHistory
 import Model.OrgMode
 import Parser.Parser
-import TextUtils (expandPath)
+import System.FilePath (isAbsolute, takeDirectory, (</>))
+import TextUtils (expandPath, getConfigPath)
 
 data AppContext a = AppContext
   { _appState :: AppState a,
@@ -100,7 +101,8 @@ data AppConfig a = AppConfig
     _scrollingMargin :: Int,
     _keyTimeoutMs :: Int,
     _colorScheme :: String,
-    _commands :: Set T.Text
+    _commands :: Set T.Text,
+    _database :: String
   }
   deriving (Show)
 
@@ -112,6 +114,7 @@ instance FromJSON (AppConfig a) where
     scrollingMargin' <- o .:? "scrollingMargin"
     keyTimeoutMs' <- o .:? "keyTimeoutMs"
     colorScheme' <- o .:? "colorScheme"
+    database' <- o .:? "database"
     mCommandsObj <- o .:? "commands"
     let disabledSet = case mCommandsObj of
           Nothing -> S.empty
@@ -124,7 +127,8 @@ instance FromJSON (AppConfig a) where
           _scrollingMargin = maybe 5 id scrollingMargin',
           _keyTimeoutMs = maybe 500 id keyTimeoutMs',
           _colorScheme = maybe "dark" id colorScheme',
-          _commands = disabledSet
+          _commands = disabledSet,
+          _database = maybe "dwayne.db" id database'
         }
 
 expandConfigPaths :: AppConfig a -> IO (AppConfig a)
@@ -132,12 +136,21 @@ expandConfigPaths config = do
   expandedFiles <- mapM expandPath (_files config)
   expandedInboxFile <- expandPath (_inboxFile config)
   expandedProjectsFile <- expandPath (_projectsFile config)
+  expandedDatabase <- resolveDbPath (_database config)
   return $
     config
       { _files = expandedFiles,
         _inboxFile = expandedInboxFile,
-        _projectsFile = expandedProjectsFile
+        _projectsFile = expandedProjectsFile,
+        _database = expandedDatabase
       }
+
+resolveDbPath :: String -> IO String
+resolveDbPath path
+  | isAbsolute path = expandPath path
+  | otherwise = do
+      configPath <- getConfigPath
+      expandPath (takeDirectory configPath </> path)
 
 -- | Get all files from config, including files, inboxFile, and projectsFile
 -- Removes duplicates and returns a unique list

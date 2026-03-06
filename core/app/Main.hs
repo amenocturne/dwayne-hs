@@ -10,6 +10,10 @@ module Main (main) where
 
 import Api.Server (runServer)
 import Commands.Registry (allCommands)
+import Control.Monad (void, when)
+import DB.Connection (initDatabase, isDatabaseEmpty, withDatabase)
+import DB.Import (importFileState)
+import DB.TaskStore (DatabaseStore (..), mkTaskStoreOps)
 import qualified Data.Map.Strict as M
 import Data.Maybe (mapMaybe)
 import qualified Data.Set as S
@@ -17,7 +21,7 @@ import qualified Data.Text as T
 import Data.Yaml.Aeson (ParseException, decodeFileEither)
 import Model.OrgMode (Task, TaskFile)
 import Parser.OrgParser (anyTaskparser, orgFileParser)
-import Parser.Parser (Location, ParserResult, errorToMaybe, runParser)
+import Parser.Parser (Location, Parser, ParserResult, errorToMaybe, runParser)
 import Refile.OrgRefileable ()
 import Render.OrgRender ()
 import Searcher.OrgSearcher ()
@@ -60,32 +64,33 @@ initializeAppContext = do
             "  - The YAML syntax is valid",
             "  - All required fields are present"
           ]
-    Right conf -> expandConfigPaths conf
+    Right c -> expandConfigPaths c
 
   let allFiles = getAllFiles conf
-      sysConf = mkSystemConfig (_commands conf)
+      dbFile = _database conf
+  initDatabase dbFile
 
-  parsedFiles <- mapM readTaskFile allFiles
-  let fState = fileStateFromParsedFiles parsedFiles
+  parsedFiles <- mapM (readTaskFile orgFileParser) allFiles
+  let fState = M.fromList (fmap (\(fp, (_, result)) -> (fp, result)) parsedFiles)
       parsingErrors = extractParsingErrors parsedFiles
-
   case parsingErrors of
     [] -> return ()
     errs -> do
       putStrLn "WARNING: Parsing errors found:"
       mapM_ printParsingError errs
 
+  needsImport <- isDatabaseEmpty dbFile
+  when needsImport $
+    void $ withDatabase dbFile $ \conn ->
+      importFileState conn fState
+
+  let ops = mkTaskStoreOps (DatabaseStore dbFile)
+      sysConf = (mkSystemConfig (_commands conf)) {_taskStoreOps = Just ops}
+
   return $ initializeAppContextForServer sysConf conf fState
   where
-    readTaskFile :: FilePath -> IO (FilePath, (Location, ParserResult (TaskFile Task)))
-    readTaskFile f = do
-      content <- readFileExample f
-      let (loc, _, taskFile) = runParser orgFileParser content
-      return (f, (loc, taskFile))
-
-    fileStateFromParsedFiles = M.fromList . fmap (\(fp, (_, result)) -> (fp, result))
-
-    extractParsingErrors = mapMaybe (\(fp, (loc, result)) -> fmap (\e -> (fp, loc, e)) (errorToMaybe result))
+    extractParsingErrors parsedFiles =
+      mapMaybe (\(fp, (loc, result)) -> fmap (\e -> (fp, loc, e)) (errorToMaybe result)) parsedFiles
 
     printParsingError (fp, loc, err) =
       putStrLn $ "  " ++ fp ++ ": " ++ err ++ " at " ++ show loc
@@ -94,11 +99,34 @@ startTui :: IO ()
 startTui = do
   configFilePath <- getConfigPath
   parsedConfig <- decodeFileEither configFilePath :: IO (Either ParseException (AppConfig Task))
+  conf <- case parsedConfig of
+    Left err ->
+      die $
+        unlines
+          [ "ERROR: Failed to load configuration file",
+            "Location: " ++ configFilePath,
+            "",
+            "Reason: " ++ show err
+          ]
+    Right c -> expandConfigPaths c
+  let dbFile = _database conf
+  initDatabase dbFile
+  needsImport <- isDatabaseEmpty dbFile
+  when needsImport $ do
+    let allFiles = getAllFiles conf
+    parsedFiles <- mapM (readTaskFile orgFileParser) allFiles
+    let fState = M.fromList (fmap (\(fp, (_, result)) -> (fp, result)) parsedFiles)
+    void $ withDatabase dbFile $ \conn ->
+      importFileState conn fState
+  let ops = mkTaskStoreOps (DatabaseStore dbFile)
+      sysConf = (mkSystemConfig (_commands conf)) {_taskStoreOps = Just ops}
+  tui sysConf
 
-  let commandsConfig = case parsedConfig of
-        Right appConfig -> _commands appConfig
-        Left _ -> S.empty
-  tui (mkSystemConfig commandsConfig)
+readTaskFile :: Parser (TaskFile Task) -> FilePath -> IO (FilePath, (Location, ParserResult (TaskFile Task)))
+readTaskFile parser f = do
+  content <- readFileExample f
+  let (loc, _, taskFile) = runParser parser content
+  return (f, (loc, taskFile))
 
 mkSystemConfig :: S.Set T.Text -> SystemConfig Task
 mkSystemConfig commandsConfig =

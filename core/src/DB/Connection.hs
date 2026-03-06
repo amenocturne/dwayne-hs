@@ -3,6 +3,7 @@
 module DB.Connection
   ( withDatabase,
     initDatabase,
+    isDatabaseEmpty,
   )
 where
 
@@ -20,6 +21,12 @@ initDatabase :: FilePath -> IO ()
 initDatabase dbPath =
   withDatabase dbPath $ \conn ->
     runMigrations conn allMigrations
+
+isDatabaseEmpty :: FilePath -> IO Bool
+isDatabaseEmpty path =
+  withDatabase path $ \conn -> do
+    [Only count] <- query_ conn "SELECT COUNT(*) FROM tasks"
+    return (count == (0 :: Int))
 
 setupConnection :: Connection -> IO ()
 setupConnection conn = do
