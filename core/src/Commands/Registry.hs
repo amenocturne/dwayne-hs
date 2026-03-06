@@ -1,4 +1,4 @@
-module Commands.Registry (allCommands, getEnabledCommands) where
+module Commands.Registry (allCommands) where
 
 import Commands.AddTask (addTaskCommand)
 import Commands.CmdMode
@@ -82,10 +82,6 @@ import Commands.Views
     viewTrashCommand,
     viewWaitingCommand,
   )
-import Data.Aeson (Object, Value (..))
-import qualified Data.Aeson.Key as K
-import qualified Data.Aeson.KeyMap as KM
-import qualified Data.Text as T
 import Model.OrgMode (Task)
 
 -- | All available commands in the application
@@ -170,20 +166,3 @@ allCommands =
     -- Macros
     musicMacroCommand
   ]
-
--- | Filter commands based on optional commands config object
--- Commands are enabled by default unless explicitly set to false in config
--- If Nothing, all commands are enabled
--- If Just object, only commands with value false are disabled
-getEnabledCommands :: Maybe Object -> [Command Task]
-getEnabledCommands Nothing = allCommands
-getEnabledCommands (Just commandsObj) =
-  filter (isCommandEnabled commandsObj) allCommands
-  where
-    isCommandEnabled :: Object -> Command Task -> Bool
-    isCommandEnabled obj cmd =
-      case KM.lookup (K.fromText $ cmdAlias cmd) obj of
-        Nothing -> True -- Not specified = enabled by default
-        Just (Bool False) -> False -- Explicitly disabled
-        Just (Bool True) -> True -- Explicitly enabled
-        _ -> True -- Invalid value = enabled by default

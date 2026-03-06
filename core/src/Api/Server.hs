@@ -11,8 +11,8 @@ where
 import qualified Api.Handlers
 import Api.Types (ApiBinding (..), ApiMethod (..), PaginatedResponse (..), ProjectTreeResponse, ResponseMetadata (..), TaskWithPointer)
 import qualified Api.WebSocket as WS
-import Commands.Command (Command (..))
-import Commands.Registry (allCommands, getEnabledCommands)
+import Commands.Command (Command (..), getEnabledCommands)
+import Commands.Registry (allCommands)
 import Control.Concurrent.MVar
 import Control.Lens (set, view)
 import Control.Monad (forM)
@@ -21,8 +21,8 @@ import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified FileWatcher as FW
 import Model.OrgMode (Task, TaskFile)
-import qualified Network.Wai.Handler.WebSockets as WaiWS
 import Network.Wai.Handler.Warp (run)
+import qualified Network.Wai.Handler.WebSockets as WaiWS
 import Network.Wai.Middleware.Cors (simpleCors)
 import qualified Network.WebSockets as WebSockets
 import Parser.Parser (runParser)
@@ -78,17 +78,17 @@ type ProjectsAPI =
     :> QueryParam' '[Required] "taskIndex" Int
     :> Get '[JSON] (PaginatedResponse TaskWithPointer)
     :<|> "projects"
-    :> "tasks"
-    :> QueryParam' '[Required] "file" FilePath
-    :> QueryParam' '[Required] "taskIndex" Int
-    :> QueryParam "offset" Int
-    :> QueryParam "limit" Int
-    :> Get '[JSON] ProjectTreeResponse
+      :> "tasks"
+      :> QueryParam' '[Required] "file" FilePath
+      :> QueryParam' '[Required] "taskIndex" Int
+      :> QueryParam "offset" Int
+      :> QueryParam "limit" Int
+      :> Get '[JSON] ProjectTreeResponse
     :<|> "projects"
-    :> "parent"
-    :> QueryParam' '[Required] "file" FilePath
-    :> QueryParam' '[Required] "taskIndex" Int
-    :> Get '[JSON] (PaginatedResponse TaskWithPointer)
+      :> "parent"
+      :> QueryParam' '[Required] "file" FilePath
+      :> QueryParam' '[Required] "taskIndex" Int
+      :> Get '[JSON] (PaginatedResponse TaskWithPointer)
 
 -- | Combined API: /api/* for REST endpoints, /* for static files
 type API = "api" :> (ViewsAPI :<|> SearchAPI :<|> ProjectsAPI) :<|> Raw
@@ -134,7 +134,7 @@ viewsServer serverState =
     handlerFor :: T.Text -> Maybe Int -> Maybe Int -> Handler (PaginatedResponse TaskWithPointer)
     handlerFor endpoint mOffset mLimit = do
       ctx <- liftIO $ readMVar (stateCache serverState)
-      let enabledCommands = getEnabledCommands (view (config . commands) ctx)
+      let enabledCommands = getEnabledCommands (view (config . commands) ctx) allCommands
       case findHandler endpoint enabledCommands of
         Just handler -> handler ctx mOffset mLimit
         Nothing -> return $ PaginatedResponse [] (ResponseMetadata 0)

@@ -21,11 +21,10 @@ module Tui.Keybindings
 where
 
 import Brick
+import Commands.Command (getEnabledCommands)
 import qualified Commands.Command as Cmd
 import Control.Lens
-import Data.Aeson (Object, Value (..))
-import qualified Data.Aeson.Key as K
-import qualified Data.Aeson.KeyMap as KM
+import Data.Aeson (Object)
 import Data.Char (isUpper, toLower)
 import Data.List.NonEmpty (NonEmpty (..), fromList)
 import qualified Data.Map.Strict as M
@@ -69,21 +68,8 @@ commandToKeyBinding cmd =
 -- If enabledCommands is Nothing, all commands are enabled
 -- If enabledCommands is Just object, only commands not explicitly disabled are included
 orgKeyBindings :: [Cmd.Command Task] -> Maybe Object -> [KeyBinding Task]
-orgKeyBindings allCommands enabledCommands =
-  mapMaybe commandToKeyBinding (filterCommands allCommands enabledCommands)
-  where
-    -- Filter commands based on config
-    filterCommands :: [Cmd.Command Task] -> Maybe Object -> [Cmd.Command Task]
-    filterCommands cmds Nothing = cmds
-    filterCommands cmds (Just commandsObj) = filter (isCommandEnabled commandsObj) cmds
-
-    isCommandEnabled :: Object -> Cmd.Command Task -> Bool
-    isCommandEnabled obj cmd =
-      case KM.lookup (K.fromText $ Cmd.cmdAlias cmd) obj of
-        Nothing -> True -- Not specified = enabled by default
-        Just (Bool False) -> False -- Explicitly disabled
-        Just (Bool True) -> True -- Explicitly enabled
-        _ -> True -- Invalid value = enabled by default
+orgKeyBindings allCommands commandsConfig =
+  mapMaybe commandToKeyBinding (getEnabledCommands commandsConfig allCommands)
 
 veryOldTime :: LocalTime
 veryOldTime = LocalTime (fromGregorian 1970 1 1) midnight
