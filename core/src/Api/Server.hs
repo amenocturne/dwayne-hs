@@ -9,7 +9,7 @@ module Api.Server
 where
 
 import qualified Api.Handlers
-import Api.Types (ApiBinding (..), ApiMethod (..), PaginatedResponse (..), ProjectTreeResponse, ResponseMetadata (..), TaskWithPointer)
+import Api.Types (ApiBinding (..), ApiMethod (..), CaptureRequest, PaginatedResponse (..), ProjectTreeResponse, ResponseMetadata (..), TaskWithPointer)
 import qualified Api.WebSocket as WS
 import Commands.Command (Command (..), getEnabledCommands)
 import Commands.Registry (allCommands)
@@ -33,10 +33,12 @@ import Servant
     Get,
     Handler,
     JSON,
+    Post,
     Proxy (..),
     QueryParam,
     QueryParam',
     Raw,
+    ReqBody,
     Required,
     Server,
     err404,
@@ -86,8 +88,15 @@ type ProjectsAPI =
       :> QueryParam' '[Required] "taskIndex" Int
       :> Get '[JSON] (PaginatedResponse TaskWithPointer)
 
+-- | Capture API for quick task creation
+type CaptureAPI =
+  "tasks"
+    :> "capture"
+    :> ReqBody '[JSON] CaptureRequest
+    :> Post '[JSON] TaskWithPointer
+
 -- | Combined API: /api/* for REST endpoints, /* for static files
-type API = "api" :> (ViewsAPI :<|> SearchAPI :<|> ProjectsAPI) :<|> Raw
+type API = "api" :> (ViewsAPI :<|> SearchAPI :<|> ProjectsAPI :<|> CaptureAPI) :<|> Raw
 
 -- | Server state containing cached context and WebSocket registry
 data ServerState = ServerState
@@ -156,10 +165,14 @@ projectsServer serverState =
       ctx <- liftIO $ readMVar (stateCache serverState)
       Api.Handlers.getParentProjectHandler filePath taskIdx ctx
 
+-- | Capture server implementation
+captureServer :: ServerState -> Server CaptureAPI
+captureServer serverState = Api.Handlers.captureHandler (stateCache serverState)
+
 -- | Main API server combining views and static file serving
 apiServer :: ServerState -> Server API
 apiServer serverState =
-  (viewsServer serverState :<|> searchServer serverState :<|> projectsServer serverState)
+  (viewsServer serverState :<|> searchServer serverState :<|> projectsServer serverState :<|> captureServer serverState)
     :<|> serveDirectoryWebApp "web/dist" -- Assumes run from project root
 
 -- | Convert the API server to a WAI Application with CORS support
@@ -199,6 +212,7 @@ runServer port initialCtx = do
   putStrLn "    - Projects (by pointer): http://localhost:8080/api/projects/by-pointer?file=<path>&taskIndex=<idx>"
   putStrLn "    - Projects (tree): http://localhost:8080/api/projects/tasks?file=<path>&taskIndex=<idx>"
   putStrLn "    - Projects (parent): http://localhost:8080/api/projects/parent?file=<path>&taskIndex=<idx>"
+  putStrLn "    - Capture: POST http://localhost:8080/api/tasks/capture"
   putStrLn "  WebSocket: ws://localhost:8080/ws"
   putStrLn "  Static files: http://localhost:8080/"
   run port wsApp

@@ -9,9 +9,24 @@ import qualified Commands.Projects as CmdProjects
 import Control.Lens
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Map.Strict as M
+import qualified Data.Set as S
 import qualified Data.Text as T
+import Data.Time (getZonedTime)
+import Data.Time.Format (defaultTimeLocale, formatTime)
+import qualified Data.Vector as V
+import Model.OrgMode
+  ( Task (..),
+    content,
+    orgDayTimeFormat,
+    orgInboxKeyword,
+    plainToRichText,
+  )
+import Parser.OrgParser (dateTimeParserReimplemented)
+import Parser.Parser (ParserResult (..), runParser)
+import Searcher.OrgSearcher ()
 import Searcher.Searcher
 import Tui.Types
+import Writer.OrgWriter ()
 import Writer.Writer
 
 abortCmd :: AppContext a -> AppContext a
@@ -31,7 +46,7 @@ cmdDeleteChar ctx =
     _ ->
       (switchMode NormalMode . set (appState . cmdState) Nothing) ctx
 
-executeCommand :: (Searcher a, Writer a, Show a) => GlobalAppState a
+executeCommand :: GlobalAppState Task
 executeCommand = do
   ctx <- get
   case view (appState . cmdState) ctx of
@@ -67,6 +82,44 @@ executeCommand = do
           modify $ over viewFilterLens ((matches $ T.strip cmd) :)
           modify $ set cursorLens (Just 0)
           modify $ switchMode NormalMode . set (appState . cmdState) Nothing
+        Capture -> do
+          let titleText = T.strip cmd
+          if T.null titleText
+            then modify $ set (appState . cmdState) Nothing . switchMode NormalMode
+            else do
+              ctx <- get
+              let fp = view (config . inboxFile) ctx
+              case preview (fileLens fp) ctx of
+                Nothing -> do
+                  modify $ set (appState . cmdState) (Just $ ShowingMessage "Inbox file not found")
+                  modify $ switchMode NormalMode
+                Just tf -> do
+                  now <- liftIO getZonedTime
+                  let createdStr = T.pack $ formatTime defaultTimeLocale orgDayTimeFormat now
+                      (_, _, createdResult) = runParser dateTimeParserReimplemented createdStr
+                      createdTime = case createdResult of
+                        ParserSuccess t -> Just t
+                        _ -> Nothing
+                      newTask =
+                        Task
+                          { _level = 1,
+                            _todoKeyword = orgInboxKeyword,
+                            _priority = Nothing,
+                            _title = plainToRichText titleText,
+                            _tags = S.empty,
+                            _scheduled = Nothing,
+                            _deadline = Nothing,
+                            _createdProp = createdTime,
+                            _closed = Nothing,
+                            _properties = [],
+                            _description = plainToRichText ""
+                          }
+                      oldTasks = view content tf
+                      updatedTf = tf & content .~ V.snoc oldTasks newTask
+                  modify $ set (fileLens fp) updatedTf
+                  forceWriteAll
+                  let msg = "Captured: " <> titleText
+                  modify $ set (appState . cmdState) (Just $ ShowingMessage msg)
     _ -> return ()
 
 saveAll :: GlobalAppState a

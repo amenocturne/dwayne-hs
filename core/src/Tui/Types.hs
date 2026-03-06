@@ -57,6 +57,7 @@ data KeyEvent
   | CleanKeyState
   | SaveAll
   | AddTask
+  | QuickCapture
   | OpenUrl
   | SortCreatedAsc
   | SortCreatedDesc
@@ -180,7 +181,7 @@ data AppState a = AppState
     _selectionAnchor :: Maybe Int
   }
 
-data CmdType = Command | Search deriving (Eq, Show)
+data CmdType = Command | Search | Capture deriving (Eq, Show)
 
 data CmdState
   = Typing {_cmdType :: CmdType, _cmdInput :: T.Text}

@@ -60,6 +60,7 @@ library
         Commands.Edit
         Commands.Navigation
         Commands.OpenUrl
+        Commands.QuickCapture
         Commands.Priority
         Commands.Projects
         Commands.RefreshView

@@ -17,23 +17,35 @@ module Api.Handlers
 
     -- * Project Tree Handler
     buildProjectTree,
+
+    -- * Capture Handler
+    captureHandler,
   )
 where
 
-import Api.Types (PaginatedResponse (..), ProjectTreeResponse (..), ResponseMetadata (..), TaskNode (..), TaskWithPointer (..))
-import Control.Lens (preview, view)
+import Api.Types (CaptureRequest (..), PaginatedResponse (..), ProjectTreeResponse (..), ResponseMetadata (..), TaskNode (..), TaskWithPointer (..))
+import Control.Concurrent.MVar (MVar, modifyMVar)
+import Control.Lens (preview, set, view, (&), (.~))
+import Control.Monad.IO.Class (liftIO)
 import Core.Filters (computeFilteredSortedView)
 import qualified Core.Operations as Ops
-import Core.Types (FileState, TaskPointer (..), level)
+import Core.Types (FileState, TaskPointer (..), TaskStoreOps (..), level)
+import qualified Data.ByteString.Lazy.Char8 as BSL
+import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe)
+import qualified Data.Set as S
 import qualified Data.Text as T
+import Data.Time (getZonedTime)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import qualified Data.Vector as V
-import Model.OrgMode (Task)
+import Model.OrgMode (Task (..), content, orgDayTimeFormat, orgInboxKeyword, plainToRichText)
+import Parser.OrgParser (dateTimeParserReimplemented)
+import Parser.Parser (ParserResult (..), runParser)
 import Searcher.OrgSearcher ()
 import Searcher.Searcher (matches)
-import Servant (Handler, err404, throwError)
+import Servant (Handler, err400, err404, errBody, throwError)
 import Tui.Keybindings (todoKeywordFilter)
-import Tui.Types (AppContext, fileStateLens, taskBy)
+import Tui.Types (AppContext, config, fileStateLens, inboxFile, system, taskBy, taskStoreOps)
 import Writer.OrgWriter ()
 
 -- | Generic view handler builder
@@ -210,3 +222,48 @@ buildProjectTree projectPtr fs = do
           (descendants, _) = takeDescendants taskLevel allRest
           children = buildChildren taskLevel descendants
        in TaskNode task ptr children
+
+captureHandler ::
+  MVar (AppContext Task) ->
+  CaptureRequest ->
+  Handler TaskWithPointer
+captureHandler cacheVar req = do
+  now <- liftIO getZonedTime
+  let titleText = captureTitle req
+      createdStr = T.pack $ formatTime defaultTimeLocale orgDayTimeFormat now
+      (_, _, createdResult) = runParser dateTimeParserReimplemented createdStr
+      createdTime = case createdResult of
+        ParserSuccess t -> Just t
+        _ -> Nothing
+      newTask =
+        Task
+          { _level = 1,
+            _todoKeyword = orgInboxKeyword,
+            _priority = Nothing,
+            _title = plainToRichText titleText,
+            _tags = S.empty,
+            _scheduled = Nothing,
+            _deadline = Nothing,
+            _createdProp = createdTime,
+            _closed = Nothing,
+            _properties = [],
+            _description = plainToRichText ""
+          }
+  result <- liftIO $ modifyMVar cacheVar $ \ctx -> do
+    let fp = view (config . inboxFile) ctx
+        fs = view fileStateLens ctx
+    case M.lookup fp fs of
+      Nothing -> return (ctx, Left "Inbox file not found")
+      Just (ParserFailure _) -> return (ctx, Left "Inbox file has parse errors")
+      Just (ParserSuccess tf) -> do
+        let idx = V.length (view content tf)
+            updatedTf = tf & content .~ V.snoc (view content tf) newTask
+            newCtx = set fileStateLens (M.insert fp (ParserSuccess updatedTf) fs) ctx
+            ptr = TaskPointer fp idx
+        case view (system . taskStoreOps) ctx of
+          Just ops -> storeSave ops (view fileStateLens newCtx)
+          Nothing -> return ()
+        return (newCtx, Right (TaskWithPointer newTask ptr))
+  case result of
+    Left err -> throwError $ err400 {errBody = BSL.pack err}
+    Right twp -> return twp

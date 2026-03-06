@@ -34,6 +34,7 @@ import Commands.Navigation
 import Commands.OpenUrl (openUrlCommand)
 import Commands.Priority (priorityDownCommand, priorityUpCommand)
 import Commands.Projects (goToProjectsCommand)
+import Commands.QuickCapture (quickCaptureCommand)
 import Commands.Refile (refileCommand)
 import Commands.RefreshView (refreshViewCommand)
 import Commands.SelectionMode
@@ -100,6 +101,7 @@ allCommands =
   [ -- Core commands
     goToProjectsCommand,
     addTaskCommand,
+    quickCaptureCommand,
     editTaskCommand,
     refileCommand,
     openUrlCommand,

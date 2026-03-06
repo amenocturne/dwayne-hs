@@ -7,6 +7,9 @@ module Api.Types
   ( -- * HTTP Methods
     ApiMethod (..),
 
+    -- * Request Types
+    CaptureRequest (..),
+
     -- * Response Types
     TaskWithPointer (..),
     ResponseMetadata (..),
@@ -20,7 +23,7 @@ module Api.Types
 where
 
 import Core.Types (Task, TaskPointer)
-import Data.Aeson (ToJSON (..), object, (.=))
+import Data.Aeson (FromJSON, ToJSON (..), object, (.=))
 import qualified Data.Text as T
 import GHC.Generics (Generic)
 import Servant (Handler)
@@ -100,6 +103,16 @@ data ProjectTreeResponse = ProjectTreeResponse
 instance ToJSON ProjectTreeResponse where
   toJSON (ProjectTreeResponse root) =
     object ["root" .= root]
+
+-- | Request type for quick capture endpoint
+data CaptureRequest = CaptureRequest
+  { captureTitle :: T.Text
+  }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON CaptureRequest
+
+instance ToJSON CaptureRequest
 
 -- | API binding for a command
 -- Describes how a command maps to an HTTP endpoint

@@ -206,6 +206,7 @@ drawCompactView mQuery ctx =
 cmdTypeToPrefix :: CmdType -> T.Text
 cmdTypeToPrefix Command = ":"
 cmdTypeToPrefix Search = "/"
+cmdTypeToPrefix Capture = "capture: "
 
 cmdWidget :: CmdType -> T.Text -> Widget Name
 cmdWidget cmdType query =
