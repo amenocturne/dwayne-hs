@@ -9,6 +9,8 @@ module Commands.TodoKeyword
     waitingCommand,
     projectCommand,
     todoCommand,
+    todayCommand,
+    soonCommand,
     doneCommand,
     trashCommand,
   )
@@ -25,6 +27,8 @@ import Model.OrgMode
     orgProjectKeyword,
     orgRelevantKeyword,
     orgSomedayKeyword,
+    orgSoonKeyword,
+    orgTodayKeyword,
     orgTodoKeyword,
     orgTrashKeyword,
     orgWaitingKeyword,
@@ -74,7 +78,7 @@ somedayCommand :: Command Task
 somedayCommand = todoKeywordCommand orgSomedayKeyword "ts" "keywordSomeday"
 
 notesCommand :: Command Task
-notesCommand = todoKeywordCommand orgNotesKeyword "tn" "keywordNotes"
+notesCommand = todoKeywordCommand orgNotesKeyword "tN" "keywordNotes"
 
 listCommand :: Command Task
 listCommand = todoKeywordCommand orgListKeyword "tl" "keywordList"
@@ -86,7 +90,13 @@ projectCommand :: Command Task
 projectCommand = todoKeywordCommand orgProjectKeyword "tp" "keywordProject"
 
 todoCommand :: Command Task
-todoCommand = todoKeywordCommand orgTodoKeyword "tt" "keywordTodo"
+todoCommand = todoKeywordCommand orgTodoKeyword "to" "keywordTodo"
+
+todayCommand :: Command Task
+todayCommand = todoKeywordCommand orgTodayKeyword "tt" "keywordToday"
+
+soonCommand :: Command Task
+soonCommand = todoKeywordCommand orgSoonKeyword "tn" "keywordSoon"
 
 doneCommand :: Command Task
 doneCommand = todoKeywordCommand orgDoneKeyword "td" "keywordDone"

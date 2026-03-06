@@ -3,13 +3,15 @@
 module Commands.Views
   ( viewAllCommand,
     viewInboxCommand,
+    viewTodayCommand,
+    viewTodoCommand,
+    viewSoonCommand,
     viewRelevantCommand,
     viewSomedayCommand,
     viewNotesCommand,
     viewListCommand,
     viewWaitingCommand,
     viewProjectCommand,
-    viewTodoCommand,
     viewDoneCommand,
     viewTrashCommand,
   )
@@ -33,6 +35,8 @@ import Model.OrgMode
     orgProjectKeyword,
     orgRelevantKeyword,
     orgSomedayKeyword,
+    orgSoonKeyword,
+    orgTodayKeyword,
     orgTodoKeyword,
     orgTrashKeyword,
     orgWaitingKeyword,
@@ -120,9 +124,17 @@ viewAllCommand =
 viewInboxCommand :: Command Task
 viewInboxCommand = viewCommand orgInboxKeyword " ai" "viewInbox" "views/inbox" (Just KB.sortByCreatedDesc)
 
+-- | View TODAY tasks
+viewTodayCommand :: Command Task
+viewTodayCommand = viewCommand orgTodayKeyword " at" "viewToday" "views/today" (Just KB.sortByPriorityAsc)
+
+-- | View SOON tasks
+viewSoonCommand :: Command Task
+viewSoonCommand = viewCommand orgSoonKeyword " an" "viewSoon" "views/soon" (Just KB.sortByPriorityAsc)
+
 -- | View RELEVANT tasks
 viewRelevantCommand :: Command Task
-viewRelevantCommand = viewCommand orgRelevantKeyword " ar" "viewRelevant" "views/relevant" (Just KB.sortByPriorityAsc)
+viewRelevantCommand = viewCommand orgRelevantKeyword " aR" "viewRelevant" "views/relevant" (Just KB.sortByPriorityAsc)
 
 -- | View SOMEDAY tasks
 viewSomedayCommand :: Command Task
@@ -130,7 +142,7 @@ viewSomedayCommand = viewCommand orgSomedayKeyword " as" "viewSomeday" "views/so
 
 -- | View NOTES tasks
 viewNotesCommand :: Command Task
-viewNotesCommand = viewCommand orgNotesKeyword " an" "viewNotes" "views/notes" Nothing
+viewNotesCommand = viewCommand orgNotesKeyword " aN" "viewNotes" "views/notes" Nothing
 
 -- | View LIST tasks
 viewListCommand :: Command Task
@@ -146,7 +158,7 @@ viewProjectCommand = viewCommand orgProjectKeyword " ap" "viewProject" "views/pr
 
 -- | View TODO tasks
 viewTodoCommand :: Command Task
-viewTodoCommand = viewCommand orgTodoKeyword " at" "viewTodo" "views/todo" (Just KB.sortByPriorityAsc)
+viewTodoCommand = viewCommand orgTodoKeyword " ao" "viewTodo" "views/todo" (Just KB.sortByPriorityAsc)
 
 -- | View DONE tasks
 viewDoneCommand :: Command Task

@@ -258,16 +258,24 @@ orgDoneKeyword = "DONE"
 orgTrashKeyword :: T.Text
 orgTrashKeyword = "TRASH"
 
+orgTodayKeyword :: T.Text
+orgTodayKeyword = "TODAY"
+
+orgSoonKeyword :: T.Text
+orgSoonKeyword = "SOON"
+
 orgTodoKeyWords :: [T.Text]
 orgTodoKeyWords =
   [ orgInboxKeyword,
-    orgRelevantKeyword,
+    orgTodayKeyword,
+    orgTodoKeyword,
+    orgSoonKeyword,
     orgSomedayKeyword,
     orgNotesKeyword,
     orgListKeyword,
     orgWaitingKeyword,
     orgProjectKeyword,
-    orgTodoKeyword,
+    orgRelevantKeyword,
     orgDoneKeyword,
     orgTrashKeyword,
     "" -- for tasks without todo keyword
