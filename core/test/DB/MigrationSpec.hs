@@ -41,6 +41,7 @@ spec = do
   describe "runMigrations" $ do
     it "is idempotent — running twice does not error" $ do
       dbPath <- emptySystemTempFile "dwayne-test.db"
+      initDatabase dbPath
       withDatabase dbPath $ \conn -> do
         runMigrations conn allMigrations
         runMigrations conn allMigrations
@@ -48,6 +49,7 @@ spec = do
 
     it "records applied migrations" $ do
       dbPath <- emptySystemTempFile "dwayne-test.db"
+      initDatabase dbPath
       withDatabase dbPath $ \conn -> do
         rows <- query_ conn "SELECT name FROM migrations" :: IO [Only T.Text]
         let names = map fromOnly rows
@@ -56,6 +58,7 @@ spec = do
 
     it "does not re-apply already applied migrations" $ do
       dbPath <- emptySystemTempFile "dwayne-test.db"
+      initDatabase dbPath
       withDatabase dbPath $ \conn -> do
         runMigrations conn allMigrations
         rows <- query_ conn "SELECT count(*) FROM migrations WHERE name = '001_initial_schema'" :: IO [Only Int]

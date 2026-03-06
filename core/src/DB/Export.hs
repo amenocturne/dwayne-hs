@@ -8,6 +8,8 @@ module DB.Export
   )
 where
 
+import Core.Types (FileState)
+import DB.Query (selectTaskQuery)
 import DB.TaskRow (DBTask (..))
 import Data.List (groupBy)
 import qualified Data.Map.Strict as M
@@ -21,8 +23,6 @@ import Parser.Parser (ParserResult (..))
 import Writer.OrgWriter ()
 import Writer.Writer (Writer (..))
 
-type FileState a = M.Map FilePath (ParserResult (TaskFile a))
-
 type DBRow = (T.Text, Int) :. DBTask
 
 loadTasksFromDB :: Connection -> IO (FileState Task)
@@ -30,9 +30,7 @@ loadTasksFromDB conn = do
   rows <-
     query_
       conn
-      "SELECT file_path, task_index, level, todo_keyword, priority, \
-      \title, tags, scheduled, deadline, created, closed, properties, description \
-      \FROM tasks ORDER BY file_path, task_index" ::
+      selectTaskQuery ::
       IO [DBRow]
   let grouped = groupBy (\a b -> filePath a == filePath b) rows
       pairs = map toFileEntry grouped

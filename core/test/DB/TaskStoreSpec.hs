@@ -2,6 +2,7 @@
 
 module DB.TaskStoreSpec (spec) where
 
+import DB.Connection (initDatabase)
 import DB.TaskStore (DatabaseStore (..), OrgFileStore (..), TaskStore (..))
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
@@ -53,6 +54,7 @@ spec = do
   describe "DatabaseStore" $ do
     it "roundtrips a FileState through SQLite" $ do
       dbPath <- emptySystemTempFile "dwayne-taskstore-test.db"
+      initDatabase dbPath
       let store = DatabaseStore dbPath
           inputFs =
             M.fromList
@@ -83,6 +85,7 @@ spec = do
 
     it "save overwrites previous data" $ do
       dbPath <- emptySystemTempFile "dwayne-taskstore-test.db"
+      initDatabase dbPath
       let store = DatabaseStore dbPath
           fs1 =
             M.fromList

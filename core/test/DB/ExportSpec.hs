@@ -2,7 +2,7 @@
 
 module DB.ExportSpec (spec) where
 
-import DB.Connection (withDatabase)
+import DB.Connection (initDatabase, withDatabase)
 import DB.Export (loadTasksFromDB)
 import DB.Import (importFileState)
 import DB.TaskRow (deserializeOrgTime, deserializeProperties, deserializeTags)
@@ -81,6 +81,7 @@ spec = do
   describe "loadTasksFromDB" $ do
     it "returns empty FileState for empty DB" $ do
       dbPath <- emptySystemTempFile "dwayne-export-test.db"
+      initDatabase dbPath
       withDatabase dbPath $ \conn -> do
         fs <- loadTasksFromDB conn
         M.size fs `shouldBe` 0
@@ -88,6 +89,7 @@ spec = do
 
     it "roundtrips a single task" $ do
       dbPath <- emptySystemTempFile "dwayne-export-test.db"
+      initDatabase dbPath
       withDatabase dbPath $ \conn -> do
         let inputFs =
               M.fromList
@@ -115,6 +117,7 @@ spec = do
 
     it "roundtrips a minimal task" $ do
       dbPath <- emptySystemTempFile "dwayne-export-test.db"
+      initDatabase dbPath
       withDatabase dbPath $ \conn -> do
         let inputFs =
               M.fromList
@@ -141,6 +144,7 @@ spec = do
 
     it "groups tasks by file_path" $ do
       dbPath <- emptySystemTempFile "dwayne-export-test.db"
+      initDatabase dbPath
       withDatabase dbPath $ \conn -> do
         let inputFs =
               M.fromList
@@ -160,6 +164,7 @@ spec = do
 
     it "preserves task order within a file" $ do
       dbPath <- emptySystemTempFile "dwayne-export-test.db"
+      initDatabase dbPath
       withDatabase dbPath $ \conn -> do
         let inputFs =
               M.fromList

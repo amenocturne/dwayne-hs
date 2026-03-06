@@ -6,6 +6,8 @@ module DB.Import
   )
 where
 
+import Core.Types (FileState)
+import DB.Query (deleteAllTasksQuery, insertTaskQuery)
 import DB.TaskRow (DBTask (..))
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
@@ -14,11 +16,9 @@ import Database.SQLite.Simple.Types ((:.) (..))
 import Model.OrgMode (Task, TaskFile (..))
 import Parser.Parser (ParserResult (..))
 
-type FileState a = M.Map FilePath (ParserResult (TaskFile a))
-
 importFileState :: Connection -> FileState Task -> IO Int
 importFileState conn fs = do
-  execute_ conn "DELETE FROM tasks"
+  execute_ conn deleteAllTasksQuery
   let files = M.toList fs
   counts <- mapM (importFile conn) files
   pure (sum counts)
@@ -34,7 +34,5 @@ importTask :: Connection -> FilePath -> Int -> Task -> IO ()
 importTask conn fp idx task =
   execute
     conn
-    "INSERT INTO tasks (file_path, task_index, level, todo_keyword, priority, \
-    \title, tags, scheduled, deadline, created, closed, properties, description) \
-    \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    insertTaskQuery
     ((fp, idx) :. DBTask task)

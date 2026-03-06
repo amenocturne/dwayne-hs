@@ -80,6 +80,7 @@ library
         DB.Connection
         DB.Export
         DB.Import
+        DB.Query
         DB.TaskRow
         DB.TaskStore
         Core.Filters

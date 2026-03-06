@@ -3,7 +3,7 @@
 
 module DB.ImportSpec (spec) where
 
-import DB.Connection (withDatabase)
+import DB.Connection (initDatabase, withDatabase)
 import DB.Import (importFileState, importTask)
 import DB.TaskRow (serializeOrgTime, serializeProperties, serializeTags)
 import qualified Data.Map.Strict as M
@@ -76,6 +76,7 @@ spec = do
   describe "importTask" $ do
     it "inserts a task into the database" $ do
       dbPath <- emptySystemTempFile "dwayne-import-test.db"
+      initDatabase dbPath
       withDatabase dbPath $ \conn -> do
         importTask conn "/test/inbox.org" 0 sampleTask
         rows <-
@@ -102,6 +103,7 @@ spec = do
   describe "importFileState" $ do
     it "imports tasks from multiple files" $ do
       dbPath <- emptySystemTempFile "dwayne-import-test.db"
+      initDatabase dbPath
       withDatabase dbPath $ \conn -> do
         let fs =
               M.fromList
@@ -116,6 +118,7 @@ spec = do
 
     it "skips files with parser errors" $ do
       dbPath <- emptySystemTempFile "dwayne-import-test.db"
+      initDatabase dbPath
       withDatabase dbPath $ \conn -> do
         let fs =
               M.fromList
@@ -128,6 +131,7 @@ spec = do
 
     it "clears old data on re-import" $ do
       dbPath <- emptySystemTempFile "dwayne-import-test.db"
+      initDatabase dbPath
       withDatabase dbPath $ \conn -> do
         let fs1 =
               M.fromList
