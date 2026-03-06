@@ -16,3 +16,4 @@ web/npm-debug.log*
 web/pnpm-debug.log*
 web/yarn-debug.log*
 web/yarn-error.log*
+.DS_Store
