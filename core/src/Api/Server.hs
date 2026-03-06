@@ -28,6 +28,7 @@ import qualified Network.WebSockets as WebSockets
 import Parser.Parser (runParser)
 import Servant
   ( Application,
+    Capture,
     Get,
     Handler,
     JSON,
@@ -37,29 +38,23 @@ import Servant
     Raw,
     Required,
     Server,
+    err404,
     serve,
     serveDirectoryWebApp,
+    throwError,
     type (:<|>) (..),
     type (:>),
   )
 import TextUtils (readFileExample)
 import Tui.Types (AppContext, commands, config, fileParser, fileStateLens, getAllFiles, system)
 
--- | API type for all view endpoints
--- Manually lists all 11 view endpoints from Commands.Views
--- Each endpoint accepts optional offset and limit query parameters for pagination
+-- | API type for view endpoints — catch-all route that dispatches at runtime
 type ViewsAPI =
-  "views" :> "all" :> QueryParam "offset" Int :> QueryParam "limit" Int :> Get '[JSON] (PaginatedResponse TaskWithPointer)
-    :<|> "views" :> "inbox" :> QueryParam "offset" Int :> QueryParam "limit" Int :> Get '[JSON] (PaginatedResponse TaskWithPointer)
-    :<|> "views" :> "relevant" :> QueryParam "offset" Int :> QueryParam "limit" Int :> Get '[JSON] (PaginatedResponse TaskWithPointer)
-    :<|> "views" :> "someday" :> QueryParam "offset" Int :> QueryParam "limit" Int :> Get '[JSON] (PaginatedResponse TaskWithPointer)
-    :<|> "views" :> "notes" :> QueryParam "offset" Int :> QueryParam "limit" Int :> Get '[JSON] (PaginatedResponse TaskWithPointer)
-    :<|> "views" :> "list" :> QueryParam "offset" Int :> QueryParam "limit" Int :> Get '[JSON] (PaginatedResponse TaskWithPointer)
-    :<|> "views" :> "waiting" :> QueryParam "offset" Int :> QueryParam "limit" Int :> Get '[JSON] (PaginatedResponse TaskWithPointer)
-    :<|> "views" :> "project" :> QueryParam "offset" Int :> QueryParam "limit" Int :> Get '[JSON] (PaginatedResponse TaskWithPointer)
-    :<|> "views" :> "todo" :> QueryParam "offset" Int :> QueryParam "limit" Int :> Get '[JSON] (PaginatedResponse TaskWithPointer)
-    :<|> "views" :> "done" :> QueryParam "offset" Int :> QueryParam "limit" Int :> Get '[JSON] (PaginatedResponse TaskWithPointer)
-    :<|> "views" :> "trash" :> QueryParam "offset" Int :> QueryParam "limit" Int :> Get '[JSON] (PaginatedResponse TaskWithPointer)
+  "views"
+    :> Capture "view" T.Text
+    :> QueryParam "offset" Int
+    :> QueryParam "limit" Int
+    :> Get '[JSON] (PaginatedResponse TaskWithPointer)
 
 -- | Search API for full-text search across tasks
 type SearchAPI =
@@ -113,47 +108,26 @@ reloadContext ctx = do
   let newFileState = M.fromList results
   return $ set fileStateLens newFileState ctx
 
--- | Build the Views API server from enabled commands
--- Returns handlers for all view endpoints in order matching ViewsAPI
-viewsServer :: ServerState -> Server ViewsAPI
-viewsServer serverState =
-  handlerFor "views/all"
-    :<|> handlerFor "views/inbox"
-    :<|> handlerFor "views/relevant"
-    :<|> handlerFor "views/someday"
-    :<|> handlerFor "views/notes"
-    :<|> handlerFor "views/list"
-    :<|> handlerFor "views/waiting"
-    :<|> handlerFor "views/project"
-    :<|> handlerFor "views/todo"
-    :<|> handlerFor "views/done"
-    :<|> handlerFor "views/trash"
+-- | Find the API handler for a given endpoint in the command list
+findViewHandler :: T.Text -> [Command Task] -> Maybe (AppContext Task -> Maybe Int -> Maybe Int -> Handler (PaginatedResponse TaskWithPointer))
+findViewHandler endpoint cmds =
+  case filter matchesEndpoint cmds of
+    (cmd : _) -> apiHandler <$> cmdApi cmd
+    [] -> Nothing
   where
-    -- Find handler for a given endpoint, reading from cached context
-    -- Accepts optional offset and limit parameters for pagination
-    handlerFor :: T.Text -> Maybe Int -> Maybe Int -> Handler (PaginatedResponse TaskWithPointer)
-    handlerFor endpoint mOffset mLimit = do
-      ctx <- liftIO $ readMVar (stateCache serverState)
-      let enabledCommands = getEnabledCommands (view (config . commands) ctx) allCommands
-      case findHandler endpoint enabledCommands of
-        Just handler -> handler ctx mOffset mLimit
-        Nothing -> return $ PaginatedResponse [] (ResponseMetadata 0)
+    matchesEndpoint cmd = case cmdApi cmd of
+      Just binding -> apiEndpoint binding == endpoint && apiMethod binding == GET
+      Nothing -> False
 
-    -- Find the API handler for a given endpoint in the command list
-    findHandler :: T.Text -> [Command Task] -> Maybe (AppContext Task -> Maybe Int -> Maybe Int -> Handler (PaginatedResponse TaskWithPointer))
-    findHandler endpoint cmds =
-      case filter (matchesEndpoint endpoint) cmds of
-        (cmd : _) -> case cmdApi cmd of
-          Just binding -> Just (apiHandler binding)
-          Nothing -> Nothing
-        [] -> Nothing
-
-    -- Check if a command's API binding matches the given endpoint
-    matchesEndpoint :: T.Text -> Command Task -> Bool
-    matchesEndpoint endpoint cmd =
-      case cmdApi cmd of
-        Just binding -> apiEndpoint binding == endpoint && apiMethod binding == GET
-        Nothing -> False
+-- | Build the Views API server — dispatches to the matching command at runtime
+viewsServer :: ServerState -> Server ViewsAPI
+viewsServer serverState viewName mOffset mLimit = do
+  ctx <- liftIO $ readMVar (stateCache serverState)
+  let enabledCommands = getEnabledCommands (view (config . commands) ctx) allCommands
+      endpoint = "views/" <> viewName
+  case findViewHandler endpoint enabledCommands of
+    Just handler -> handler ctx mOffset mLimit
+    Nothing -> throwError err404
 
 -- | Search server implementation
 searchServer :: ServerState -> Server SearchAPI
