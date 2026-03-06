@@ -67,5 +67,5 @@ instance TaskStore DatabaseStore where
       pure ()
 
 -- | Create TaskStoreOps closures from any TaskStore instance
-mkTaskStoreOps :: (TaskStore s) => s -> TaskStoreOps
+mkTaskStoreOps :: (TaskStore s) => s -> TaskStoreOps Task
 mkTaskStoreOps s = TaskStoreOps {storeLoad = loadTasks s, storeSave = saveTasks s}

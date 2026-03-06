@@ -90,7 +90,7 @@ instance FromJSON TaskPointer where
 
 -- | Backend-agnostic task storage operations.
 -- Captured as closures so SystemConfig doesn't need existential types.
-data TaskStoreOps = TaskStoreOps
-  { storeLoad :: IO (FileState Task),
-    storeSave :: FileState Task -> IO ()
+data TaskStoreOps a = TaskStoreOps
+  { storeLoad :: IO (FileState a),
+    storeSave :: FileState a -> IO ()
   }

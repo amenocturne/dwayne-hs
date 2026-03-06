@@ -27,6 +27,7 @@ import Parser.Parser
 import Refile.Refile (refileTaskToProject)
 import Refile.Refileable (Refileable)
 import Searcher.Searcher (Searcher, matches)
+import Core.Types (TaskStoreOps (..))
 import TextUtils (readFileExample)
 import Tui.Types
 import Validation.ProjectValidation
@@ -34,22 +35,24 @@ import Writer.OrgWriter ()
 import Writer.Writer
 
 checkFilesUnmodified :: (Eq a) => AppContext a -> IO [FilePath]
-checkFilesUnmodified ctx = do
-  let fps = getAllFiles (view config ctx)
-      parser = view (system . fileParser) ctx
-      originalMap = view originalFileStateLens ctx
-  pairs <- liftIO $ forM fps $ \fp -> do
-    txt <- readFileExample fp
-    let (_, _, newRes) = runParser parser txt
-    return (fp, newRes)
-  let modified =
-        [ fp
-        | (fp, newRes) <- pairs,
-          case M.lookup fp originalMap of
-            Just originalRes -> originalRes /= newRes
-            Nothing -> True
-        ]
-  return modified
+checkFilesUnmodified ctx = case view (system . taskStoreOps) ctx of
+  Just _ -> return []
+  Nothing -> do
+    let fps = getAllFiles (view config ctx)
+        parser = view (system . fileParser) ctx
+        originalMap = view originalFileStateLens ctx
+    pairs <- liftIO $ forM fps $ \fp -> do
+      txt <- readFileExample fp
+      let (_, _, newRes) = runParser parser txt
+      return (fp, newRes)
+    let modified =
+          [ fp
+          | (fp, newRes) <- pairs,
+            case M.lookup fp originalMap of
+              Just originalRes -> originalRes /= newRes
+              Nothing -> True
+          ]
+    return modified
 
 checkUnsavedChanges :: (Eq a) => AppContext a -> Bool
 checkUnsavedChanges ctx =
@@ -60,14 +63,17 @@ checkUnsavedChanges ctx =
 performReload :: GlobalAppState a
 performReload = do
   ctx <- get
-  let fps = getAllFiles (view config ctx)
-      parser = view (system . fileParser) ctx
-  results <- liftIO $ forM fps $ \fp -> do
-    txt <- readFileExample fp
-    let (_, _, parsed) = runParser parser txt
-    return (fp, parsed)
-  let newFileState = M.fromList results
-      filesReloaded = length fps
+  newFileState <- liftIO $ case view (system . taskStoreOps) ctx of
+    Just ops -> storeLoad ops
+    Nothing -> do
+      let fps = getAllFiles (view config ctx)
+          parser = view (system . fileParser) ctx
+      results <- forM fps $ \fp -> do
+        txt <- readFileExample fp
+        let (_, _, parsed) = runParser parser txt
+        return (fp, parsed)
+      return $ M.fromList results
+  let filesReloaded = M.size newFileState
   modify $ \c ->
     c
       & set fileStateLens newFileState
@@ -251,7 +257,12 @@ handleEvent (AppEvent event) = case event of
                       ++ intercalate ", " modifiedChanged
                 )
           else do
-            results <- liftIO $ traverse (uncurry writeTaskFile) changedFiles
+            results <- liftIO $ case view (system . taskStoreOps) ctx of
+              Just ops -> do
+                storeSave ops (M.fromList changedFiles)
+                return [Right () | _ <- changedFiles]
+              Nothing ->
+                traverse (uncurry writeTaskFile) changedFiles
             let errors = [err | Left err <- results]
             if null errors
               then do
@@ -276,7 +287,12 @@ handleEvent (AppEvent event) = case event of
     if null changedFiles
       then modify $ set (appState . cmdState) (Just $ ShowingMessage "No changes to save")
       else do
-        results <- liftIO $ traverse (uncurry writeTaskFile) changedFiles
+        results <- liftIO $ case view (system . taskStoreOps) ctx of
+          Just ops -> do
+            storeSave ops (M.fromList changedFiles)
+            return [Right () | _ <- changedFiles]
+          Nothing ->
+            traverse (uncurry writeTaskFile) changedFiles
         let errors = [err | Left err <- results]
         if null errors
           then do

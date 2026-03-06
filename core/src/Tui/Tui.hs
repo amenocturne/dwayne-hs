@@ -33,6 +33,7 @@ import System.Directory (getHomeDirectory)
 import System.Environment (lookupEnv)
 import System.Exit (die)
 import System.FilePath ((</>))
+import Core.Types (TaskStoreOps (..))
 import TextUtils
 import Tui.ColorScheme
 import Tui.Events (handleEvent)
@@ -63,11 +64,17 @@ instance (Searcher a, Render a Name, Writer a, Show a, Eq a, Refileable a, SV.Sy
               "  - All required fields are present"
             ]
       Right conf -> expandConfigPaths conf
-    let allFiles = getAllFiles conf
-    parsedFiles <- mapM (\f -> fmap (f,) (readTasks (view fileParser sysConf) f)) allFiles
-    eventChan <- newBChan 10 -- maybe should use different event channel size
-    let fState = M.fromList (fmap (\(a, (_, c)) -> (a, c)) parsedFiles)
-    let parsingErrors = mapMaybe (\(f, (l, e)) -> fmap (f,l,) (errorToMaybe e)) parsedFiles
+    (fState, parsingErrors) <- case view taskStoreOps sysConf of
+      Just ops -> do
+        fs <- storeLoad ops
+        return (fs, [])
+      Nothing -> do
+        let allFiles = getAllFiles conf
+        parsedFiles <- mapM (\f -> fmap (f,) (readTasks (view fileParser sysConf) f)) allFiles
+        let fs = M.fromList (fmap (\(a, (_, c)) -> (a, c)) parsedFiles)
+        let errors = mapMaybe (\(f, (l, e)) -> fmap (f,l,) (errorToMaybe e)) parsedFiles
+        return (fs, errors)
+    eventChan <- newBChan 10
     let pointers = getAllPointers fState
 
     let viewSpec = ViewSpec {_vsFilters = view defaultFilters sysConf, _vsSorter = view defaultSorter sysConf, _vsVersion = 0}

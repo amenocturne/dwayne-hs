@@ -150,7 +150,7 @@ data SystemConfig a = SystemConfig
     _keybindings :: [KeyBinding a],
     _defaultFilters :: [a -> Bool],
     _defaultSorter :: a -> a -> Ordering,
-    _taskStoreOps :: Maybe TaskStoreOps
+    _taskStoreOps :: Maybe (TaskStoreOps a)
   }
 
 data AppState a = AppState
