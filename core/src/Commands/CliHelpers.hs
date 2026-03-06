@@ -12,10 +12,10 @@ import Core.Types (FileState, TaskPointer (..))
 import DB.Connection (initDatabase, withDatabase)
 import DB.Import (importFileState)
 import qualified Data.Map.Strict as M
-import qualified Data.Set as S
 import qualified Data.Text as T
 import Data.Yaml.Aeson (ParseException, decodeFileEither)
-import Model.OrgMode (Task (..), TaskFile, richTextToPlain)
+import Model.OrgFormat (formatHeaderLine)
+import Model.OrgMode (Task (..), TaskFile)
 import Parser.OrgParser (orgFileParser)
 import Parser.Parser (ParserResult, runParser)
 import System.Exit (die)
@@ -50,17 +50,8 @@ loadFileState = do
       let (_, _, result) = runParser orgFileParser txt
       return (f, result)
 
--- | Format a task as a single line for CLI output
--- Format: [KEYWORD] title  :tags:  (file:index)
+-- | Format a task for CLI output using the org-mode header format
 formatTaskLine :: Task -> TaskPointer -> String
 formatTaskLine task ptr =
-  let kw =
-        let k = _todoKeyword task
-         in if T.null k then "" else "[" <> T.unpack k <> "] "
-      ttl = T.unpack (richTextToPlain (_title task))
-      tags' =
-        if S.null (_tags task)
-          then ""
-          else "  :" <> T.unpack (T.intercalate ":" (S.toAscList (_tags task))) <> ":"
-      loc = "  (" <> _file ptr <> ":" <> show (_taskIndex ptr) <> ")"
-   in kw <> ttl <> tags' <> loc
+  T.unpack (formatHeaderLine (_level task) (_todoKeyword task) (_priority task) (_title task) (_tags task))
+    <> "  (" <> _file ptr <> ":" <> show (_taskIndex ptr) <> ")"

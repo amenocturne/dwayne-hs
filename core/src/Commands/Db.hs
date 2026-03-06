@@ -12,10 +12,12 @@ where
 import Commands.CliHelpers (loadConfig, loadFileState)
 import Commands.Command (Command (..))
 import DB.Connection (initDatabase, withDatabase)
+import System.Directory (doesFileExist)
 import DB.Export (exportToOrgFiles, loadTasksFromDB)
 import DB.Import (importFileState)
 import qualified Data.Map.Strict as M
 import Database.SQLite.Simple (Only (..), query_)
+import Options.Applicative (help, long, switch)
 import Model.OrgMode (Task, TaskFile (..))
 import Parser.OrgParser (orgFileParser)
 import Parser.Parser (ParserResult (..), runParser)
@@ -29,11 +31,18 @@ dbInitCommand =
       cmdAlias = "dbInit",
       cmdDescription = "Initialize the database (create file, run migrations)",
       cmdTui = Nothing,
-      cmdCli = Just $ pure $ do
-        conf <- loadConfig
-        let dbPath = _database conf
-        initDatabase dbPath
-        putStrLn $ "Database initialized at: " ++ dbPath,
+      cmdCli = Just $ fmap
+        ( \force -> do
+            conf <- loadConfig
+            let dbPath = _database conf
+            exists <- doesFileExist dbPath
+            if exists && not force
+              then putStrLn $ "Database already exists at: " ++ dbPath ++ " (use --force to reinitialize)"
+              else do
+                initDatabase dbPath
+                putStrLn $ "Database initialized at: " ++ dbPath
+        )
+        (switch (long "force" <> help "Initialize even if database already exists")),
       cmdApi = Nothing
     }
 
