@@ -11,6 +11,7 @@ import Brick.BChan
 import Brick.Widgets.Dialog (dialog)
 import Control.Lens
 import Control.Monad (guard, void, when)
+import Core.Types (TaskStoreOps (..))
 import Data.Functor
 import Data.List
 import qualified Data.Map.Strict as M
@@ -33,7 +34,6 @@ import System.Directory (getHomeDirectory)
 import System.Environment (lookupEnv)
 import System.Exit (die)
 import System.FilePath ((</>))
-import Core.Types (TaskStoreOps (..))
 import TextUtils
 import Tui.ColorScheme
 import Tui.Events (handleEvent)

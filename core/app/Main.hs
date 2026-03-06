@@ -9,17 +9,20 @@
 module Main (main) where
 
 import Api.Server (runServer)
+import Commands.Command (Command (..))
 import Commands.Registry (allCommands)
-import Control.Monad (void)
+import Control.Monad (join, void)
 import DB.Connection (initDatabase, withDatabase)
 import DB.Import (importFileState)
 import DB.TaskStore (DatabaseStore (..), mkTaskStoreOps)
+import Data.Char (isUpper, toLower)
 import qualified Data.Map.Strict as M
 import Data.Maybe (mapMaybe)
 import qualified Data.Set as S
 import qualified Data.Text as T
 import Data.Yaml.Aeson (ParseException, decodeFileEither)
 import Model.OrgMode (Task, TaskFile)
+import Options.Applicative (CommandFields, Mod, command, execParser, fullDesc, header, helper, info, progDesc, subparser, (<**>))
 import Parser.OrgParser (anyTaskparser, orgFileParser)
 import Parser.Parser (Location, Parser, ParserResult, errorToMaybe, runParser)
 import Refile.OrgRefileable ()
@@ -37,8 +40,34 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
+    [] -> startTui
     ["--serve"] -> startWebServer
-    _ -> startTui
+    _ -> runCli
+
+-- | Run CLI subcommands dispatched from the command registry
+runCli :: IO ()
+runCli = join $ execParser opts
+  where
+    cliCommands = mapMaybe mkSubcommand allCommands
+    parser = subparser (mconcat cliCommands) <**> helper
+    opts = info parser (fullDesc <> header "dwayne - GTD task manager")
+
+-- | Build an optparse-applicative subcommand from a Command with a CLI binding
+mkSubcommand :: Command Task -> Maybe (Mod CommandFields (IO ()))
+mkSubcommand cmd = do
+  cliParser <- cmdCli cmd
+  let name' = toKebabCase (cmdAlias cmd)
+      desc = T.unpack (cmdDescription cmd)
+  return $ command name' (info cliParser (progDesc desc))
+
+-- | Convert camelCase to kebab-case: "dbInit" -> "db-init", "viewInbox" -> "view-inbox"
+toKebabCase :: T.Text -> String
+toKebabCase = go . T.unpack
+  where
+    go [] = []
+    go (c : cs)
+      | isUpper c = '-' : toLower c : go cs
+      | otherwise = c : go cs
 
 startWebServer :: IO ()
 startWebServer = do

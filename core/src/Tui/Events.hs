@@ -10,6 +10,7 @@ import Control.Exception (IOException, catch)
 import Control.Lens
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
+import Core.Types (TaskStoreOps (..))
 import Data.Char (isUpper, toLower)
 import Data.List (find, intercalate)
 import Data.List.NonEmpty (isPrefixOf, nonEmpty, toList)
@@ -27,7 +28,6 @@ import Parser.Parser
 import Refile.Refile (refileTaskToProject)
 import Refile.Refileable (Refileable)
 import Searcher.Searcher (Searcher, matches)
-import Core.Types (TaskStoreOps (..))
 import TextUtils (readFileExample)
 import Tui.Types
 import Validation.ProjectValidation

@@ -9,6 +9,13 @@ import Commands.CmdMode
     switchToSearchModeCommand,
   )
 import Commands.Command (Command (..))
+import Commands.Db
+  ( dbCheckCommand,
+    dbExportCommand,
+    dbImportCommand,
+    dbInitCommand,
+    dbStatsCommand,
+  )
 import Commands.Edit (editTaskCommand)
 import Commands.ErrorDialog
   ( errorDialogAcceptCommand,
@@ -164,5 +171,11 @@ allCommands =
     moveDownCommand,
     cleanKeyStateCommand,
     -- Macros
-    musicMacroCommand
+    musicMacroCommand,
+    -- Database commands
+    dbInitCommand,
+    dbImportCommand,
+    dbExportCommand,
+    dbStatsCommand,
+    dbCheckCommand
   ]

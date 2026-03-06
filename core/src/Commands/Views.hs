@@ -17,10 +17,13 @@ where
 
 import Api.Handlers (makeKeywordViewHandler, viewAllHandler)
 import Api.Types (ApiBinding (..), ApiMethod (..))
+import Commands.CliHelpers (formatTaskLine, loadFileState)
 import Commands.Command (Command (..), TuiBinding (..))
 import qualified Commands.Projects as CmdProjects
 import Control.Monad (forM_)
+import Core.Filters (computeFilteredSortedView)
 import qualified Data.Text as T
+import qualified Data.Vector as V
 import Model.OrgMode
   ( Task,
     orgDoneKeyword,
@@ -69,7 +72,12 @@ viewCommand keyword keySeq alias endpoint maybeSorter =
                 forM_ maybeSorter Helpers.applySorter,
               tuiContext = Ctx.modeKeyContext NormalMode
             },
-      cmdCli = Nothing,
+      cmdCli = Just $ pure $ do
+        (_, fState) <- loadFileState
+        let filters = [KB.todoKeywordFilter keyword]
+            sorter = maybe (\_ _ -> EQ) id maybeSorter
+            results = computeFilteredSortedView filters sorter fState
+        mapM_ (\(task, ptr) -> putStrLn $ formatTaskLine task ptr) (V.toList results),
       cmdApi =
         Just $
           ApiBinding
@@ -95,7 +103,10 @@ viewAllCommand =
               tuiAction = CmdProjects.saveForJump $ Helpers.applyFilterToAllTasks (const True),
               tuiContext = Ctx.modeKeyContext NormalMode
             },
-      cmdCli = Nothing,
+      cmdCli = Just $ pure $ do
+        (_, fState) <- loadFileState
+        let results = computeFilteredSortedView [] (\_ _ -> EQ) fState
+        mapM_ (\(task, ptr) -> putStrLn $ formatTaskLine task ptr) (V.toList results),
       cmdApi =
         Just $
           ApiBinding

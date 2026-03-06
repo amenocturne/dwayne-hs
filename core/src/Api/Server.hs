@@ -17,6 +17,7 @@ import Control.Concurrent.MVar
 import Control.Lens (set, view)
 import Control.Monad (forM)
 import Control.Monad.IO.Class (liftIO)
+import Core.Types (TaskStoreOps (..))
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified FileWatcher as FW
@@ -46,7 +47,6 @@ import Servant
     type (:>),
   )
 import TextUtils (readFileExample)
-import Core.Types (TaskStoreOps (..))
 import Tui.Types (AppContext, commands, config, fileParser, fileStateLens, getAllFiles, system, taskStoreOps)
 
 -- | API type for view endpoints — catch-all route that dispatches at runtime
