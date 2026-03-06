@@ -30,7 +30,7 @@ import qualified Graphics.Vty.Input.Events as E
 import Model.LinearHistory
 import Model.OrgMode
 import Parser.Parser
-import System.FilePath (isAbsolute, takeDirectory, (</>))
+import System.FilePath (takeDirectory, (</>))
 import TextUtils (expandPath, getConfigPath)
 
 data AppContext a = AppContext
@@ -128,7 +128,7 @@ instance FromJSON (AppConfig a) where
           _keyTimeoutMs = maybe 500 id keyTimeoutMs',
           _colorScheme = maybe "dark" id colorScheme',
           _commands = disabledSet,
-          _database = maybe "dwayne.db" id database'
+          _database = maybe "" id database'
         }
 
 expandConfigPaths :: AppConfig a -> IO (AppConfig a)
@@ -146,11 +146,10 @@ expandConfigPaths config = do
       }
 
 resolveDbPath :: String -> IO String
-resolveDbPath path
-  | isAbsolute path = expandPath path
-  | otherwise = do
-      configPath <- getConfigPath
-      expandPath (takeDirectory configPath </> path)
+resolveDbPath "" = do
+  configPath <- getConfigPath
+  return $ takeDirectory configPath </> "dwayne.db"
+resolveDbPath path = expandPath path
 
 -- | Get all files from config, including files, inboxFile, and projectsFile
 -- Removes duplicates and returns a unique list

@@ -10,8 +10,8 @@ module Main (main) where
 
 import Api.Server (runServer)
 import Commands.Registry (allCommands)
-import Control.Monad (void, when)
-import DB.Connection (initDatabase, isDatabaseEmpty, withDatabase)
+import Control.Monad (void)
+import DB.Connection (initDatabase, withDatabase)
 import DB.Import (importFileState)
 import DB.TaskStore (DatabaseStore (..), mkTaskStoreOps)
 import qualified Data.Map.Strict as M
@@ -79,10 +79,8 @@ initializeAppContext = do
       putStrLn "WARNING: Parsing errors found:"
       mapM_ printParsingError errs
 
-  needsImport <- isDatabaseEmpty dbFile
-  when needsImport $
-    void $ withDatabase dbFile $ \conn ->
-      importFileState conn fState
+  void $ withDatabase dbFile $ \conn ->
+    importFileState conn fState
 
   let ops = mkTaskStoreOps (DatabaseStore dbFile)
       sysConf = (mkSystemConfig (_commands conf)) {_taskStoreOps = Just ops}
@@ -110,14 +108,12 @@ startTui = do
           ]
     Right c -> expandConfigPaths c
   let dbFile = _database conf
+  let allFiles = getAllFiles conf
   initDatabase dbFile
-  needsImport <- isDatabaseEmpty dbFile
-  when needsImport $ do
-    let allFiles = getAllFiles conf
-    parsedFiles <- mapM (readTaskFile orgFileParser) allFiles
-    let fState = M.fromList (fmap (\(fp, (_, result)) -> (fp, result)) parsedFiles)
-    void $ withDatabase dbFile $ \conn ->
-      importFileState conn fState
+  parsedFiles <- mapM (readTaskFile orgFileParser) allFiles
+  let fState = M.fromList (fmap (\(fp, (_, result)) -> (fp, result)) parsedFiles)
+  void $ withDatabase dbFile $ \conn ->
+    importFileState conn fState
   let ops = mkTaskStoreOps (DatabaseStore dbFile)
       sysConf = (mkSystemConfig (_commands conf)) {_taskStoreOps = Just ops}
   tui sysConf

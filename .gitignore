@@ -3,6 +3,7 @@ core/resources/Phone.org
 core/dist-newstyle
 core/.env
 core/hie.yaml
+*.db
 
 # Logs
 web/*.local

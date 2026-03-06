@@ -2,6 +2,7 @@ files:
   - ./resources/Sample.org
 inboxFile: ./resources/SampleInbox.org
 projectsFile: ./resources/Projects.org
+database: ./resources/dwayne-test.db
 scrollingMargin: 6
 keyTimeoutMs: 1000
 colorScheme: "default"
