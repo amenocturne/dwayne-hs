@@ -4,10 +4,11 @@ module DB.TaskStore
   ( TaskStore (..),
     OrgFileStore (..),
     DatabaseStore (..),
+    mkTaskStoreOps,
   )
 where
 
-import Core.Types (FileState)
+import Core.Types (FileState, TaskStoreOps (..))
 import DB.Connection (withDatabase)
 import DB.Export (loadTasksFromDB)
 import DB.Import (importFileState)
@@ -64,3 +65,7 @@ instance TaskStore DatabaseStore where
     withDatabase (dbPath store) $ \conn -> do
       _ <- importFileState conn fs
       pure ()
+
+-- | Create TaskStoreOps closures from any TaskStore instance
+mkTaskStoreOps :: (TaskStore s) => s -> TaskStoreOps
+mkTaskStoreOps s = TaskStoreOps {storeLoad = loadTasks s, storeSave = saveTasks s}

@@ -49,6 +49,9 @@ module Core.Types
     FileState,
     ParserResult (..),
     resultToMaybe,
+
+    -- * Store Operations
+    TaskStoreOps (..),
   )
 where
 
@@ -84,3 +87,10 @@ instance FromJSON TaskPointer where
     TaskPointer
       <$> v .: "file"
       <*> v .: "taskIndex"
+
+-- | Backend-agnostic task storage operations.
+-- Captured as closures so SystemConfig doesn't need existential types.
+data TaskStoreOps = TaskStoreOps
+  { storeLoad :: IO (FileState Task),
+    storeSave :: FileState Task -> IO ()
+  }

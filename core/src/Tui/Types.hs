@@ -11,7 +11,7 @@ import Brick.BChan
 import Brick.Widgets.Dialog (Dialog)
 import Control.Lens
 import Control.Monad.ST (runST)
-import Core.Types (FileState, TaskPointer (..), file, taskIndex)
+import Core.Types (FileState, TaskPointer (..), TaskStoreOps (..), file, taskIndex)
 import Data.Aeson (Value (..), withObject, (.:?))
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
@@ -31,13 +31,6 @@ import Model.LinearHistory
 import Model.OrgMode
 import Parser.Parser
 import TextUtils (expandPath)
-
--- | Backend-agnostic task storage operations.
--- Captured as closures so SystemConfig doesn't need existential types.
-data TaskStoreOps = TaskStoreOps
-  { storeLoad :: IO (FileState Task),
-    storeSave :: FileState Task -> IO ()
-  }
 
 data AppContext a = AppContext
   { _appState :: AppState a,
