@@ -78,6 +78,7 @@ library
         DB.Schema
         DB.Migration
         DB.Connection
+        DB.Import
         Core.Filters
         FileWatcher
         Model.Injection
@@ -195,6 +196,7 @@ test-suite spec
         SpecHelper
         Core.OperationsSpec
         DB.MigrationSpec
+        DB.ImportSpec
         Parser.ParserSpec
         Parser.StandardParsersSpec
         Parser.OrgParserSpec
