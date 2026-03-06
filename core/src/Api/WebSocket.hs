@@ -70,8 +70,9 @@ wsApp registry pending = do
           -- Ignore messages from client for now (one-way: server -> client)
           return ()
       )
-        `catch` \(e :: SomeException) -> do
-          putStrLn $ "WebSocket client disconnected: " ++ show e
-        `finally` do
-          removeClient registry conn
-          putStrLn "Cleaned up client connection"
+        `catch` \(e :: SomeException) ->
+          do
+            putStrLn $ "WebSocket client disconnected: " ++ show e
+            `finally` do
+              removeClient registry conn
+              putStrLn "Cleaned up client connection"

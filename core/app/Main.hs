@@ -11,8 +11,8 @@ module Main (main) where
 import Api.Server (runServer)
 import Commands.Registry (allCommands)
 import Data.Aeson (Object)
-import Data.Maybe (mapMaybe)
 import qualified Data.Map.Strict as M
+import Data.Maybe (mapMaybe)
 import Data.Yaml.Aeson (ParseException, decodeFileEither)
 import Model.OrgMode (Task, TaskFile)
 import Parser.OrgParser (anyTaskparser, orgFileParser)
@@ -63,7 +63,7 @@ initializeAppContext = do
 
   let allFiles = getAllFiles conf
       sysConf = mkSystemConfig (_commands conf)
-  
+
   parsedFiles <- mapM readTaskFile allFiles
   let fState = fileStateFromParsedFiles parsedFiles
       parsingErrors = extractParsingErrors parsedFiles
@@ -81,11 +81,11 @@ initializeAppContext = do
       content <- readFileExample f
       let (loc, _, taskFile) = runParser orgFileParser content
       return (f, (loc, taskFile))
-    
+
     fileStateFromParsedFiles = M.fromList . fmap (\(fp, (_, result)) -> (fp, result))
-    
+
     extractParsingErrors = mapMaybe (\(fp, (loc, result)) -> fmap (\e -> (fp, loc, e)) (errorToMaybe result))
-    
+
     printParsingError (fp, loc, err) =
       putStrLn $ "  " ++ fp ++ ": " ++ err ++ " at " ++ show loc
 

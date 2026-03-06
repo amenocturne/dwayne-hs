@@ -69,7 +69,8 @@ performReload = do
   let newFileState = M.fromList results
       filesReloaded = length fps
   modify $ \c ->
-    c & set fileStateLens newFileState
+    c
+      & set fileStateLens newFileState
       & set originalFileStateLens newFileState
       & set (appState . cmdState) (Just $ ShowingMessage $ T.pack $ show filesReloaded ++ " file(s) reloaded")
   modify $ switchMode NormalMode
@@ -304,7 +305,7 @@ handleEvent (AppEvent event) = case event of
     let currentState = view fileStateLens ctx
         originalState = view originalFileStateLens ctx
         hasUnsavedChanges = currentState /= originalState
-    
+
     if hasUnsavedChanges
       then do
         modified <- liftIO $ checkFilesUnmodified ctx

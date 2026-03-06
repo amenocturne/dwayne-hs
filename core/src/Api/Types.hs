@@ -67,7 +67,7 @@ data PaginatedResponse a = PaginatedResponse
   }
   deriving (Eq, Show, Generic)
 
-instance ToJSON a => ToJSON (PaginatedResponse a) where
+instance (ToJSON a) => ToJSON (PaginatedResponse a) where
   toJSON (PaginatedResponse items meta) =
     object
       [ "data" .= items,

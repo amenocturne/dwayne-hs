@@ -441,14 +441,14 @@ instance FromJSON Task where
       <*> v .: "properties"
       <*> v .: "description"
 
-instance ToJSON a => ToJSON (TaskFile a) where
+instance (ToJSON a) => ToJSON (TaskFile a) where
   toJSON (TaskFile mName content) =
     object
       [ "name" .= mName,
         "content" .= V.toList content
       ]
 
-instance FromJSON a => FromJSON (TaskFile a) where
+instance (FromJSON a) => FromJSON (TaskFile a) where
   parseJSON = withObject "TaskFile" $ \v ->
     TaskFile
       <$> v .:? "name"

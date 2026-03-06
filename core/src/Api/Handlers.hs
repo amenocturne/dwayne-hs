@@ -6,12 +6,15 @@ module Api.Handlers
     makeViewHandler,
     makeKeywordViewHandler,
     viewAllHandler,
+
     -- * Search Handler
     searchHandler,
+
     -- * Project Handlers
     getProjectByPointerHandler,
     getProjectTasksHandler,
     getParentProjectHandler,
+
     -- * Project Tree Handler
     buildProjectTree,
   )
@@ -19,8 +22,8 @@ where
 
 import Api.Types (PaginatedResponse (..), ProjectTreeResponse (..), ResponseMetadata (..), TaskNode (..), TaskWithPointer (..))
 import Control.Lens (preview, view)
-import qualified Core.Operations as Ops
 import Core.Filters (computeFilteredSortedView)
+import qualified Core.Operations as Ops
 import Core.Types (FileState, TaskPointer (..), level)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T

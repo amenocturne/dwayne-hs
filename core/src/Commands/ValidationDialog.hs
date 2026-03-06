@@ -10,13 +10,15 @@ import qualified Data.Set as Set
 import qualified Graphics.Vty.Input.Events as E
 import Model.OrgMode (Task)
 import qualified Tui.Contexts as Ctx
+-- For acceptValidation, rejectValidation
+
+import Tui.Keybindings (toKey)
 import Tui.Types
   ( KeyEvent (..),
     KeyPress (..),
   )
-import qualified Tui.ValidationDialogs as TuiValidationDialogs -- For acceptValidation, rejectValidation
+import qualified Tui.ValidationDialogs as TuiValidationDialogs
 import Writer.Writer (Writer)
-import Tui.Keybindings (toKey)
 
 -- | Accept validation dialog command
 validationDialogAcceptCommand :: (Writer Task) => Command Task
