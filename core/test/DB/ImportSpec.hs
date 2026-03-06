@@ -4,7 +4,8 @@
 module DB.ImportSpec (spec) where
 
 import DB.Connection (withDatabase)
-import DB.Import (importFileState, importTask, serializeOrgTime, serializeProperties, serializeTags)
+import DB.Import (importFileState, importTask)
+import DB.TaskRow (serializeOrgTime, serializeProperties, serializeTags)
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Text as T
