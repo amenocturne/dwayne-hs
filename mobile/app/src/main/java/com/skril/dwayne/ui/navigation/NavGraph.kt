@@ -17,7 +17,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.skril.dwayne.BuildConfig
 import com.skril.dwayne.data.repository.MockTaskRepository
+import com.skril.dwayne.data.repository.TaskRepository
 import com.skril.dwayne.ui.screens.capture.CaptureScreen
 import com.skril.dwayne.ui.screens.feed.TaskFeedScreen
 import com.skril.dwayne.ui.screens.swipe.SwipeProcessingScreen
@@ -38,7 +40,10 @@ private val bottomNavItems = listOf(
 @Composable
 fun DwayneNavHost() {
     val navController = rememberNavController()
-    val repository = remember { MockTaskRepository() }
+    val repository: TaskRepository = remember {
+        if (BuildConfig.USE_MOCK_DATA) MockTaskRepository()
+        else MockTaskRepository() // TODO: replace with ApiTaskRepository
+    }
 
     Scaffold(
         bottomBar = {
