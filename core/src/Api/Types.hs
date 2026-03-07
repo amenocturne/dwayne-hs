@@ -9,6 +9,10 @@ module Api.Types
 
     -- * Request Types
     CaptureRequest (..),
+    ChangeKeywordRequest (..),
+    ChangePriorityRequest (..),
+    TagRequest (..),
+    TaskPointerRequest (..),
 
     -- * Response Types
     TaskWithPointer (..),
@@ -113,6 +117,49 @@ data CaptureRequest = CaptureRequest
 instance FromJSON CaptureRequest
 
 instance ToJSON CaptureRequest
+
+data ChangeKeywordRequest = ChangeKeywordRequest
+  { ckrFile :: FilePath,
+    ckrTaskIndex :: Int,
+    ckrKeyword :: T.Text
+  }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON ChangeKeywordRequest
+
+instance ToJSON ChangeKeywordRequest
+
+data ChangePriorityRequest = ChangePriorityRequest
+  { cprFile :: FilePath,
+    cprTaskIndex :: Int,
+    cprPriority :: Maybe Int
+  }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON ChangePriorityRequest
+
+instance ToJSON ChangePriorityRequest
+
+data TagRequest = TagRequest
+  { trFile :: FilePath,
+    trTaskIndex :: Int,
+    trTag :: T.Text
+  }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON TagRequest
+
+instance ToJSON TagRequest
+
+data TaskPointerRequest = TaskPointerRequest
+  { tprFile :: FilePath,
+    tprTaskIndex :: Int
+  }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON TaskPointerRequest
+
+instance ToJSON TaskPointerRequest
 
 -- | API binding for a command
 -- Describes how a command maps to an HTTP endpoint

@@ -9,7 +9,7 @@ module Api.Server
 where
 
 import qualified Api.Handlers
-import Api.Types (ApiBinding (..), ApiMethod (..), CaptureRequest, PaginatedResponse (..), ProjectTreeResponse, ResponseMetadata (..), TaskWithPointer)
+import Api.Types (ApiBinding (..), ApiMethod (..), CaptureRequest, ChangeKeywordRequest, ChangePriorityRequest, PaginatedResponse (..), ProjectTreeResponse, ResponseMetadata (..), TagRequest, TaskPointerRequest, TaskWithPointer)
 import qualified Api.WebSocket as WS
 import Commands.Command (Command (..), getEnabledCommands)
 import Commands.Registry (allCommands)
@@ -35,6 +35,7 @@ import Servant
     JSON,
     Post,
     Proxy (..),
+    Put,
     QueryParam,
     QueryParam',
     Raw,
@@ -95,8 +96,16 @@ type CaptureAPI =
     :> ReqBody '[JSON] CaptureRequest
     :> Post '[JSON] TaskWithPointer
 
+-- | Mutation API for task modifications
+type MutationAPI =
+  "tasks" :> "keyword" :> ReqBody '[JSON] ChangeKeywordRequest :> Put '[JSON] TaskWithPointer
+    :<|> "tasks" :> "priority" :> ReqBody '[JSON] ChangePriorityRequest :> Put '[JSON] TaskWithPointer
+    :<|> "tasks" :> "tags" :> "add" :> ReqBody '[JSON] TagRequest :> Post '[JSON] TaskWithPointer
+    :<|> "tasks" :> "tags" :> "remove" :> ReqBody '[JSON] TagRequest :> Post '[JSON] TaskWithPointer
+    :<|> "tasks" :> "delete" :> ReqBody '[JSON] TaskPointerRequest :> Post '[JSON] TaskWithPointer
+
 -- | Combined API: /api/* for REST endpoints, /* for static files
-type API = "api" :> (ViewsAPI :<|> SearchAPI :<|> ProjectsAPI :<|> CaptureAPI) :<|> Raw
+type API = "api" :> (ViewsAPI :<|> SearchAPI :<|> ProjectsAPI :<|> CaptureAPI :<|> MutationAPI) :<|> Raw
 
 -- | Server state containing cached context and WebSocket registry
 data ServerState = ServerState
@@ -169,10 +178,19 @@ projectsServer serverState =
 captureServer :: ServerState -> Server CaptureAPI
 captureServer serverState = Api.Handlers.captureHandler (stateCache serverState)
 
+-- | Mutation server implementation
+mutationServer :: ServerState -> Server MutationAPI
+mutationServer serverState =
+  Api.Handlers.changeKeywordHandler (stateCache serverState)
+    :<|> Api.Handlers.changePriorityHandler (stateCache serverState)
+    :<|> Api.Handlers.addTagHandler (stateCache serverState)
+    :<|> Api.Handlers.removeTagHandler (stateCache serverState)
+    :<|> Api.Handlers.deleteTaskHandler (stateCache serverState)
+
 -- | Main API server combining views and static file serving
 apiServer :: ServerState -> Server API
 apiServer serverState =
-  (viewsServer serverState :<|> searchServer serverState :<|> projectsServer serverState :<|> captureServer serverState)
+  (viewsServer serverState :<|> searchServer serverState :<|> projectsServer serverState :<|> captureServer serverState :<|> mutationServer serverState)
     :<|> serveDirectoryWebApp "web/dist" -- Assumes run from project root
 
 -- | Convert the API server to a WAI Application with CORS support

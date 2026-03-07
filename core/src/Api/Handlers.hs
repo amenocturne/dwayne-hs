@@ -20,10 +20,17 @@ module Api.Handlers
 
     -- * Capture Handler
     captureHandler,
+
+    -- * Mutation Handlers
+    changeKeywordHandler,
+    changePriorityHandler,
+    addTagHandler,
+    removeTagHandler,
+    deleteTaskHandler,
   )
 where
 
-import Api.Types (CaptureRequest (..), PaginatedResponse (..), ProjectTreeResponse (..), ResponseMetadata (..), TaskNode (..), TaskWithPointer (..))
+import Api.Types (CaptureRequest (..), ChangeKeywordRequest (..), ChangePriorityRequest (..), PaginatedResponse (..), ProjectTreeResponse (..), ResponseMetadata (..), TagRequest (..), TaskNode (..), TaskPointerRequest (..), TaskWithPointer (..))
 import Control.Concurrent.MVar (MVar, modifyMVar)
 import Control.Lens (preview, set, view, (&), (.~))
 import Control.Monad.IO.Class (liftIO)
@@ -264,6 +271,116 @@ captureHandler cacheVar req = do
           Just ops -> storeSave ops (view fileStateLens newCtx)
           Nothing -> return ()
         return (newCtx, Right (TaskWithPointer newTask ptr))
+  case result of
+    Left err -> throwError $ err400 {errBody = BSL.pack err}
+    Right twp -> return twp
+
+changeKeywordHandler ::
+  MVar (AppContext Task) ->
+  ChangeKeywordRequest ->
+  Handler TaskWithPointer
+changeKeywordHandler cacheVar req = do
+  result <- liftIO $ modifyMVar cacheVar $ \ctx -> do
+    let fs = view fileStateLens ctx
+        ptr = TaskPointer (ckrFile req) (ckrTaskIndex req)
+    case Ops.changeTodoKeyword (ckrKeyword req) ptr fs of
+      Left err -> return (ctx, Left err)
+      Right newFs -> do
+        let newCtx = set fileStateLens newFs ctx
+        case view (system . taskStoreOps) ctx of
+          Just ops -> storeSave ops newFs
+          Nothing -> return ()
+        case Ops.getTask ptr newFs of
+          Nothing -> return (ctx, Left "Task not found after update")
+          Just task -> return (newCtx, Right (TaskWithPointer task ptr))
+  case result of
+    Left err -> throwError $ err400 {errBody = BSL.pack err}
+    Right twp -> return twp
+
+changePriorityHandler ::
+  MVar (AppContext Task) ->
+  ChangePriorityRequest ->
+  Handler TaskWithPointer
+changePriorityHandler cacheVar req = do
+  result <- liftIO $ modifyMVar cacheVar $ \ctx -> do
+    let fs = view fileStateLens ctx
+        ptr = TaskPointer (cprFile req) (cprTaskIndex req)
+    case Ops.changeTaskPriority (cprPriority req) ptr fs of
+      Left err -> return (ctx, Left err)
+      Right newFs -> do
+        let newCtx = set fileStateLens newFs ctx
+        case view (system . taskStoreOps) ctx of
+          Just ops -> storeSave ops newFs
+          Nothing -> return ()
+        case Ops.getTask ptr newFs of
+          Nothing -> return (ctx, Left "Task not found after update")
+          Just task -> return (newCtx, Right (TaskWithPointer task ptr))
+  case result of
+    Left err -> throwError $ err400 {errBody = BSL.pack err}
+    Right twp -> return twp
+
+addTagHandler ::
+  MVar (AppContext Task) ->
+  TagRequest ->
+  Handler TaskWithPointer
+addTagHandler cacheVar req = do
+  result <- liftIO $ modifyMVar cacheVar $ \ctx -> do
+    let fs = view fileStateLens ctx
+        ptr = TaskPointer (trFile req) (trTaskIndex req)
+    case Ops.addTaskTag (trTag req) ptr fs of
+      Left err -> return (ctx, Left err)
+      Right newFs -> do
+        let newCtx = set fileStateLens newFs ctx
+        case view (system . taskStoreOps) ctx of
+          Just ops -> storeSave ops newFs
+          Nothing -> return ()
+        case Ops.getTask ptr newFs of
+          Nothing -> return (ctx, Left "Task not found after update")
+          Just task -> return (newCtx, Right (TaskWithPointer task ptr))
+  case result of
+    Left err -> throwError $ err400 {errBody = BSL.pack err}
+    Right twp -> return twp
+
+removeTagHandler ::
+  MVar (AppContext Task) ->
+  TagRequest ->
+  Handler TaskWithPointer
+removeTagHandler cacheVar req = do
+  result <- liftIO $ modifyMVar cacheVar $ \ctx -> do
+    let fs = view fileStateLens ctx
+        ptr = TaskPointer (trFile req) (trTaskIndex req)
+    case Ops.deleteTaskTag (trTag req) ptr fs of
+      Left err -> return (ctx, Left err)
+      Right newFs -> do
+        let newCtx = set fileStateLens newFs ctx
+        case view (system . taskStoreOps) ctx of
+          Just ops -> storeSave ops newFs
+          Nothing -> return ()
+        case Ops.getTask ptr newFs of
+          Nothing -> return (ctx, Left "Task not found after update")
+          Just task -> return (newCtx, Right (TaskWithPointer task ptr))
+  case result of
+    Left err -> throwError $ err400 {errBody = BSL.pack err}
+    Right twp -> return twp
+
+deleteTaskHandler ::
+  MVar (AppContext Task) ->
+  TaskPointerRequest ->
+  Handler TaskWithPointer
+deleteTaskHandler cacheVar req = do
+  result <- liftIO $ modifyMVar cacheVar $ \ctx -> do
+    let fs = view fileStateLens ctx
+        ptr = TaskPointer (tprFile req) (tprTaskIndex req)
+    case Ops.deleteTask ptr fs of
+      Left err -> return (ctx, Left err)
+      Right newFs -> do
+        let newCtx = set fileStateLens newFs ctx
+        case view (system . taskStoreOps) ctx of
+          Just ops -> storeSave ops newFs
+          Nothing -> return ()
+        case Ops.getTask ptr newFs of
+          Nothing -> return (ctx, Left "Task not found after update")
+          Just task -> return (newCtx, Right (TaskWithPointer task ptr))
   case result of
     Left err -> throwError $ err400 {errBody = BSL.pack err}
     Right twp -> return twp
