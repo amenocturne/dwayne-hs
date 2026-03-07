@@ -34,3 +34,11 @@ wbuild:
 
 winstall:
   cd web; npm install
+
+# Mobile dev
+
+mbuild:
+  cd mobile; ANDROID_HOME=/opt/homebrew/share/android-commandlinetools ./gradlew assembleDebug
+
+mclean:
+  cd mobile; ./gradlew clean
