@@ -1,12 +1,10 @@
 default:
   @just --list
 
-# Packaging
-
-install:
-  cd core; cabal install --overwrite-policy=always
-
 # Haskell dev
+
+haskell-install:
+  cd core; cabal install --overwrite-policy=always
 
 haskell-run:
   cd core; DWAYNE_CONFIG=./resources/config.yml cabal run
