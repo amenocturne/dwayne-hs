@@ -45,9 +45,9 @@ mclean:
 
 # Raycast extension
 
-rinstall:
+raycast-install:
   cd raycast; bun install
   cd raycast; bun run dev
 
-rdev:
+raycast-dev:
   cd raycast; bun run dev
