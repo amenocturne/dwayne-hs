@@ -7,7 +7,7 @@ export default async function Inbox(
   const { text } = props.arguments;
 
   try {
-    runDwayne(["capture", text]);
+    runDwayne(["capture", "--no-enrich", text]);
     await showHUD(`Captured: ${text}`);
   } catch (error) {
     await showToast({
