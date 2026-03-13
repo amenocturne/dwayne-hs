@@ -50,7 +50,7 @@ mobile-clean:
 
 raycast-install:
   cd raycast; bun install
-  cd raycast; bun run dev
 
+# Start dev server — registers extension with Raycast on first run
 raycast-dev:
   cd raycast; bun run dev
