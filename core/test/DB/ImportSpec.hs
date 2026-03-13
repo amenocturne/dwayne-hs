@@ -4,6 +4,7 @@
 module DB.ImportSpec (spec) where
 
 import DB.Connection (initDatabase, withDatabase)
+import DB.Export (loadTasksFromDB)
 import DB.Import (importFileState, importTask)
 import DB.TaskRow (serializeOrgTime, serializeProperties, serializeTags)
 import qualified Data.Map.Strict as M
@@ -146,4 +147,117 @@ spec = do
         _ <- importFileState conn fs2
         [Only count2] <- query_ conn "SELECT count(*) FROM tasks" :: IO [Only Int]
         count2 `shouldBe` 1
+      removeFile dbPath
+
+  describe "DB round-trip preserves task data" $ do
+    it "preserves plain text titles and descriptions" $ do
+      dbPath <- emptySystemTempFile "dwayne-roundtrip-test.db"
+      initDatabase dbPath
+      withDatabase dbPath $ \conn -> do
+        let fs = M.fromList [("/test.org", ParserSuccess (TaskFile (Just "test") (V.fromList [sampleTask])))]
+        _ <- importFileState conn fs
+        loaded <- loadTasksFromDB conn
+        let ParserSuccess (TaskFile _ tasks) = loaded M.! "/test.org"
+            task = V.head tasks
+        _title task `shouldBe` _title sampleTask
+        _description task `shouldBe` _description sampleTask
+        _todoKeyword task `shouldBe` "TODO"
+        _priority task `shouldBe` Just 1
+        _tags task `shouldBe` S.fromList ["errands", "shopping"]
+        _level task `shouldBe` 1
+      removeFile dbPath
+
+    it "preserves OrgLink nodes in titles" $ do
+      dbPath <- emptySystemTempFile "dwayne-roundtrip-test.db"
+      initDatabase dbPath
+      let taskWithLink =
+            minimalTask
+              { _title = RichText [OrgLink "https://example.com" (Just "Example Site")],
+                _todoKeyword = "INBOX"
+              }
+      withDatabase dbPath $ \conn -> do
+        let fs = M.fromList [("/test.org", ParserSuccess (TaskFile Nothing (V.fromList [taskWithLink])))]
+        _ <- importFileState conn fs
+        loaded <- loadTasksFromDB conn
+        let ParserSuccess (TaskFile _ tasks) = loaded M.! "/test.org"
+            task = V.head tasks
+        _title task `shouldBe` RichText [OrgLink "https://example.com" (Just "Example Site")]
+      removeFile dbPath
+
+    it "preserves mixed PlainText and OrgLink nodes" $ do
+      dbPath <- emptySystemTempFile "dwayne-roundtrip-test.db"
+      initDatabase dbPath
+      let mixedTitle =
+            RichText
+              [ PlainText "Check out ",
+                OrgLink "https://example.com" (Just "this link"),
+                PlainText " for details"
+              ]
+          taskWithMixed = minimalTask {_title = mixedTitle}
+      withDatabase dbPath $ \conn -> do
+        let fs = M.fromList [("/test.org", ParserSuccess (TaskFile Nothing (V.fromList [taskWithMixed])))]
+        _ <- importFileState conn fs
+        loaded <- loadTasksFromDB conn
+        let ParserSuccess (TaskFile _ tasks) = loaded M.! "/test.org"
+            task = V.head tasks
+        _title task `shouldBe` mixedTitle
+      removeFile dbPath
+
+    it "preserves OrgLink without title" $ do
+      dbPath <- emptySystemTempFile "dwayne-roundtrip-test.db"
+      initDatabase dbPath
+      let taskWithBareLink =
+            minimalTask
+              { _title = RichText [OrgLink "https://example.com/page" Nothing]
+              }
+      withDatabase dbPath $ \conn -> do
+        let fs = M.fromList [("/test.org", ParserSuccess (TaskFile Nothing (V.fromList [taskWithBareLink])))]
+        _ <- importFileState conn fs
+        loaded <- loadTasksFromDB conn
+        let ParserSuccess (TaskFile _ tasks) = loaded M.! "/test.org"
+            task = V.head tasks
+        _title task `shouldBe` RichText [OrgLink "https://example.com/page" Nothing]
+      removeFile dbPath
+
+    it "preserves OrgLink nodes in descriptions" $ do
+      dbPath <- emptySystemTempFile "dwayne-roundtrip-test.db"
+      initDatabase dbPath
+      let descWithLink =
+            RichText
+              [ PlainText "See ",
+                OrgLink "https://docs.example.com" (Just "documentation")
+              ]
+          taskWithDescLink = minimalTask {_description = descWithLink}
+      withDatabase dbPath $ \conn -> do
+        let fs = M.fromList [("/test.org", ParserSuccess (TaskFile Nothing (V.fromList [taskWithDescLink])))]
+        _ <- importFileState conn fs
+        loaded <- loadTasksFromDB conn
+        let ParserSuccess (TaskFile _ tasks) = loaded M.! "/test.org"
+            task = V.head tasks
+        _description task `shouldBe` descWithLink
+      removeFile dbPath
+
+    it "round-trips multiple tasks across files" $ do
+      dbPath <- emptySystemTempFile "dwayne-roundtrip-test.db"
+      initDatabase dbPath
+      let linkTask =
+            minimalTask
+              { _title = RichText [OrgLink "https://music.youtube.com/watch?v=abc" (Just "Cool Song")],
+                _todoKeyword = "INBOX"
+              }
+          fs =
+            M.fromList
+              [ ("/inbox.org", ParserSuccess (TaskFile Nothing (V.fromList [sampleTask, linkTask]))),
+                ("/projects.org", ParserSuccess (TaskFile Nothing (V.fromList [minimalTask])))
+              ]
+      withDatabase dbPath $ \conn -> do
+        _ <- importFileState conn fs
+        loaded <- loadTasksFromDB conn
+        let ParserSuccess (TaskFile _ inboxTasks) = loaded M.! "/inbox.org"
+            ParserSuccess (TaskFile _ projTasks) = loaded M.! "/projects.org"
+        V.length inboxTasks `shouldBe` 2
+        V.length projTasks `shouldBe` 1
+        _title (V.head inboxTasks) `shouldBe` _title sampleTask
+        _title (inboxTasks V.! 1) `shouldBe` RichText [OrgLink "https://music.youtube.com/watch?v=abc" (Just "Cool Song")]
+        _title (V.head projTasks) `shouldBe` _title minimalTask
       removeFile dbPath
