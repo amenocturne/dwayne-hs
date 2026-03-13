@@ -24,7 +24,7 @@ function makeDwayneEnv(): NodeJS.ProcessEnv {
   const home = homedir();
   const env: NodeJS.ProcessEnv = {
     ...process.env,
-    PATH: `${home}/.local/bin:${home}/.cabal/bin:/opt/homebrew/bin:/usr/local/bin:${process.env.PATH}`,
+    PATH: `${home}/.local/bin:${home}/.cabal/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH}`,
   };
   if (prefs.configPath) {
     env.DWAYNE_CONFIG = expandHome(prefs.configPath);

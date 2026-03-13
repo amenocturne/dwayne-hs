@@ -23,7 +23,7 @@ export default function Capture() {
       : values.title;
 
     try {
-      runDwayne(["capture", "--no-enrich", text]);
+      runDwayne(["capture", text]);
       await showToast({
         style: Toast.Style.Success,
         title: "Captured",
