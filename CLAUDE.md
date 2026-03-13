@@ -6,16 +6,19 @@ GTD-style task manager: Brick TUI + Servant web API, org-mode files as storage.
 
 - `core/` — Haskell codebase (cabal project)
 - `web/` — Frontend (TypeScript, npm)
+- `raycast/` — Raycast extension (TypeScript, bun)
 
 ## Commands
 
 ```
-just hbuild          # build haskell
-just htest           # run tests
-just hformat         # ormolu formatting
-just hrun            # run TUI (needs DWAYNE_CONFIG)
-just hserve          # run API server
-just wdev / wbuild   # frontend dev/build
+just haskell-build          # build haskell
+just haskell-test           # run tests
+just haskell-format         # ormolu formatting
+just haskell-run            # run TUI (needs DWAYNE_CONFIG)
+just haskell-serve          # run API server
+just web-dev / web-build    # frontend dev/build
+just raycast-install        # install + register raycast extension
+just raycast-dev            # raycast hot-reload dev
 ```
 
 ## Architecture
