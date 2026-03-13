@@ -1,6 +1,8 @@
 default:
   @just --list
 
+install: haskell-install raycast-install
+
 # Haskell dev
 
 haskell-install:
