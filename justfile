@@ -5,42 +5,42 @@ install:
 
 # Haskell dev
 
-hrun:
+haskell-run:
   cd core; DWAYNE_CONFIG=./resources/config.yml cabal run
 
-hserve:
+haskell-serve:
   cd core; DWAYNE_CONFIG=./resources/config.yml cabal run dwayne -- --serve
 
-hbuild:
+haskell-build:
   cd core; cabal build
 
-htest:
+haskell-test:
   cd core; cabal test
 
-hprofile:
+haskell-profile:
   cd core; cabal configure --enable-profiling
   cd core; cabal run dwayne -- +RTS -p -RTS
 
-hformat:
+haskell-format:
   cd core; ormolu --mode inplace $(find src app test -name "*.hs" -type f)
 
 # Web dev
 
-wdev:
+web-dev:
   cd web; npm run dev
 
-wbuild:
+web-build:
   cd web; npm run build
 
-winstall:
+web-install:
   cd web; npm install
 
 # Mobile dev
 
-mbuild:
+mobile-build:
   cd mobile; ANDROID_HOME=/opt/homebrew/share/android-commandlinetools ./gradlew assembleDebug
 
-mclean:
+mobile-clean:
   cd mobile; ./gradlew clean
 
 # Raycast extension
