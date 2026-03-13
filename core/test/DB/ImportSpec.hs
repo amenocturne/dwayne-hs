@@ -89,7 +89,7 @@ spec = do
         lvl `shouldBe` 1
         kw `shouldBe` "TODO"
         pri `shouldBe` Just 1
-        ttl `shouldBe` "Buy groceries"
+        ttl `shouldSatisfy` T.isInfixOf "Buy groceries"
         tgs `shouldSatisfy` T.isInfixOf "errands"
         tgs `shouldSatisfy` T.isInfixOf "shopping"
         sched `shouldBe` Just "2026-03-06"
@@ -97,7 +97,7 @@ spec = do
         crt `shouldBe` Just "2026-03-01"
         cls `shouldBe` Nothing
         props `shouldSatisfy` T.isInfixOf "EFFORT"
-        desc `shouldBe` "Get milk and eggs"
+        desc `shouldSatisfy` T.isInfixOf "Get milk and eggs"
       removeFile dbPath
 
   describe "importFileState" $ do

@@ -6,7 +6,8 @@ install: haskell-install raycast-install
 # Haskell dev
 
 haskell-install:
-  cd core; cabal install --overwrite-policy=always
+  cd core; cabal build
+  cp "$(cd core && cabal list-bin dwayne)" ~/.local/bin/dwayne
 
 haskell-run:
   cd core; DWAYNE_CONFIG=./resources/config.yml cabal run

@@ -20,7 +20,7 @@ import Data.Time (Day, LocalTime, defaultTimeLocale, formatTime, parseTimeM)
 import Database.SQLite.Simple.FromRow (FromRow (..), field)
 import Database.SQLite.Simple.ToRow (ToRow (..))
 import Database.SQLite.Simple.Types ((:.) (..))
-import Model.OrgMode (OrgTime (..), Task (..), plainToRichText, richTextToPlain)
+import Model.OrgMode (OrgTime (..), RichText (..), Task (..), plainToRichText)
 
 newtype DBTask = DBTask {unDBTask :: Task}
 
@@ -30,7 +30,7 @@ instance ToRow DBTask where
       ( ( _level task,
           _todoKeyword task,
           _priority task,
-          richTextToPlain (_title task),
+          serializeRichText (_title task),
           serializeTags (_tags task)
         )
           :. ( fmap serializeOrgTime (_scheduled task),
@@ -38,7 +38,7 @@ instance ToRow DBTask where
                fmap serializeOrgTime (_createdProp task),
                fmap serializeOrgTime (_closed task),
                serializeProperties (_properties task),
-               richTextToPlain (_description task)
+               serializeRichText (_description task)
              )
       )
 
@@ -61,17 +61,26 @@ instance FromRow DBTask where
           { _level = lvl,
             _todoKeyword = kw,
             _priority = pri,
-            _title = plainToRichText ttl,
+            _title = deserializeRichText ttl,
             _tags = deserializeTags tgs,
             _scheduled = sched >>= deserializeOrgTime,
             _deadline = dl >>= deserializeOrgTime,
             _createdProp = crt >>= deserializeOrgTime,
             _closed = cls >>= deserializeOrgTime,
             _properties = deserializeProperties props,
-            _description = plainToRichText desc
+            _description = deserializeRichText desc
           }
 
 -- Serialization helpers
+
+serializeRichText :: RichText -> T.Text
+serializeRichText = decodeUtf8Lazy . encode . toJSON
+
+deserializeRichText :: T.Text -> RichText
+deserializeRichText t =
+  case eitherDecode (BL.fromStrict (TE.encodeUtf8 t)) of
+    Right rt -> rt
+    Left _ -> plainToRichText t
 
 serializeTags :: S.Set T.Text -> T.Text
 serializeTags = decodeUtf8Lazy . encode . toJSON . S.toList
