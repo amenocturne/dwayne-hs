@@ -1,5 +1,5 @@
 import { showToast, Toast, LaunchProps, showHUD } from "@raycast/api";
-import { runDwayne } from "./shared";
+import { runDwayne, shortenUrls } from "./shared";
 
 export default async function Inbox(
   props: LaunchProps<{ arguments: { text: string } }>
@@ -8,7 +8,7 @@ export default async function Inbox(
 
   try {
     runDwayne(["capture", text]);
-    await showHUD(`Captured: ${text}`);
+    await showHUD(`Captured: ${shortenUrls(text)}`);
   } catch (error) {
     await showToast({
       style: Toast.Style.Failure,

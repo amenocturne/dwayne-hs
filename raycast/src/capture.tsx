@@ -5,10 +5,17 @@ import {
   showToast,
   Toast,
   popToRoot,
+  Detail,
 } from "@raycast/api";
-import { runDwayne } from "./shared";
+import { useState } from "react";
+import { runDwayne, formatForMarkdown } from "./shared";
 
 export default function Capture() {
+  const [captured, setCaptured] = useState<{
+    title: string;
+    body: string;
+  } | null>(null);
+
   async function handleSubmit(values: { title: string; body: string }) {
     if (!values.title.trim()) {
       await showToast({
@@ -24,12 +31,7 @@ export default function Capture() {
 
     try {
       runDwayne(["capture", text]);
-      await showToast({
-        style: Toast.Style.Success,
-        title: "Captured",
-        message: values.title,
-      });
-      await popToRoot();
+      setCaptured({ title: values.title, body: values.body });
     } catch (error) {
       await showToast({
         style: Toast.Style.Failure,
@@ -37,6 +39,23 @@ export default function Capture() {
         message: String(error),
       });
     }
+  }
+
+  if (captured) {
+    let markdown = `## Captured\n\n**${captured.title}**`;
+    if (captured.body.trim()) {
+      markdown += `\n\n${formatForMarkdown(captured.body)}`;
+    }
+    return (
+      <Detail
+        markdown={markdown}
+        actions={
+          <ActionPanel>
+            <Action title="Done" onAction={popToRoot} />
+          </ActionPanel>
+        }
+      />
+    );
   }
 
   return (

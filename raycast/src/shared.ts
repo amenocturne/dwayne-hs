@@ -101,6 +101,43 @@ export function readLastEntry(): LastEntry | null {
   return { keyword, titleLine, body, startOffset, endOffset, propertiesBlock };
 }
 
+export function formatForMarkdown(text: string): string {
+  return text.replace(
+    /(?<!\]\()https?:\/\/[^\s)\]]+/g,
+    (url) => {
+      try {
+        const parsed = new URL(url);
+        const host = parsed.hostname.replace(/^www\./, "");
+        const path = parsed.pathname === "/" ? "" : parsed.pathname;
+        let display = host;
+        if (path) {
+          const segments = path.split("/").filter(Boolean);
+          if (segments.length <= 2) {
+            display += "/" + segments.join("/");
+          } else {
+            display += "/\u2026/" + segments.slice(-1)[0];
+          }
+        }
+        if (parsed.hash) display += parsed.hash;
+        return `[${display}](${url})`;
+      } catch {
+        return url;
+      }
+    }
+  );
+}
+
+export function shortenUrls(text: string): string {
+  return text.replace(/https?:\/\/[^\s)\]]+/g, (url) => {
+    try {
+      const parsed = new URL(url);
+      return parsed.hostname.replace(/^www\./, "");
+    } catch {
+      return url;
+    }
+  });
+}
+
 export function saveLastEntry(
   entry: LastEntry,
   newTitle: string,
