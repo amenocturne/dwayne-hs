@@ -27,9 +27,23 @@
   ],
   "commands": [
     {
+      "name": "inbox",
+      "title": "Inbox",
+      "description": "Quick capture a task to inbox",
+      "mode": "no-view",
+      "arguments": [
+        {
+          "name": "text",
+          "type": "text",
+          "required": true,
+          "placeholder": "Task title"
+        }
+      ]
+    },
+    {
       "name": "capture",
-      "title": "Capture",
-      "description": "Capture a new task to inbox",
+      "title": "Capture (detailed)",
+      "description": "Capture a task with title and body",
       "mode": "view"
     },
     {
