@@ -1,0 +1,57 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "dwayne",
+  "title": "Dwayne",
+  "description": "GTD task capture and management",
+  "icon": "command-icon.png",
+  "author": "skril",
+  "categories": ["Productivity"],
+  "license": "MIT",
+  "preferences": [
+    {
+      "name": "configPath",
+      "title": "Config Path",
+      "description": "Path to dwayne config.yml",
+      "type": "textfield",
+      "default": "~/.config/dwayne/config.yml",
+      "required": false
+    },
+    {
+      "name": "dwaynePath",
+      "title": "Dwayne Binary",
+      "description": "Path to dwayne binary (leave default if on PATH)",
+      "type": "textfield",
+      "default": "dwayne",
+      "required": false
+    }
+  ],
+  "commands": [
+    {
+      "name": "capture",
+      "title": "Capture",
+      "description": "Capture a new task to inbox",
+      "mode": "view"
+    },
+    {
+      "name": "edit-last",
+      "title": "Edit Last Entry",
+      "description": "Edit the most recently captured task",
+      "mode": "view"
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "^1.100.0",
+    "@raycast/utils": "^2.2.0"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^1.0.11",
+    "@types/node": "22.x",
+    "@types/react": "19.x",
+    "typescript": "^5.8.0"
+  },
+  "scripts": {
+    "dev": "ray develop",
+    "build": "ray build -e dist",
+    "lint": "ray lint"
+  }
+}
