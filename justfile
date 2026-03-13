@@ -42,3 +42,12 @@ mbuild:
 
 mclean:
   cd mobile; ./gradlew clean
+
+# Raycast extension
+
+rinstall:
+  cd raycast; bun install
+  cd raycast; bun run dev
+
+rdev:
+  cd raycast; bun run dev
