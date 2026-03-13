@@ -1,6 +1,7 @@
 module Commands.Registry (allCommands) where
 
 import Commands.AddTask (addTaskCommand)
+import Commands.Capture (captureCommand)
 import Commands.CmdMode
   ( abortCmdCommand,
     applyCmdCommand,
@@ -180,6 +181,8 @@ allCommands =
     cleanKeyStateCommand,
     -- Macros
     musicMacroCommand,
+    -- Capture
+    captureCommand,
     -- Database commands
     dbInitCommand,
     dbImportCommand,
