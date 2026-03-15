@@ -26,6 +26,7 @@ import Network.HTTP.Client
     responseTimeoutMicro,
   )
 import Network.HTTP.Client.TLS (tlsManagerSettings)
+import System.Process (readProcess)
 
 -- | Check if a text fragment looks like an HTTP(S) URL
 isHttpUrl :: T.Text -> Bool
@@ -51,9 +52,38 @@ extractTitle body =
                 t | T.null t -> Nothing
                 t -> Just t
 
+-- | Check if a URL is a YouTube or YouTube Music link
+isYouTubeUrl :: T.Text -> Bool
+isYouTubeUrl url =
+  any
+    (`T.isInfixOf` url)
+    [ "youtube.com/watch",
+      "youtu.be/",
+      "music.youtube.com/watch",
+      "youtube.com/shorts/"
+    ]
+
+-- | Fetch title via yt-dlp for YouTube URLs (bypasses region restrictions)
+fetchYouTubeTitle :: T.Text -> IO (Maybe T.Text)
+fetchYouTubeTitle url = do
+  result <- try $ do
+    out <- readProcess "yt-dlp" ["--skip-download", "--print", "title", T.unpack url] ""
+    return $ case T.strip (T.pack out) of
+      t | T.null t -> Nothing
+      t -> Just t
+  case result of
+    Left (_ :: SomeException) -> return Nothing
+    Right t -> return t
+
 -- | Fetch the page title from a URL, returning Nothing on any failure
 fetchTitle :: T.Text -> IO (Maybe T.Text)
-fetchTitle url = do
+fetchTitle url
+  | isYouTubeUrl url = fetchYouTubeTitle url
+  | otherwise = fetchTitleHttp url
+
+-- | Fetch page title via HTTP for generic URLs
+fetchTitleHttp :: T.Text -> IO (Maybe T.Text)
+fetchTitleHttp url = do
   manager <- newManager tlsManagerSettings
   result <- try $ do
     req <- parseRequest (T.unpack url)
