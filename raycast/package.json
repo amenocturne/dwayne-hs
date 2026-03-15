@@ -30,7 +30,7 @@
       "name": "inbox",
       "title": "Inbox",
       "description": "Quick capture a task to inbox",
-      "mode": "no-view",
+      "mode": "view",
       "arguments": [
         {
           "name": "text",

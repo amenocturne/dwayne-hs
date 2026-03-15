@@ -1,7 +1,10 @@
 import { getPreferenceValues } from "@raycast/api";
-import { execSync } from "child_process";
+import { execSync, exec } from "child_process";
+import { promisify } from "util";
 import { readFileSync, writeFileSync } from "fs";
 import { homedir } from "os";
+
+const execAsync = promisify(exec);
 
 interface Preferences {
   configPath: string;
@@ -41,6 +44,18 @@ export function runDwayne(args: string[]): string {
     encoding: "utf-8",
     timeout: 15000,
   }).trim();
+}
+
+export async function runDwayneAsync(args: string[]): Promise<string> {
+  const prefs = getPrefs();
+  const binary = expandHome(prefs.dwaynePath || "dwayne");
+  const escaped = args.map((a) => `'${a.replace(/'/g, "'\\''")}'`).join(" ");
+  const { stdout } = await execAsync(`${binary} ${escaped}`, {
+    env: makeDwayneEnv(),
+    encoding: "utf-8",
+    timeout: 15000,
+  });
+  return stdout.trim();
 }
 
 export function getInboxFilePath(): string {
