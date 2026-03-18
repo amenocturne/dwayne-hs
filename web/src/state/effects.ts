@@ -8,8 +8,9 @@
  */
 
 import type { ViewName, TaskPointer, TaskWithPointer, TaskNode } from "../types/domain.js";
+import type { FilePath, TaskIndex } from "../types/branded.js";
 import type { Action } from "./actions.js";
-import { fetchTasks, fetchSearchResults, fetchProjectTree, fetchParentProject } from "../api/client.js";
+import { fetchTasks, fetchSearchResults, fetchProjectTree, fetchParentProject, captureTask, changeKeyword, changePriority, addTag, removeTag, deleteTask } from "../api/client.js";
 import { assertNever } from "../types/utils.js";
 
 export type Effect =
@@ -21,6 +22,12 @@ export type Effect =
   | { type: 'ShowToast'; message: string }
   | { type: 'LoadMoreTasks'; view: ViewName; offset: number; limit: number }
   | { type: 'SearchProjectLocally'; query: string; projectPointer: TaskPointer }
+  | { type: 'CaptureTask'; title: string }
+  | { type: 'ChangeKeyword'; file: FilePath; taskIndex: TaskIndex; keyword: string }
+  | { type: 'ChangePriority'; file: FilePath; taskIndex: TaskIndex; priority: number | null }
+  | { type: 'AddTag'; file: FilePath; taskIndex: TaskIndex; tag: string }
+  | { type: 'RemoveTag'; file: FilePath; taskIndex: TaskIndex; tag: string }
+  | { type: 'DeleteTask'; file: FilePath; taskIndex: TaskIndex }
   | { type: 'Batch'; effects: ReadonlyArray<Effect> };
 
 export type Dispatch = (action: Action) => void;
@@ -209,6 +216,66 @@ export async function runEffect(effect: Effect, dispatch: Dispatch): Promise<voi
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Search failed";
         dispatch({ type: 'ProjectSearchFailed', error: errorMessage });
+      }
+      break;
+
+    case 'CaptureTask':
+      try {
+        await captureTask(effect.title);
+        dispatch({ type: 'CaptureSucceeded' });
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Capture failed";
+        dispatch({ type: 'MutationFailed', error: errorMessage });
+      }
+      break;
+
+    case 'ChangeKeyword':
+      try {
+        const updated = await changeKeyword(effect.file, effect.taskIndex, effect.keyword);
+        dispatch({ type: 'MutationSucceeded', updatedTask: updated });
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Failed to change keyword";
+        dispatch({ type: 'MutationFailed', error: errorMessage });
+      }
+      break;
+
+    case 'ChangePriority':
+      try {
+        const updated = await changePriority(effect.file, effect.taskIndex, effect.priority);
+        dispatch({ type: 'MutationSucceeded', updatedTask: updated });
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Failed to change priority";
+        dispatch({ type: 'MutationFailed', error: errorMessage });
+      }
+      break;
+
+    case 'AddTag':
+      try {
+        const updated = await addTag(effect.file, effect.taskIndex, effect.tag);
+        dispatch({ type: 'MutationSucceeded', updatedTask: updated });
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Failed to add tag";
+        dispatch({ type: 'MutationFailed', error: errorMessage });
+      }
+      break;
+
+    case 'RemoveTag':
+      try {
+        const updated = await removeTag(effect.file, effect.taskIndex, effect.tag);
+        dispatch({ type: 'MutationSucceeded', updatedTask: updated });
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Failed to remove tag";
+        dispatch({ type: 'MutationFailed', error: errorMessage });
+      }
+      break;
+
+    case 'DeleteTask':
+      try {
+        await deleteTask(effect.file, effect.taskIndex);
+        dispatch({ type: 'DeleteSucceeded' });
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Failed to delete task";
+        dispatch({ type: 'MutationFailed', error: errorMessage });
       }
       break;
 

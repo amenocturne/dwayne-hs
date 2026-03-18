@@ -12,6 +12,7 @@ import type { ViewName, TaskWithPointer } from "../types/domain.js";
 import type { FilePath, TaskIndex } from "../types/branded.js";
 import type { PaginatedResponse, ProjectTreeResponse } from "../types/api.js";
 import { parsePaginatedResponse, parseProjectTreeResponse } from "./validation.js";
+import { isTaskWithPointer } from "./validation.js";
 import { unwrapFilePath, unwrapTaskIndex } from "../types/branded.js";
 
 const API_BASE_URL = "http://localhost:8080";
@@ -106,19 +107,143 @@ export async function fetchParentProject(
   const fileStr = unwrapFilePath(file);
   const indexNum = unwrapTaskIndex(taskIndex);
   const url = `${API_BASE_URL}/api/projects/parent?file=${encodeURIComponent(fileStr)}&taskIndex=${indexNum}`;
-  
+
   const response = await fetch(url);
-  
+
   // 404 means no parent project - this is normal, not an error
   if (response.status === 404) {
     return null;
   }
-  
+
   if (!response.ok) {
     throw new Error(`Failed to fetch parent project: ${response.status} ${response.statusText}`);
   }
-  
+
   const result = await parsePaginatedResponse(response);
   // API returns single-item array, extract first item or null
   return result.data[0] ?? null;
+}
+
+// --- Mutation API functions ---
+
+async function parseMutationResponse(response: Response): Promise<TaskWithPointer> {
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Mutation failed: ${response.status} ${response.statusText}${text ? ` - ${text}` : ""}`);
+  }
+  const json = await response.json();
+  if (!isTaskWithPointer(json)) {
+    throw new Error("Invalid TaskWithPointer response from mutation API");
+  }
+  return json;
+}
+
+/**
+ * Captures a new task with the given title.
+ */
+export async function captureTask(title: string): Promise<TaskWithPointer> {
+  const response = await fetch(`${API_BASE_URL}/api/tasks/capture`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+  return parseMutationResponse(response);
+}
+
+/**
+ * Changes the keyword (TODO state) of a task.
+ */
+export async function changeKeyword(
+  file: FilePath,
+  idx: TaskIndex,
+  keyword: string,
+): Promise<TaskWithPointer> {
+  const response = await fetch(`${API_BASE_URL}/api/tasks/keyword`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      file: unwrapFilePath(file),
+      taskIndex: unwrapTaskIndex(idx),
+      keyword,
+    }),
+  });
+  return parseMutationResponse(response);
+}
+
+/**
+ * Changes the priority of a task. Pass null to remove priority.
+ */
+export async function changePriority(
+  file: FilePath,
+  idx: TaskIndex,
+  priority: number | null,
+): Promise<TaskWithPointer> {
+  const response = await fetch(`${API_BASE_URL}/api/tasks/priority`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      file: unwrapFilePath(file),
+      taskIndex: unwrapTaskIndex(idx),
+      priority,
+    }),
+  });
+  return parseMutationResponse(response);
+}
+
+/**
+ * Adds a tag to a task.
+ */
+export async function addTag(
+  file: FilePath,
+  idx: TaskIndex,
+  tag: string,
+): Promise<TaskWithPointer> {
+  const response = await fetch(`${API_BASE_URL}/api/tasks/tags/add`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      file: unwrapFilePath(file),
+      taskIndex: unwrapTaskIndex(idx),
+      tag,
+    }),
+  });
+  return parseMutationResponse(response);
+}
+
+/**
+ * Removes a tag from a task.
+ */
+export async function removeTag(
+  file: FilePath,
+  idx: TaskIndex,
+  tag: string,
+): Promise<TaskWithPointer> {
+  const response = await fetch(`${API_BASE_URL}/api/tasks/tags/remove`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      file: unwrapFilePath(file),
+      taskIndex: unwrapTaskIndex(idx),
+      tag,
+    }),
+  });
+  return parseMutationResponse(response);
+}
+
+/**
+ * Deletes a task.
+ */
+export async function deleteTask(
+  file: FilePath,
+  idx: TaskIndex,
+): Promise<TaskWithPointer> {
+  const response = await fetch(`${API_BASE_URL}/api/tasks/delete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      file: unwrapFilePath(file),
+      taskIndex: unwrapTaskIndex(idx),
+    }),
+  });
+  return parseMutationResponse(response);
 }

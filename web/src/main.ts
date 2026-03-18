@@ -122,6 +122,15 @@ const callbacks: AppCallbacks = {
   onDebugParamChange: (param, value) => {
     dispatch({ type: 'DebugParamChanged', param, value });
   },
+  onChangeKeyword: (file, taskIndex, keyword) => {
+    dispatch({ type: 'ChangeKeywordRequested', file, taskIndex, keyword });
+  },
+  onDelete: (file, taskIndex) => {
+    dispatch({ type: 'DeleteRequested', file, taskIndex });
+  },
+  onCapture: (title) => {
+    dispatch({ type: 'CaptureRequested', title });
+  },
 };
 
 function handleScroll(): void {

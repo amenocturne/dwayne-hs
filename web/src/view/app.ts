@@ -3,10 +3,12 @@ import type { VNode } from "snabbdom/build/vnode.js";
 import type { AppState } from "../types/state.js";
 import { hasMoreTasks, isProjectView, isSearching } from "../types/state.js";
 import type { ViewName, TaskPointer, TaskWithPointer } from "../types/domain.js";
+import type { FilePath, TaskIndex } from "../types/branded.js";
 import { renderSearchBar } from "./components/SearchBar.js";
 import { renderViewSelector, VIEW_LABELS } from "./components/ViewSelector.js";
 import { renderCarousel3D, type CarouselCallbacks } from "./components/carousel/Carousel3D.js";
 import { renderDetailCard, type DetailCardCallbacks } from "./components/DetailCard.js";
+import type { MutationCallbacks } from "./components/detail/MutationActions.js";
 import { renderDebugPanel, renderDebugToggleButton, type DebugPanelCallbacks } from "./components/DebugPanel.js";
 import type { SearchBarCallbacks } from "./components/SearchBar.js";
 import type { ViewSelectorCallbacks } from "./components/ViewSelector.js";
@@ -27,6 +29,9 @@ export interface AppCallbacks {
   readonly onLoadMore: () => void;
   readonly onDebugToggle: () => void;
   readonly onDebugParamChange: (param: keyof import("../types/state.js").Carousel3DParams, value: number | boolean) => void;
+  readonly onChangeKeyword: (file: FilePath, taskIndex: TaskIndex, keyword: string) => void;
+  readonly onDelete: (file: FilePath, taskIndex: TaskIndex) => void;
+  readonly onCapture: (title: string) => void;
 }
 
 
@@ -49,11 +54,17 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
     onTaskClick: callbacks.onTaskClick,
   };
 
+  const mutationCallbacks: MutationCallbacks = {
+    onChangeKeyword: callbacks.onChangeKeyword,
+    onDelete: callbacks.onDelete,
+  };
+
   const detailCardCallbacks: DetailCardCallbacks = {
     onTaskClick: callbacks.onTaskClick,
     onViewAllSubtasks: callbacks.onViewAllSubtasks,
     onClickParentProject: callbacks.onClickParentProject,
     onClose: callbacks.onCloseDetailCard,
+    mutation: mutationCallbacks,
   };
 
   const carouselCallbacks: CarouselCallbacks = {
@@ -146,6 +157,48 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
             },
           }, [
             renderSearchBar(state.view.searchQuery, searchBarCallbacks),
+          ]),
+
+          // Quick capture
+          h("div", {
+            style: {
+              marginTop: "8px",
+              width: "100%",
+              maxWidth: "500px",
+              pointerEvents: "auto",
+            },
+          }, [
+            h("input", {
+              attrs: {
+                type: "text",
+                placeholder: "Quick capture (press Enter)",
+              },
+              style: {
+                width: "100%",
+                padding: "6px 12px",
+                fontSize: "0.75rem",
+                fontFamily: "var(--font-mono)",
+                letterSpacing: "0.03em",
+                backgroundColor: "rgba(255, 255, 255, 0.03)",
+                border: "1px solid rgba(255, 255, 255, 0.08)",
+                borderRadius: "3px",
+                color: "var(--text-primary)",
+                outline: "none",
+                boxSizing: "border-box",
+              },
+              on: {
+                keydown: (e: KeyboardEvent) => {
+                  if (e.key === "Enter") {
+                    const input = e.target as HTMLInputElement;
+                    const title = input.value.trim();
+                    if (title) {
+                      callbacks.onCapture(title);
+                      input.value = "";
+                    }
+                  }
+                },
+              },
+            }),
           ]),
 
           // Task count info

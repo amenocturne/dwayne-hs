@@ -6,6 +6,7 @@
  */
 
 import type { ViewName, TaskWithPointer, TaskPointer, TaskNode } from "../types/domain.js";
+import type { FilePath, TaskIndex } from "../types/branded.js";
 
 export type Action =
   | { type: 'ViewChanged'; view: ViewName }
@@ -43,4 +44,15 @@ export type Action =
   | { type: 'DebugParamChanged'; param: keyof import("../types/state.js").Carousel3DParams; value: number | boolean }
   // View navigation actions (keyboard-driven)
   | { type: 'ViewNavigateLeft' }
-  | { type: 'ViewNavigateRight' };
+  | { type: 'ViewNavigateRight' }
+  // Mutation actions
+  | { type: 'CaptureRequested'; title: string }
+  | { type: 'ChangeKeywordRequested'; file: FilePath; taskIndex: TaskIndex; keyword: string }
+  | { type: 'ChangePriorityRequested'; file: FilePath; taskIndex: TaskIndex; priority: number | null }
+  | { type: 'AddTagRequested'; file: FilePath; taskIndex: TaskIndex; tag: string }
+  | { type: 'RemoveTagRequested'; file: FilePath; taskIndex: TaskIndex; tag: string }
+  | { type: 'DeleteRequested'; file: FilePath; taskIndex: TaskIndex }
+  | { type: 'MutationSucceeded'; updatedTask: TaskWithPointer }
+  | { type: 'CaptureSucceeded' }
+  | { type: 'DeleteSucceeded' }
+  | { type: 'MutationFailed'; error: string };

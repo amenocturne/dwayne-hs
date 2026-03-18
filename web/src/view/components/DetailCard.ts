@@ -11,6 +11,7 @@ import {
   renderParentProjectSection,
   renderSubtasksSection,
 } from "./detail/SidebarProject.js";
+import { renderMutationActions, type MutationCallbacks } from "./detail/MutationActions.js";
 import { renderModalCard } from "./card/TaskCard.js";
 
 export interface DetailCardCallbacks {
@@ -18,6 +19,7 @@ export interface DetailCardCallbacks {
   readonly onViewAllSubtasks: (pointer: TaskPointer) => void;
   readonly onClickParentProject: (parent: TaskWithPointer) => void;
   readonly onClose: () => void;
+  readonly mutation: MutationCallbacks;
 }
 
 export function renderDetailCard(
@@ -39,6 +41,9 @@ export function renderDetailCard(
 
   // Build extra content sections for the modal
   const extraContent: Array<VNode | null> = [
+    // Mutation actions (keyword change, delete)
+    renderMutationActions(taskWithPointer, callbacks.mutation),
+
     // Parent project (only for non-PROJECT tasks)
     !isProject
       ? renderParentProjectSection(
