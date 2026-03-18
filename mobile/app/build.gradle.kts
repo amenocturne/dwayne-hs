@@ -16,15 +16,16 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
-        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.127:8080\"")
     }
 
     buildTypes {
         debug {
             buildConfigField("Boolean", "USE_MOCK_DATA", "true")
+            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080\"")
         }
         release {
             buildConfigField("Boolean", "USE_MOCK_DATA", "false")
+            buildConfigField("String", "API_BASE_URL", "\"https://dwayne.home.amenocturne.space\"")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -63,6 +64,10 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
 
     implementation(libs.kotlinx.serialization.json)
+
+    implementation(libs.ktor.client.android)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

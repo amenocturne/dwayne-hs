@@ -18,6 +18,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.skril.dwayne.BuildConfig
+import com.skril.dwayne.data.repository.ApiTaskRepository
 import com.skril.dwayne.data.repository.MockTaskRepository
 import com.skril.dwayne.data.repository.TaskRepository
 import com.skril.dwayne.ui.screens.capture.CaptureScreen
@@ -42,7 +43,7 @@ fun DwayneNavHost() {
     val navController = rememberNavController()
     val repository: TaskRepository = remember {
         if (BuildConfig.USE_MOCK_DATA) MockTaskRepository()
-        else MockTaskRepository() // TODO: replace with ApiTaskRepository
+        else ApiTaskRepository(BuildConfig.API_BASE_URL)
     }
 
     Scaffold(
