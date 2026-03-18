@@ -9,7 +9,7 @@ module Commands.Db
   )
 where
 
-import Commands.CliHelpers (loadConfig, loadFileState)
+import Commands.CliHelpers (loadConfig, loadFileStateFromOrg)
 import Commands.Command (Command (..))
 import DB.Connection (initDatabase, withDatabase)
 import DB.Export (exportToOrgFiles, loadTasksFromDB)
@@ -56,9 +56,8 @@ dbImportCommand =
       cmdDescription = "Import org files into the database",
       cmdTui = Nothing,
       cmdCli = Just $ pure $ do
-        (conf, fState) <- loadFileState
+        (conf, fState) <- loadFileStateFromOrg
         let dbFile = _database conf
-        -- loadFileState already imports, but we re-import to get the count
         count <- withDatabase dbFile $ \conn ->
           importFileState conn fState
         putStrLn $ "Imported " ++ show count ++ " tasks from " ++ show (M.size fState) ++ " files",
