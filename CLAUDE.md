@@ -31,8 +31,23 @@ Commands are the central abstraction — each command can have TUI, CLI, and API
 
 Adding a new view: create command in `Commands/Views.hs` with `cmdApi` binding, register in `Registry.hs`. No Server.hs changes needed.
 
+## Versioning
+
+Version lives in `core/dwayne-hs.cabal` (`version:` field) and is exposed via `dwayne --version`. Uses cabal's auto-generated `Paths_dwayne_hs` module.
+
+**Update the version when making architectural changes** — especially data layer, storage backend, or API breaking changes. Bump minor for features, major for breaking changes.
+
+Tag format: `v1.0.0` (git annotated tag). Tag every release-worthy commit.
+
+| Tag | Meaning |
+|-----|---------|
+| `v1.0.0` | Last version with org files as primary source of truth |
+
+When tagging: `git tag -a vX.Y.Z -m "description"` and bump the cabal `version:` field for the next cycle.
+
 ## Key types
 
 - `Task` — defined in `Model/OrgMode.hs`
 - `AppContext` — TUI state container in `Tui/Types.hs`
 - `FileState` — `Map FilePath (ParserResult (TaskFile Task))` in `Core/Types.hs`
+
