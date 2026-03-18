@@ -161,7 +161,8 @@ library
 
 executable dwayne
     main-is: Main.hs
-    other-modules:
+    other-modules: Paths_dwayne_hs
+    autogen-modules: Paths_dwayne_hs
     build-depends:
         vector ^>=0.13.2.0,
         base >=4.17.2.1 && < 4.19,

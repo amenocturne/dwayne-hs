@@ -15,10 +15,12 @@ import Commands.Registry (allCommands)
 import Control.Monad (join)
 import DB.TaskStore (DatabaseStore (..), mkTaskStoreOps)
 import Data.Maybe (mapMaybe)
+import Data.Version (showVersion)
 import qualified Data.Set as S
 import qualified Data.Text as T
 import Model.OrgMode (Task)
 import Options.Applicative (CommandFields, Mod, command, execParser, fullDesc, header, helper, info, progDesc, subparser, (<**>))
+import Paths_dwayne_hs (version)
 import Parser.OrgParser (anyTaskparser, orgFileParser)
 import Refile.OrgRefileable ()
 import Render.OrgRender ()
@@ -35,6 +37,7 @@ main = do
   case args of
     [] -> startTui
     ["--serve"] -> startWebServer
+    ["--version"] -> putStrLn $ "dwayne " ++ showVersion version
     _ -> runCli
 
 -- | Run CLI subcommands dispatched from the command registry
