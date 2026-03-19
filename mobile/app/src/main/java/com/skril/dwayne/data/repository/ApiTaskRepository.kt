@@ -53,9 +53,9 @@ class ApiTaskRepository(private val baseUrl: String) : TaskRepository {
         return client.put("$baseUrl/api/tasks/keyword") {
             contentType(ContentType.Application.Json)
             setBody(ChangeKeywordRequest(
-                file = pointer.file,
-                taskIndex = pointer.taskIndex,
-                keyword = keyword,
+                ckrFile = pointer.file,
+                ckrTaskIndex = pointer.taskIndex,
+                ckrKeyword = keyword,
             ))
         }.body()
     }
@@ -64,9 +64,9 @@ class ApiTaskRepository(private val baseUrl: String) : TaskRepository {
         return client.put("$baseUrl/api/tasks/priority") {
             contentType(ContentType.Application.Json)
             setBody(ChangePriorityRequest(
-                file = pointer.file,
-                taskIndex = pointer.taskIndex,
-                priority = priority,
+                cprFile = pointer.file,
+                cprTaskIndex = pointer.taskIndex,
+                cprPriority = priority,
             ))
         }.body()
     }
@@ -75,9 +75,9 @@ class ApiTaskRepository(private val baseUrl: String) : TaskRepository {
         return client.post("$baseUrl/api/tasks/tags/add") {
             contentType(ContentType.Application.Json)
             setBody(TagRequest(
-                file = pointer.file,
-                taskIndex = pointer.taskIndex,
-                tag = tag,
+                trFile = pointer.file,
+                trTaskIndex = pointer.taskIndex,
+                trTag = tag,
             ))
         }.body()
     }
@@ -86,9 +86,9 @@ class ApiTaskRepository(private val baseUrl: String) : TaskRepository {
         return client.post("$baseUrl/api/tasks/tags/remove") {
             contentType(ContentType.Application.Json)
             setBody(TagRequest(
-                file = pointer.file,
-                taskIndex = pointer.taskIndex,
-                tag = tag,
+                trFile = pointer.file,
+                trTaskIndex = pointer.taskIndex,
+                trTag = tag,
             ))
         }.body()
     }
@@ -97,8 +97,8 @@ class ApiTaskRepository(private val baseUrl: String) : TaskRepository {
         return client.post("$baseUrl/api/tasks/delete") {
             contentType(ContentType.Application.Json)
             setBody(TaskPointerRequest(
-                file = pointer.file,
-                taskIndex = pointer.taskIndex,
+                tprFile = pointer.file,
+                tprTaskIndex = pointer.taskIndex,
             ))
         }.body()
     }

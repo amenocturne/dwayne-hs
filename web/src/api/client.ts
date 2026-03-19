@@ -145,7 +145,7 @@ export async function captureTask(title: string): Promise<TaskWithPointer> {
   const response = await fetch(`${API_BASE_URL}/api/tasks/capture`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title }),
+    body: JSON.stringify({ captureTitle: title }),
   });
   return parseMutationResponse(response);
 }
@@ -162,9 +162,9 @@ export async function changeKeyword(
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      file: unwrapFilePath(file),
-      taskIndex: unwrapTaskIndex(idx),
-      keyword,
+      ckrFile: unwrapFilePath(file),
+      ckrTaskIndex: unwrapTaskIndex(idx),
+      ckrKeyword: keyword,
     }),
   });
   return parseMutationResponse(response);
@@ -182,9 +182,9 @@ export async function changePriority(
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      file: unwrapFilePath(file),
-      taskIndex: unwrapTaskIndex(idx),
-      priority,
+      cprFile: unwrapFilePath(file),
+      cprTaskIndex: unwrapTaskIndex(idx),
+      cprPriority: priority,
     }),
   });
   return parseMutationResponse(response);
@@ -202,9 +202,9 @@ export async function addTag(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      file: unwrapFilePath(file),
-      taskIndex: unwrapTaskIndex(idx),
-      tag,
+      trFile: unwrapFilePath(file),
+      trTaskIndex: unwrapTaskIndex(idx),
+      trTag: tag,
     }),
   });
   return parseMutationResponse(response);
@@ -222,9 +222,9 @@ export async function removeTag(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      file: unwrapFilePath(file),
-      taskIndex: unwrapTaskIndex(idx),
-      tag,
+      trFile: unwrapFilePath(file),
+      trTaskIndex: unwrapTaskIndex(idx),
+      trTag: tag,
     }),
   });
   return parseMutationResponse(response);
@@ -241,8 +241,8 @@ export async function deleteTask(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      file: unwrapFilePath(file),
-      taskIndex: unwrapTaskIndex(idx),
+      tprFile: unwrapFilePath(file),
+      tprTaskIndex: unwrapTaskIndex(idx),
     }),
   });
   return parseMutationResponse(response);

@@ -95,27 +95,27 @@ data class CaptureRequest(
 
 @Serializable
 data class ChangeKeywordRequest(
-    val file: String,
-    val taskIndex: Int,
-    val keyword: String,
+    val ckrFile: String,
+    val ckrTaskIndex: Int,
+    val ckrKeyword: String,
 )
 
 @Serializable
 data class ChangePriorityRequest(
-    val file: String,
-    val taskIndex: Int,
-    val priority: Int?,
+    val cprFile: String,
+    val cprTaskIndex: Int,
+    val cprPriority: Int?,
 )
 
 @Serializable
 data class TagRequest(
-    val file: String,
-    val taskIndex: Int,
-    val tag: String,
+    val trFile: String,
+    val trTaskIndex: Int,
+    val trTag: String,
 )
 
 @Serializable
 data class TaskPointerRequest(
-    val file: String,
-    val taskIndex: Int,
+    val tprFile: String,
+    val tprTaskIndex: Int,
 )
