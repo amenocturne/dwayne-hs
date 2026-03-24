@@ -19,9 +19,9 @@ import Model.OrgMode
 import Options.Applicative (argument, help, long, metavar, str, switch)
 import Parser.OrgParser (dateTimeParserReimplemented)
 import Parser.Parser (ParserResult (..), runParser)
+import Tui.Types (AppConfig (..))
 import Writer.OrgWriter ()
 import Writer.Writer (write)
-import Tui.Types (AppConfig (..))
 
 captureCommand :: Command Task
 captureCommand =

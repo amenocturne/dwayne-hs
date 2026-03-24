@@ -13,8 +13,8 @@ import qualified Data.ByteString.Lazy as BSL
 import Data.List (foldl', nub)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
-import Data.Text.Encoding.Error (lenientDecode)
 import qualified Data.Text.Encoding as TE
+import Data.Text.Encoding.Error (lenientDecode)
 import Model.OrgMode (RichText (..), TextNode (..), plainToRichText)
 import Network.HTTP.Client
   ( httpLbs,
