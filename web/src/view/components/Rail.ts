@@ -84,8 +84,8 @@ function renderRailItem(
         },
       }, item.label),
 
-      // Inbox count badge
-      ...(showBadge ? [
+      // Inbox count badge (removed — just show "INBOX" without count)
+      ...(false && showBadge ? [
         h("span.rail-badge", {
           style: {
             position: "absolute",
