@@ -255,6 +255,9 @@ function renderInlinePriority(
     ? (PRIORITY_COLORS[currentPriority] ?? colors.greyLight)
     : colors.grey;
 
+  // Always visible when set, muted placeholder when unset
+  const isSet = currentPriority !== null;
+
   return h("span.panel-priority-inline", {
     style: {
       fontFamily: `'${fonts.mono}', monospace`,
@@ -263,27 +266,19 @@ function renderInlinePriority(
       color,
       cursor: "pointer",
       userSelect: "none",
-      opacity: currentPriority !== null ? "1" : "0",
+      opacity: isSet ? "1" : "0.35",
       transition: `opacity ${transitions.fast}, color ${transitions.fast}`,
-    },
-    hook: {
-      insert: (vnode) => {
-        const el = vnode.elm as HTMLElement;
-        const parent = el.parentElement;
-        if (currentPriority === null && parent) {
-          parent.addEventListener("mouseenter", () => {
-            el.style.opacity = "0.5";
-          });
-          parent.addEventListener("mouseleave", () => {
-            el.style.opacity = "0";
-          });
-        }
-      },
     },
     on: {
       click: (e: Event) => {
         e.stopPropagation();
         callbacks.onChangePriority(file, taskIndex, nextPriority());
+      },
+      mouseenter: (e: Event) => {
+        if (!isSet) (e.currentTarget as HTMLElement).style.opacity = "0.7";
+      },
+      mouseleave: (e: Event) => {
+        if (!isSet) (e.currentTarget as HTMLElement).style.opacity = "0.35";
       },
     },
   }, label);
@@ -576,7 +571,7 @@ function renderDateLine(
   taskIndex: TaskIndex,
   onChange: (file: FilePath, taskIndex: TaskIndex, date: OrgTime | null) => void,
 ): VNode {
-  const displayValue = value?.date ?? "\u2014";
+  const displayValue = value?.date ?? "not set";
   const hasValue = value !== null;
 
   return h("div.panel-date-line", {
@@ -676,7 +671,7 @@ function renderDateLine(
         },
       }, displayValue),
     ]),
-    // Clear button (only if value set)
+    // Clear button (only if value set) — sized to match the text
     ...(hasValue
       ? [h("button.date-clear", {
           style: {
@@ -684,8 +679,8 @@ function renderDateLine(
             border: "none",
             color: colors.grey,
             cursor: "pointer",
-            fontSize: fontSize.xs,
-            padding: "0",
+            fontSize: fontSize.sm,
+            padding: "2px 4px",
             lineHeight: "1",
             opacity: "0.6",
             transition: `opacity ${transitions.fast}`,
