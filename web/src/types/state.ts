@@ -94,6 +94,7 @@ export interface AppState {
   readonly activeView: ActiveView;
   readonly commandBarMode: CommandBarMode;
   readonly detailPanel: DetailPanelState;
+  readonly expandedTasks: ReadonlyArray<string>;
   readonly taskList: TaskListState;
   readonly view: ViewState;
   readonly detail: DetailCardState;

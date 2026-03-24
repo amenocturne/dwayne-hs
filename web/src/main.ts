@@ -21,6 +21,7 @@ const initialState: AppState = {
     open: false,
     task: null,
   },
+  expandedTasks: [],
   taskList: {
     tasks: [],
     loading: true,
@@ -162,12 +163,30 @@ const callbacks: AppCallbacks = {
     dispatch({ type: 'DebugParamChanged', param, value });
   },
 
-  // Detail panel
+  // Detail panel (kept for garage)
   onDetailPanelOpen: (task) => {
     dispatch({ type: 'DetailPanelOpened', task });
   },
   onDetailPanelClose: () => {
     dispatch({ type: 'DetailPanelClosed' });
+  },
+
+  // Inline expand/collapse
+  onToggleTaskExpand: (task) => {
+    const taskKey = `${task.pointer.file}-${task.pointer.taskIndex}`;
+    const state = store.getState();
+    if (state.expandedTasks.includes(taskKey)) {
+      dispatch({ type: 'TaskCollapsed', taskKey });
+    } else {
+      dispatch({ type: 'TaskExpanded', taskKey });
+    }
+  },
+  onExpandAll: (tasks) => {
+    const taskKeys = tasks.map((t) => `${t.pointer.file}-${t.pointer.taskIndex}`);
+    dispatch({ type: 'AllTasksExpanded', taskKeys });
+  },
+  onCollapseAll: () => {
+    dispatch({ type: 'AllTasksCollapsed' });
   },
   onChangePriority: (file, taskIndex, priority) => {
     dispatch({ type: 'ChangePriorityRequested', file, taskIndex, priority });
@@ -255,7 +274,7 @@ const FOCUSABLE_VIEWS = new Set<string>(['today', 'inbox', 'backlog']);
 function handleKeydown(e: KeyboardEvent): void {
   const state = store.getState();
 
-  // Escape: close detail panel, exit search, blur input, or clear focus
+  // Escape: collapse expanded tasks, close detail card, exit search, blur input, or clear focus
   if (e.key === "Escape") {
     if (isInputFocused()) {
       (document.activeElement as HTMLElement).blur();
@@ -271,8 +290,9 @@ function handleKeydown(e: KeyboardEvent): void {
       return;
     }
 
-    if (state.detailPanel.open) {
-      dispatch({ type: 'DetailPanelClosed' });
+    // Collapse all expanded tasks
+    if (state.expandedTasks.length > 0) {
+      dispatch({ type: 'AllTasksCollapsed' });
       return;
     }
 
@@ -288,40 +308,7 @@ function handleKeydown(e: KeyboardEvent): void {
   // All shortcuts below only fire when no input is focused
   if (isInputFocused()) return;
 
-  // --- Detail panel open: j/k navigate between tasks ---
-  if (state.detailPanel.open) {
-    const panelVisibleTasks = getVisibleTasks(state);
-    const panelTaskCount = panelVisibleTasks.length;
-
-    if (e.key === "j" || e.key === "ArrowDown") {
-      e.preventDefault();
-      if (panelTaskCount === 0) return;
-      const nextIdx = state.focusedTaskIndex === null
-        ? 0
-        : Math.min(state.focusedTaskIndex + 1, panelTaskCount - 1);
-      dispatch({ type: 'TaskFocusChanged', index: nextIdx });
-      const task = panelVisibleTasks[nextIdx];
-      if (task) {
-        dispatch({ type: 'DetailPanelOpened', task });
-      }
-      return;
-    }
-    if (e.key === "k" || e.key === "ArrowUp") {
-      e.preventDefault();
-      if (panelTaskCount === 0) return;
-      const prevIdx = state.focusedTaskIndex === null
-        ? 0
-        : Math.max(state.focusedTaskIndex - 1, 0);
-      dispatch({ type: 'TaskFocusChanged', index: prevIdx });
-      const task = panelVisibleTasks[prevIdx];
-      if (task) {
-        dispatch({ type: 'DetailPanelOpened', task });
-      }
-      return;
-    }
-    // Other keys don't do anything when panel is open (except Esc above)
-    return;
-  }
+  // (Detail panel j/k navigation removed — inline expansion replaces it)
 
   // --- View-level j/k navigation ---
   if (FOCUSABLE_VIEWS.has(state.activeView)) {
@@ -349,12 +336,17 @@ function handleKeydown(e: KeyboardEvent): void {
       return;
     }
 
-    // Enter: open detail panel for focused task
+    // Enter: toggle inline expansion for focused task
     if (e.key === "Enter" && state.focusedTaskIndex !== null) {
       e.preventDefault();
       const task = visibleTasks[state.focusedTaskIndex];
       if (task) {
-        dispatch({ type: 'DetailPanelOpened', task });
+        const taskKey = `${task.pointer.file}-${task.pointer.taskIndex}`;
+        if (state.expandedTasks.includes(taskKey)) {
+          dispatch({ type: 'TaskCollapsed', taskKey });
+        } else {
+          dispatch({ type: 'TaskExpanded', taskKey });
+        }
       }
       return;
     }

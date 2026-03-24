@@ -74,4 +74,8 @@ export type Action =
   | { type: 'OpenLastCapturedTask' }
   | { type: 'TaskAnimatingOut'; taskKey: string }
   | { type: 'TaskAnimationComplete'; taskKey: string }
-  | { type: 'InboxCountLoaded'; count: number };
+  | { type: 'InboxCountLoaded'; count: number }
+  | { type: 'TaskExpanded'; taskKey: string }
+  | { type: 'TaskCollapsed'; taskKey: string }
+  | { type: 'AllTasksExpanded'; taskKeys: ReadonlyArray<string> }
+  | { type: 'AllTasksCollapsed' };

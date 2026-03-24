@@ -32,6 +32,7 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
           activeView: action.activeView,
           commandBarMode: 'capture',
           detailPanel: { open: false, task: null },
+          expandedTasks: [],
           focusedTaskIndex: null,
         },
         { type: 'None' }
@@ -810,10 +811,13 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
       if (!state.lastCapturedTask) {
         return [state, { type: 'None' }];
       }
+      const capturedTaskKey = `${state.lastCapturedTask.pointer.file}-${state.lastCapturedTask.pointer.taskIndex}`;
       return [
         {
           ...state,
-          detailPanel: { open: true, task: state.lastCapturedTask },
+          expandedTasks: state.expandedTasks.includes(capturedTaskKey)
+            ? state.expandedTasks
+            : [...state.expandedTasks, capturedTaskKey],
         },
         { type: 'None' }
       ];
@@ -884,6 +888,44 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
     case 'InboxCountLoaded':
       return [
         { ...state, inboxCount: action.count },
+        { type: 'None' }
+      ];
+
+    case 'TaskExpanded':
+      return [
+        {
+          ...state,
+          expandedTasks: state.expandedTasks.includes(action.taskKey)
+            ? state.expandedTasks
+            : [...state.expandedTasks, action.taskKey],
+        },
+        { type: 'None' }
+      ];
+
+    case 'TaskCollapsed':
+      return [
+        {
+          ...state,
+          expandedTasks: state.expandedTasks.filter((k) => k !== action.taskKey),
+        },
+        { type: 'None' }
+      ];
+
+    case 'AllTasksExpanded':
+      return [
+        {
+          ...state,
+          expandedTasks: action.taskKeys,
+        },
+        { type: 'None' }
+      ];
+
+    case 'AllTasksCollapsed':
+      return [
+        {
+          ...state,
+          expandedTasks: [],
+        },
         { type: 'None' }
       ];
 

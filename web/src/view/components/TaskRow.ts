@@ -32,6 +32,8 @@ export interface TaskRowProps {
   readonly onQuickAction: (task: TaskWithPointer, keyword: string) => void;
   readonly isFocused?: boolean;
   readonly isAnimatingOut?: boolean;
+  readonly isExpanded?: boolean;
+  readonly expandedContent?: import("snabbdom/build/vnode.js").VNode | null;
 }
 
 // --- Priority helpers ---
@@ -76,7 +78,26 @@ function relativeTime(dateStr: string): string {
 
 // --- Sub-components ---
 
-function renderCompletionDot(
+function renderExpandToggle(isExpanded: boolean): VNode {
+  return h("span.expand-toggle", {
+    style: {
+      width: "16px",
+      minWidth: "16px",
+      fontFamily: `'${fonts.mono}', monospace`,
+      fontSize: fontSize.xs,
+      color: colors.grey,
+      cursor: "pointer",
+      userSelect: "none",
+      transition: `transform ${transitions.fast}, color ${transitions.fast}`,
+      transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+      display: "inline-block",
+      textAlign: "center",
+      flexShrink: "0",
+    },
+  }, "\u25B6");
+}
+
+function _renderCompletionDot(
   task: TaskWithPointer,
   onQuickAction: (task: TaskWithPointer, keyword: string) => void,
 ): VNode {
@@ -101,7 +122,6 @@ function renderCompletionDot(
     on: {
       click: (e: Event) => {
         e.stopPropagation();
-        // Flash green before transitioning
         const el = e.currentTarget as HTMLElement;
         el.style.borderColor = colors.greenBright;
         el.style.color = colors.greenBright;
@@ -228,7 +248,7 @@ function renderQuickActionButton(
 // --- Main render ---
 
 export function renderTaskRow(props: TaskRowProps): VNode {
-  const { task: twp, showKeyword, quickActions, onTaskClick, onQuickAction, isFocused = false, isAnimatingOut = false } = props;
+  const { task: twp, showKeyword, quickActions, onTaskClick, onQuickAction, isFocused = false, isAnimatingOut = false, isExpanded = false, expandedContent = null } = props;
   const { task } = twp;
 
   // Determine created date for relative time
@@ -237,8 +257,8 @@ export function renderTaskRow(props: TaskRowProps): VNode {
   // Build left side elements
   const leftElements: Array<VNode | string> = [];
 
-  // Completion dot
-  leftElements.push(renderCompletionDot(twp, onQuickAction));
+  // Expand/collapse toggle
+  leftElements.push(renderExpandToggle(isExpanded ?? false));
 
   // Keyword badge (only when showKeyword is true)
   if (showKeyword) {
@@ -250,16 +270,16 @@ export function renderTaskRow(props: TaskRowProps): VNode {
     leftElements.push(renderPriority(task.priority));
   }
 
-  // Title
+  // Title — when expanded, allow wrapping
   const titleNode = h("span.task-row-title", {
     style: {
       fontFamily: `'${fonts.body}', sans-serif`,
       fontSize: fontSize.base,
       fontWeight: fontWeight.normal,
       color: colors.white,
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      whiteSpace: "nowrap",
+      overflow: isExpanded ? "visible" : "hidden",
+      textOverflow: isExpanded ? "unset" : "ellipsis",
+      whiteSpace: isExpanded ? "normal" : "nowrap",
       flex: "1",
       minWidth: "0",
     },
@@ -302,6 +322,7 @@ export function renderTaskRow(props: TaskRowProps): VNode {
 
   const focusClass = isFocused ? ".task-row-focused" : "";
   const animClass = isAnimatingOut ? ".task-row-animating-out" : "";
+  const expandedClass = isExpanded ? ".task-row-expanded" : "";
 
   const animatingOutStyle = isAnimatingOut ? {
     opacity: "0",
@@ -316,11 +337,13 @@ export function renderTaskRow(props: TaskRowProps): VNode {
     overflow: "visible",
     minHeight: "44px",
     padding: `${spacing.sm} ${spacing.md}`,
-    borderBottom: `1px solid rgba(255, 255, 255, 0.03)`,
+    borderBottom: isExpanded ? "none" : `1px solid rgba(255, 255, 255, 0.03)`,
   };
 
-  return h(`div.task-row${focusClass}${animClass}`, {
-    key: `${twp.pointer.file}-${twp.pointer.taskIndex}`,
+  const taskKey = `${twp.pointer.file}-${twp.pointer.taskIndex}`;
+
+  const rowNode = h(`div.task-row${focusClass}${animClass}${expandedClass}`, {
+    key: isExpanded ? `row-${taskKey}` : taskKey,
     style: {
       display: "flex",
       alignItems: "center",
@@ -329,14 +352,14 @@ export function renderTaskRow(props: TaskRowProps): VNode {
       transition: `background ${transitions.normal}, border-left 100ms ease, opacity 200ms ease-out, max-height 200ms ease-out`,
       position: "relative",
       borderLeft: isFocused ? `3px solid ${colors.cyanBright}` : '3px solid transparent',
-      background: isFocused ? colors.rowFocus : "transparent",
+      background: isExpanded ? colors.asphalt : (isFocused ? colors.rowFocus : "transparent"),
       ...animatingOutStyle,
     },
     on: {
       click: () => onTaskClick(twp),
       mouseenter: (e: Event) => {
         const el = e.currentTarget as HTMLElement;
-        if (!isFocused) {
+        if (!isFocused && !isExpanded) {
           el.style.background = colors.rowHover;
         }
         // Show quick actions
@@ -348,7 +371,7 @@ export function renderTaskRow(props: TaskRowProps): VNode {
       },
       mouseleave: (e: Event) => {
         const el = e.currentTarget as HTMLElement;
-        if (!isFocused) {
+        if (!isFocused && !isExpanded) {
           el.style.background = "transparent";
         }
         // Hide quick actions
@@ -381,4 +404,16 @@ export function renderTaskRow(props: TaskRowProps): VNode {
     // Quick actions overlay
     ...(quickActionNodes ? [quickActionNodes] : []),
   ]);
+
+  // When expanded, wrap row + detail content in a container
+  if (isExpanded && expandedContent) {
+    return h("div.task-row-container", {
+      key: taskKey,
+      style: {
+        borderBottom: `1px solid rgba(255, 255, 255, 0.03)`,
+      },
+    }, [rowNode, expandedContent]);
+  }
+
+  return rowNode;
 }

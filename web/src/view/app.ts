@@ -18,10 +18,10 @@ import type { TaskCardCallbacks } from "./components/card/TaskCard.js";
 import { ENABLE_DEBUG_MODE } from "./constants.js";
 import { renderAtmosphere } from "./components/Atmosphere.js";
 import { renderTaskRow, type QuickAction } from "./components/TaskRow.js";
-import { renderDetailPanel, type DetailPanelCallbacks } from "./components/DetailPanel.js";
+import { renderTaskDetail, type TaskDetailCallbacks } from "./components/TaskDetail.js";
 import { renderBacklogView, type BacklogViewCallbacks } from "./views/BacklogView.js";
 import { renderListsView, type ListsViewCallbacks } from "./views/ListsView.js";
-import { colors, fonts, fontSize, spacing, fontWeight } from "./designSystem.js";
+import { colors, fonts, fontSize, spacing, fontWeight, transitions } from "./designSystem.js";
 import { assertNever } from "../types/utils.js";
 
 export interface AppCallbacks {
@@ -44,7 +44,7 @@ export interface AppCallbacks {
   readonly onClickParentProject: (parent: TaskWithPointer) => void;
   readonly onBackToView: () => void;
 
-  // Detail panel
+  // Detail panel (kept for garage)
   readonly onDetailPanelOpen: (task: TaskWithPointer) => void;
   readonly onDetailPanelClose: () => void;
   readonly onChangePriority: (file: FilePath, taskIndex: TaskIndex, priority: number | null) => void;
@@ -53,6 +53,11 @@ export interface AppCallbacks {
   readonly onChangeTags: (file: FilePath, taskIndex: TaskIndex, tags: ReadonlyArray<string>) => void;
   readonly onChangeScheduled: (file: FilePath, taskIndex: TaskIndex, scheduled: OrgTime | null) => void;
   readonly onChangeDeadline: (file: FilePath, taskIndex: TaskIndex, deadline: OrgTime | null) => void;
+
+  // Inline expand/collapse
+  readonly onToggleTaskExpand: (task: TaskWithPointer) => void;
+  readonly onExpandAll: (tasks: ReadonlyArray<TaskWithPointer>) => void;
+  readonly onCollapseAll: () => void;
 
   // Carousel
   readonly onCarouselRotate: (delta: number) => void;
@@ -85,7 +90,47 @@ const TODAY_QUICK_ACTIONS: ReadonlyArray<QuickAction> = [];
 
 // --- View header ---
 
-function renderViewHeader(title: string, count: number): VNode {
+function renderExpandCollapseButton(
+  hasExpanded: boolean,
+  onExpandAll: () => void,
+  onCollapseAll: () => void,
+): VNode {
+  const isExpanded = hasExpanded;
+  const label = isExpanded ? "\u25B2 Collapse" : "\u25BC Expand";
+  return h("button.expand-collapse-btn", {
+    style: {
+      padding: `2px ${spacing.sm}`,
+      fontFamily: `'${fonts.mono}', monospace`,
+      fontSize: fontSize.xs,
+      color: colors.grey,
+      backgroundColor: "transparent",
+      border: `1px solid ${colors.grey}`,
+      borderRadius: "3px",
+      cursor: "pointer",
+      transition: `all ${transitions.fast}`,
+      whiteSpace: "nowrap",
+    },
+    on: {
+      click: () => isExpanded ? onCollapseAll() : onExpandAll(),
+      mouseenter: (e: Event) => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.color = colors.white;
+        el.style.borderColor = colors.white;
+      },
+      mouseleave: (e: Event) => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.color = colors.grey;
+        el.style.borderColor = colors.grey;
+      },
+    },
+  }, label);
+}
+
+function renderViewHeader(
+  title: string,
+  count: number,
+  expandCollapseNode?: VNode,
+): VNode {
   return h("div.view-header", {
     style: {
       display: "flex",
@@ -93,6 +138,7 @@ function renderViewHeader(title: string, count: number): VNode {
       alignItems: "baseline",
       padding: `${spacing.lg} ${spacing.lg} ${spacing.sm}`,
       borderBottom: `1px solid rgba(255, 255, 255, 0.05)`,
+      gap: spacing.sm,
     },
   }, [
     h("h1", {
@@ -106,13 +152,23 @@ function renderViewHeader(title: string, count: number): VNode {
         color: colors.white,
       },
     }, title),
-    h("span", {
+    h("div.view-header-right", {
       style: {
-        fontFamily: `'${fonts.mono}', monospace`,
-        fontSize: fontSize.xs,
-        color: colors.grey,
+        display: "flex",
+        alignItems: "center",
+        gap: spacing.sm,
+        marginLeft: "auto",
       },
-    }, `${count} tasks`),
+    }, [
+      ...(expandCollapseNode ? [expandCollapseNode] : []),
+      h("span", {
+        style: {
+          fontFamily: `'${fonts.mono}', monospace`,
+          fontSize: fontSize.xs,
+          color: colors.grey,
+        },
+      }, `${count} tasks`),
+    ]),
   ]);
 }
 
@@ -144,9 +200,31 @@ function renderTaskListView(
   quickActions: ReadonlyArray<QuickAction>,
   emptyMessage: string,
   callbacks: AppCallbacks,
+  state: AppState,
   focusedTaskIndex: number | null = null,
   animatingOutTasks: ReadonlyArray<string> = [],
 ): VNode {
+  const expandedTasks = state.expandedTasks;
+  const hasExpanded = expandedTasks.length > 0;
+
+  const detailCallbacks: TaskDetailCallbacks = {
+    onChangeKeyword: callbacks.onChangeKeyword,
+    onChangePriority: callbacks.onChangePriority,
+    onChangeTitle: callbacks.onChangeTitle,
+    onChangeDescription: callbacks.onChangeDescription,
+    onChangeTags: callbacks.onChangeTags,
+    onChangeScheduled: callbacks.onChangeScheduled,
+    onChangeDeadline: callbacks.onChangeDeadline,
+  };
+
+  const expandCollapseBtn = tasks.length > 0
+    ? renderExpandCollapseButton(
+        hasExpanded,
+        () => callbacks.onExpandAll(tasks),
+        () => callbacks.onCollapseAll(),
+      )
+    : undefined;
+
   if (loading) {
     return h("div.list-view", {
       style: {
@@ -177,7 +255,7 @@ function renderTaskListView(
       height: "100%",
     },
   }, [
-    renderViewHeader(title, totalCount),
+    renderViewHeader(title, totalCount, expandCollapseBtn),
     tasks.length === 0
       ? renderEmptyState(emptyMessage)
       : h("div.task-list", {
@@ -188,14 +266,17 @@ function renderTaskListView(
           },
         }, tasks.map((twp, idx) => {
           const taskKey = `${twp.pointer.file}-${twp.pointer.taskIndex}`;
+          const isExp = expandedTasks.includes(taskKey);
           return renderTaskRow({
             task: twp,
             showKeyword,
             quickActions: quickActions as QuickAction[],
-            onTaskClick: (t) => callbacks.onDetailPanelOpen(t),
+            onTaskClick: (t) => callbacks.onToggleTaskExpand(t),
             onQuickAction: (t, keyword) => callbacks.onChangeKeyword(t.pointer.file, t.pointer.taskIndex, keyword),
             isFocused: focusedTaskIndex === idx,
             isAnimatingOut: animatingOutTasks.includes(taskKey),
+            isExpanded: isExp,
+            expandedContent: isExp ? renderTaskDetail(twp, state, detailCallbacks) : null,
           });
         })),
   ]);
@@ -312,6 +393,7 @@ function renderContentArea(state: AppState, callbacks: AppCallbacks): VNode {
         TODAY_QUICK_ACTIONS,
         "Nothing committed for today. Pull tasks from the backlog, or capture something new.",
         callbacks,
+        state,
         state.focusedTaskIndex,
         state.animatingOutTasks,
       );
@@ -326,17 +408,31 @@ function renderContentArea(state: AppState, callbacks: AppCallbacks): VNode {
         INBOX_QUICK_ACTIONS,
         "Inbox zero. Enjoy it.",
         callbacks,
+        state,
         state.focusedTaskIndex,
         state.animatingOutTasks,
       );
       break;
     case 'backlog': {
       const backlogCallbacks: BacklogViewCallbacks = {
-        onTaskClick: (t) => callbacks.onDetailPanelOpen(t),
+        onTaskClick: (t) => callbacks.onToggleTaskExpand(t),
         onQuickAction: (t, keyword) => callbacks.onChangeKeyword(t.pointer.file, t.pointer.taskIndex, keyword),
         onToggleSection: callbacks.onBacklogSectionToggle,
         focusedTaskIndex: state.focusedTaskIndex,
         animatingOutTasks: state.animatingOutTasks,
+        expandedTasks: state.expandedTasks,
+        state,
+        detailCallbacks: {
+          onChangeKeyword: callbacks.onChangeKeyword,
+          onChangePriority: callbacks.onChangePriority,
+          onChangeTitle: callbacks.onChangeTitle,
+          onChangeDescription: callbacks.onChangeDescription,
+          onChangeTags: callbacks.onChangeTags,
+          onChangeScheduled: callbacks.onChangeScheduled,
+          onChangeDeadline: callbacks.onChangeDeadline,
+        },
+        onExpandAll: (tasks) => callbacks.onExpandAll(tasks),
+        onCollapseAll: () => callbacks.onCollapseAll(),
       };
       content = renderBacklogView(
         state.taskList.tasks,
@@ -349,8 +445,21 @@ function renderContentArea(state: AppState, callbacks: AppCallbacks): VNode {
     }
     case 'lists': {
       const listsCallbacks: ListsViewCallbacks = {
-        onCardClick: (t) => callbacks.onDetailPanelOpen(t),
+        onCardClick: (t) => callbacks.onToggleTaskExpand(t),
         onToggleFilter: callbacks.onListFilterToggle,
+        expandedTasks: state.expandedTasks,
+        state,
+        detailCallbacks: {
+          onChangeKeyword: callbacks.onChangeKeyword,
+          onChangePriority: callbacks.onChangePriority,
+          onChangeTitle: callbacks.onChangeTitle,
+          onChangeDescription: callbacks.onChangeDescription,
+          onChangeTags: callbacks.onChangeTags,
+          onChangeScheduled: callbacks.onChangeScheduled,
+          onChangeDeadline: callbacks.onChangeDeadline,
+        },
+        onExpandAll: (tasks) => callbacks.onExpandAll(tasks),
+        onCollapseAll: () => callbacks.onCollapseAll(),
       };
       content = renderListsView(
         state.taskList.tasks,
@@ -414,17 +523,6 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
     onParamChange: callbacks.onDebugParamChange,
   };
 
-  const detailPanelCallbacks: DetailPanelCallbacks = {
-    onClose: callbacks.onDetailPanelClose,
-    onChangeKeyword: callbacks.onChangeKeyword,
-    onChangePriority: callbacks.onChangePriority,
-    onChangeTitle: callbacks.onChangeTitle,
-    onChangeDescription: callbacks.onChangeDescription,
-    onChangeTags: callbacks.onChangeTags,
-    onChangeScheduled: callbacks.onChangeScheduled,
-    onChangeDeadline: callbacks.onChangeDeadline,
-  };
-
   return h("div.shell", {
     style: {
       display: "flex",
@@ -463,11 +561,6 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
     // Detail card modal (only in garage view)
     ...(state.activeView === 'garage'
       ? [renderDetailCard(state.detail.selectedTask, state, detailCardCallbacks)]
-      : []),
-
-    // Detail panel (slide-in from right — for list views)
-    ...(state.activeView !== 'garage'
-      ? [renderDetailPanel(state, detailPanelCallbacks)]
       : []),
 
     // Debug panel and toggle (only if feature flag enabled)

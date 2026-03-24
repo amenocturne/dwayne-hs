@@ -8,7 +8,9 @@
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 import type { TaskWithPointer } from "../../types/domain.js";
+import type { AppState } from "../../types/state.js";
 import { renderTaskRow, type QuickAction } from "../components/TaskRow.js";
+import { renderTaskDetail, type TaskDetailCallbacks } from "../components/TaskDetail.js";
 import {
   colors,
   fonts,
@@ -33,6 +35,11 @@ export interface BacklogViewCallbacks {
   readonly onToggleSection: (sectionId: string) => void;
   readonly focusedTaskIndex?: number | null;
   readonly animatingOutTasks?: ReadonlyArray<string>;
+  readonly expandedTasks?: ReadonlyArray<string>;
+  readonly state?: AppState;
+  readonly detailCallbacks?: TaskDetailCallbacks;
+  readonly onExpandAll?: (tasks: ReadonlyArray<TaskWithPointer>) => void;
+  readonly onCollapseAll?: () => void;
 }
 
 // --- Quick actions for backlog rows ---
@@ -252,6 +259,9 @@ function renderSectionBody(
 ): VNode {
   const focusedIdx = callbacks.focusedTaskIndex ?? null;
   const animatingOut = callbacks.animatingOutTasks ?? [];
+  const expandedTasks = callbacks.expandedTasks ?? [];
+  const appState = callbacks.state;
+  const detailCbs = callbacks.detailCallbacks;
 
   return h("div.backlog-section-body", {
     key: `body-${section.id}`,
@@ -262,6 +272,7 @@ function renderSectionBody(
   }, section.tasks.map((twp, localIdx) => {
     const globalIdx = globalIndexStart + localIdx;
     const taskKey = `${twp.pointer.file}-${twp.pointer.taskIndex}`;
+    const isExp = expandedTasks.includes(taskKey);
     return renderTaskRow({
       task: twp,
       showKeyword: true,
@@ -270,13 +281,51 @@ function renderSectionBody(
       onQuickAction: (t, keyword) => callbacks.onQuickAction(t, keyword),
       isFocused: focusedIdx === globalIdx,
       isAnimatingOut: animatingOut.includes(taskKey),
+      isExpanded: isExp,
+      expandedContent: isExp && appState && detailCbs ? renderTaskDetail(twp, appState, detailCbs) : null,
     });
   }));
 }
 
 // --- View header ---
 
-function renderBacklogHeader(totalCount: number): VNode {
+function renderExpandCollapseBtn(
+  hasExpanded: boolean,
+  onExpandAll: () => void,
+  onCollapseAll: () => void,
+): VNode {
+  const isExpanded = hasExpanded;
+  const label = isExpanded ? "\u25B2 Collapse" : "\u25BC Expand";
+  return h("button.expand-collapse-btn", {
+    style: {
+      padding: `2px ${spacing.sm}`,
+      fontFamily: `'${fonts.mono}', monospace`,
+      fontSize: fontSize.xs,
+      color: colors.grey,
+      backgroundColor: "transparent",
+      border: `1px solid ${colors.grey}`,
+      borderRadius: "3px",
+      cursor: "pointer",
+      transition: `all ${transitions.fast}`,
+      whiteSpace: "nowrap",
+    },
+    on: {
+      click: () => isExpanded ? onCollapseAll() : onExpandAll(),
+      mouseenter: (e: Event) => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.color = colors.white;
+        el.style.borderColor = colors.white;
+      },
+      mouseleave: (e: Event) => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.color = colors.grey;
+        el.style.borderColor = colors.grey;
+      },
+    },
+  }, label);
+}
+
+function renderBacklogHeader(totalCount: number, expandCollapseNode?: VNode): VNode {
   return h("div.backlog-header", {
     style: {
       display: "flex",
@@ -284,6 +333,7 @@ function renderBacklogHeader(totalCount: number): VNode {
       alignItems: "baseline",
       padding: `${spacing.lg} ${spacing.lg} ${spacing.sm}`,
       borderBottom: `1px solid rgba(255, 255, 255, 0.05)`,
+      gap: spacing.sm,
     },
   }, [
     h("h1", {
@@ -297,13 +347,23 @@ function renderBacklogHeader(totalCount: number): VNode {
         color: colors.white,
       },
     }, "Backlog"),
-    h("span", {
+    h("div.backlog-header-right", {
       style: {
-        fontFamily: `'${fonts.mono}', monospace`,
-        fontSize: fontSize.xs,
-        color: colors.grey,
+        display: "flex",
+        alignItems: "center",
+        gap: spacing.sm,
+        marginLeft: "auto",
       },
-    }, `${totalCount} tasks`),
+    }, [
+      ...(expandCollapseNode ? [expandCollapseNode] : []),
+      h("span", {
+        style: {
+          fontFamily: `'${fonts.mono}', monospace`,
+          fontSize: fontSize.xs,
+          color: colors.grey,
+        },
+      }, `${totalCount} tasks`),
+    ]),
   ]);
 }
 
@@ -334,6 +394,20 @@ export function renderBacklogView(
   collapsedSections: ReadonlyArray<string>,
   callbacks: BacklogViewCallbacks,
 ): VNode {
+  const expandedTasks = callbacks.expandedTasks ?? [];
+  const hasExpanded = expandedTasks.length > 0;
+
+  // Collect all visible tasks for expand-all
+  const allVisibleTasks = getBacklogVisibleTasks(tasks, collapsedSections);
+
+  const expandCollapseBtn = allVisibleTasks.length > 0 && callbacks.onExpandAll && callbacks.onCollapseAll
+    ? renderExpandCollapseBtn(
+        hasExpanded,
+        () => callbacks.onExpandAll!(allVisibleTasks),
+        () => callbacks.onCollapseAll!(),
+      )
+    : undefined;
+
   if (loading) {
     return h("div.backlog-view", {
       style: {
@@ -404,7 +478,7 @@ export function renderBacklogView(
       height: "100%",
     },
   }, [
-    renderBacklogHeader(sectionTaskCount),
+    renderBacklogHeader(sectionTaskCount, expandCollapseBtn),
     h("div.backlog-sections", {
       style: {
         flex: "1",

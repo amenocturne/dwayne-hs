@@ -7,7 +7,9 @@
 import { h } from "snabbdom/build/h.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 import type { TaskWithPointer } from "../../types/domain.js";
+import type { AppState } from "../../types/state.js";
 import { renderTextNodes } from "../components/common/TextNodes.js";
+import { renderTaskDetail, type TaskDetailCallbacks } from "../components/TaskDetail.js";
 import {
   colors,
   fonts,
@@ -22,6 +24,11 @@ import {
 export interface ListsViewCallbacks {
   readonly onCardClick: (task: TaskWithPointer) => void;
   readonly onToggleFilter: (tag: string) => void;
+  readonly expandedTasks?: ReadonlyArray<string>;
+  readonly state?: AppState;
+  readonly detailCallbacks?: TaskDetailCallbacks;
+  readonly onExpandAll?: (tasks: ReadonlyArray<TaskWithPointer>) => void;
+  readonly onCollapseAll?: () => void;
 }
 
 // --- Type tag color map ---
@@ -162,9 +169,78 @@ function renderFilterBar(
 function renderListCard(
   twp: TaskWithPointer,
   callbacks: ListsViewCallbacks,
+  isExpanded: boolean,
 ): VNode {
   const typeTag = getFirstTypeTag(twp.task.tags);
   const borderColor = typeTag ? getTypeColor(typeTag) : colors.grey;
+  const appState = callbacks.state;
+  const detailCbs = callbacks.detailCallbacks;
+
+  if (isExpanded && appState && detailCbs) {
+    // Expanded: full-width row with detail below
+    return h("div.list-card-expanded", {
+      key: `${twp.pointer.file}-${twp.pointer.taskIndex}`,
+      style: {
+        width: "100%",
+        backgroundColor: colors.asphalt,
+        borderLeft: `3px solid ${borderColor}`,
+        borderRadius: "3px",
+        cursor: "pointer",
+        overflow: "hidden",
+        transition: `background ${transitions.normal}`,
+      },
+    }, [
+      // Card header row (click to collapse)
+      h("div.list-card-header", {
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: spacing.sm,
+          padding: `${spacing.sm} ${spacing.md}`,
+          transition: `background ${transitions.fast}`,
+        },
+        on: {
+          click: () => callbacks.onCardClick(twp),
+          mouseenter: (e: Event) => {
+            (e.currentTarget as HTMLElement).style.background = colors.concrete;
+          },
+          mouseleave: (e: Event) => {
+            (e.currentTarget as HTMLElement).style.background = "transparent";
+          },
+        },
+      }, [
+        // Type badge
+        ...(typeTag ? [
+          h("span.card-type-badge", {
+            style: {
+              fontFamily: `'${fonts.mono}', monospace`,
+              fontSize: fontSize.xs,
+              fontWeight: fontWeight.bold,
+              letterSpacing: "0.05em",
+              textTransform: "uppercase",
+              color: borderColor,
+              flexShrink: "0",
+            },
+          }, typeTag),
+        ] : []),
+        // Title (full, no clamp)
+        h("span.card-title-full", {
+          style: {
+            fontFamily: `'${fonts.body}', sans-serif`,
+            fontSize: fontSize.md,
+            fontWeight: fontWeight.normal,
+            color: colors.white,
+            lineHeight: "1.4",
+            wordBreak: "break-word",
+            flex: "1",
+            minWidth: "0",
+          },
+        }, renderTextNodes(twp.task.title)),
+      ]),
+      // Detail content
+      renderTaskDetail(twp, appState, detailCbs),
+    ]);
+  }
 
   return h("div.list-card", {
     key: `${twp.pointer.file}-${twp.pointer.taskIndex}`,
@@ -262,7 +338,42 @@ function renderListCard(
 
 // --- View header ---
 
-function renderListsHeader(count: number): VNode {
+function renderExpandCollapseBtn(
+  hasExpanded: boolean,
+  onExpandAll: () => void,
+  onCollapseAll: () => void,
+): VNode {
+  const label = hasExpanded ? "\u25B2 Collapse" : "\u25BC Expand";
+  return h("button.expand-collapse-btn", {
+    style: {
+      padding: `2px ${spacing.sm}`,
+      fontFamily: `'${fonts.mono}', monospace`,
+      fontSize: fontSize.xs,
+      color: colors.grey,
+      backgroundColor: "transparent",
+      border: `1px solid ${colors.grey}`,
+      borderRadius: "3px",
+      cursor: "pointer",
+      transition: `all ${transitions.fast}`,
+      whiteSpace: "nowrap",
+    },
+    on: {
+      click: () => hasExpanded ? onCollapseAll() : onExpandAll(),
+      mouseenter: (e: Event) => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.color = colors.white;
+        el.style.borderColor = colors.white;
+      },
+      mouseleave: (e: Event) => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.color = colors.grey;
+        el.style.borderColor = colors.grey;
+      },
+    },
+  }, label);
+}
+
+function renderListsHeader(count: number, expandCollapseNode?: VNode): VNode {
   return h("div.lists-header", {
     style: {
       display: "flex",
@@ -270,6 +381,7 @@ function renderListsHeader(count: number): VNode {
       alignItems: "baseline",
       padding: `${spacing.lg} ${spacing.lg} ${spacing.sm}`,
       borderBottom: `1px solid rgba(255, 255, 255, 0.05)`,
+      gap: spacing.sm,
     },
   }, [
     h("h1", {
@@ -283,13 +395,23 @@ function renderListsHeader(count: number): VNode {
         color: colors.white,
       },
     }, "Lists"),
-    h("span", {
+    h("div.lists-header-right", {
       style: {
-        fontFamily: `'${fonts.mono}', monospace`,
-        fontSize: fontSize.xs,
-        color: colors.grey,
+        display: "flex",
+        alignItems: "center",
+        gap: spacing.sm,
+        marginLeft: "auto",
       },
-    }, `${count} items`),
+    }, [
+      ...(expandCollapseNode ? [expandCollapseNode] : []),
+      h("span", {
+        style: {
+          fontFamily: `'${fonts.mono}', monospace`,
+          fontSize: fontSize.xs,
+          color: colors.grey,
+        },
+      }, `${count} items`),
+    ]),
   ]);
 }
 
@@ -302,6 +424,9 @@ export function renderListsView(
   activeFilters: ReadonlyArray<string>,
   callbacks: ListsViewCallbacks,
 ): VNode {
+  const expandedTasks = callbacks.expandedTasks ?? [];
+  const hasExpanded = expandedTasks.length > 0;
+
   if (loading) {
     return h("div.lists-view", {
       style: {
@@ -335,6 +460,14 @@ export function renderListsView(
         twp.task.tags.some((tag) => activeFilters.includes(tag))
       );
 
+  const expandCollapseBtn = filteredTasks.length > 0 && callbacks.onExpandAll && callbacks.onCollapseAll
+    ? renderExpandCollapseBtn(
+        hasExpanded,
+        () => callbacks.onExpandAll!(filteredTasks),
+        () => callbacks.onCollapseAll!(),
+      )
+    : undefined;
+
   if (tasks.length === 0) {
     return h("div.lists-view", {
       style: {
@@ -366,7 +499,7 @@ export function renderListsView(
       height: "100%",
     },
   }, [
-    renderListsHeader(filteredTasks.length),
+    renderListsHeader(filteredTasks.length, expandCollapseBtn),
 
     // Filter chips
     ...(availableTags.length > 0
@@ -385,8 +518,10 @@ export function renderListsView(
         gap: spacing.md,
         alignContent: "flex-start",
       },
-    }, filteredTasks.map((twp) =>
-      renderListCard(twp, callbacks)
-    )),
+    }, filteredTasks.map((twp) => {
+      const taskKey = `${twp.pointer.file}-${twp.pointer.taskIndex}`;
+      const isExp = expandedTasks.includes(taskKey);
+      return renderListCard(twp, callbacks, isExp);
+    })),
   ]);
 }
