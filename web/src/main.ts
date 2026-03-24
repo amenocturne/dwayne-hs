@@ -67,6 +67,8 @@ const initialState: AppState = {
     },
   },
   error: null,
+  listFilters: [],
+  backlogCollapsed: [],
 };
 
 const patch = init([
@@ -111,7 +113,7 @@ const callbacks: AppCallbacks = {
     const viewMap: Record<ActiveView, ViewName> = {
       today: 'today',
       inbox: 'inbox',
-      backlog: 'todo',
+      backlog: 'all',
       lists: 'list',
       garage: 'all',
     };
@@ -181,6 +183,16 @@ const callbacks: AppCallbacks = {
   // Mutations
   onChangeKeyword: (file, taskIndex, keyword) => {
     dispatch({ type: 'ChangeKeywordRequested', file, taskIndex, keyword });
+  },
+
+  // List filters
+  onListFilterToggle: (tag) => {
+    dispatch({ type: 'ListFilterToggled', tag });
+  },
+
+  // Backlog section collapse
+  onBacklogSectionToggle: (sectionId) => {
+    dispatch({ type: 'BacklogSectionToggled', sectionId });
   },
 };
 

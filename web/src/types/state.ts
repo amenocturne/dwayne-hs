@@ -100,6 +100,8 @@ export interface AppState {
   readonly carousel: CarouselState;
   readonly debug: DebugState;
   readonly error: string | null;
+  readonly listFilters: ReadonlyArray<string>;
+  readonly backlogCollapsed: ReadonlyArray<string>;
 }
 
 /**

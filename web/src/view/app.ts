@@ -19,6 +19,8 @@ import { ENABLE_DEBUG_MODE } from "./constants.js";
 import { renderAtmosphere } from "./components/Atmosphere.js";
 import { renderTaskRow, type QuickAction } from "./components/TaskRow.js";
 import { renderDetailPanel, type DetailPanelCallbacks } from "./components/DetailPanel.js";
+import { renderBacklogView, type BacklogViewCallbacks } from "./views/BacklogView.js";
+import { renderListsView, type ListsViewCallbacks } from "./views/ListsView.js";
 import { colors, fonts, fontSize, spacing, fontWeight } from "./designSystem.js";
 import { assertNever } from "../types/utils.js";
 
@@ -61,23 +63,12 @@ export interface AppCallbacks {
 
   // Mutations
   readonly onChangeKeyword: (file: FilePath, taskIndex: TaskIndex, keyword: string) => void;
-}
 
-function renderViewPlaceholder(label: string): VNode {
-  return h("div.view-placeholder", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      height: "100%",
-      color: colors.grey,
-      fontFamily: `'${fonts.body}', sans-serif`,
-      fontSize: fontSize.lg,
-      letterSpacing: "0.05em",
-      textTransform: "uppercase",
-      userSelect: "none",
-    },
-  }, `${label} view \u2014 coming soon`);
+  // List filters
+  readonly onListFilterToggle: (tag: string) => void;
+
+  // Backlog section collapse
+  readonly onBacklogSectionToggle: (sectionId: string) => void;
 }
 
 // --- Quick action presets per view ---
@@ -87,10 +78,6 @@ const INBOX_QUICK_ACTIONS: ReadonlyArray<QuickAction> = [
   { label: "[O]", keyword: "TODO" },
   { label: "[S]", keyword: "SOMEDAY" },
   { label: "[X]", keyword: "TRASH" },
-];
-
-const BACKLOG_QUICK_ACTIONS: ReadonlyArray<QuickAction> = [
-  { label: "\u25CF", keyword: "TODAY" },
 ];
 
 const TODAY_QUICK_ACTIONS: ReadonlyArray<QuickAction> = [];
@@ -333,21 +320,35 @@ function renderContentArea(state: AppState, callbacks: AppCallbacks): VNode {
         callbacks,
       );
       break;
-    case 'backlog':
-      content = renderTaskListView(
-        "Backlog",
+    case 'backlog': {
+      const backlogCallbacks: BacklogViewCallbacks = {
+        onTaskClick: (t) => callbacks.onDetailPanelOpen(t),
+        onQuickAction: (t, keyword) => callbacks.onChangeKeyword(t.pointer.file, t.pointer.taskIndex, keyword),
+        onToggleSection: callbacks.onBacklogSectionToggle,
+      };
+      content = renderBacklogView(
         state.taskList.tasks,
         state.taskList.totalCount,
         state.taskList.loading,
-        true,
-        BACKLOG_QUICK_ACTIONS,
-        "No active backlog items.",
-        callbacks,
+        state.backlogCollapsed,
+        backlogCallbacks,
       );
       break;
-    case 'lists':
-      content = renderViewPlaceholder('Lists');
+    }
+    case 'lists': {
+      const listsCallbacks: ListsViewCallbacks = {
+        onCardClick: (t) => callbacks.onDetailPanelOpen(t),
+        onToggleFilter: callbacks.onListFilterToggle,
+      };
+      content = renderListsView(
+        state.taskList.tasks,
+        state.taskList.totalCount,
+        state.taskList.loading,
+        state.listFilters,
+        listsCallbacks,
+      );
       break;
+    }
     case 'garage':
       content = renderGarageView(state, callbacks);
       break;

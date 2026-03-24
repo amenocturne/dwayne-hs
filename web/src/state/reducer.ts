@@ -770,6 +770,36 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
         { type: 'ShowToast', message: `Error: ${action.error}` }
       ];
 
+    case 'ListFilterToggled': {
+      const tag = action.tag;
+      if (tag === '__all__') {
+        return [
+          { ...state, listFilters: [] },
+          { type: 'None' }
+        ];
+      }
+      const current = state.listFilters;
+      const newFilters = current.includes(tag)
+        ? current.filter((t) => t !== tag)
+        : [...current, tag];
+      return [
+        { ...state, listFilters: newFilters },
+        { type: 'None' }
+      ];
+    }
+
+    case 'BacklogSectionToggled': {
+      const sectionId = action.sectionId;
+      const current = state.backlogCollapsed;
+      const newCollapsed = current.includes(sectionId)
+        ? current.filter((s) => s !== sectionId)
+        : [...current, sectionId];
+      return [
+        { ...state, backlogCollapsed: newCollapsed },
+        { type: 'None' }
+      ];
+    }
+
     default:
       // Exhaustiveness check - ensures all action types are handled at compile time
       // If a new action is added but not handled, TypeScript will error here

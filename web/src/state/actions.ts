@@ -62,4 +62,8 @@ export type Action =
   | { type: 'ChangeDeadlineRequested'; file: FilePath; taskIndex: TaskIndex; deadline: OrgTime | null }
   | { type: 'MutationSucceeded'; updatedTask: TaskWithPointer }
   | { type: 'CaptureSucceeded' }
-  | { type: 'MutationFailed'; error: string };
+  | { type: 'MutationFailed'; error: string }
+  // Lists filter actions
+  | { type: 'ListFilterToggled'; tag: string }
+  // Backlog section collapse actions
+  | { type: 'BacklogSectionToggled'; sectionId: string };
