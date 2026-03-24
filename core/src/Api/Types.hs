@@ -35,6 +35,7 @@ import Core.Types (OrgTime, Task, TaskPointer)
 import qualified Core.Types as CT
 import Data.Aeson (FromJSON (..), ToJSON (..), Value (..), object, withObject, (.:), (.:?), (.=))
 import Data.Aeson.Key (Key)
+import qualified Data.Aeson.KeyMap as KM
 import Data.Aeson.Types (Object, Parser)
 import qualified Data.Set as S
 import qualified Data.Text as T
@@ -204,10 +205,10 @@ instance FromJSON EditTaskRequest where
 
 -- | Parse a field that may be absent (don't change), null (clear), or present (set).
 -- absent -> Nothing, null -> Just Nothing, value -> Just (Just value)
+-- Note: aeson's .:? treats both absent and null as Nothing, so we use KeyMap.lookup directly.
 parseMaybeNullable :: (FromJSON a) => Object -> Key -> Parser (Maybe (Maybe a))
-parseMaybeNullable v key = do
-  mVal <- v .:? key :: Parser (Maybe Value)
-  case mVal of
+parseMaybeNullable v key =
+  case KM.lookup key v of
     Nothing -> pure Nothing
     Just Null -> pure (Just Nothing)
     Just val -> do

@@ -77,8 +77,7 @@ function renderRailItem(
       // Label (visible when rail is expanded)
       h("span.rail-label", {
         style: {
-          opacity: "0",
-          transition: `opacity ${transitions.normal}`,
+          opacity: "1",
           fontSize: fontSize.sm,
           letterSpacing: "0.05em",
           textTransform: "uppercase",
@@ -121,38 +120,17 @@ export function renderRail(
     "nav.rail",
     {
       style: {
-        width: "56px",
-        minWidth: "56px",
+        width: "180px",
+        minWidth: "180px",
         height: "100%",
         backgroundColor: colors.railBg,
         borderRight: `1px solid ${colors.concreteDark}`,
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
-        transition: `width ${transitions.normal}`,
         overflow: "hidden",
         zIndex: "200",
         flexShrink: "0",
-      },
-      hook: {
-        insert: (vnode) => {
-          const el = vnode.elm as HTMLElement;
-          el.addEventListener("mouseenter", () => {
-            el.style.width = "180px";
-            // Show labels
-            const labels = el.querySelectorAll(".rail-label");
-            labels.forEach((label) => {
-              (label as HTMLElement).style.opacity = "1";
-            });
-          });
-          el.addEventListener("mouseleave", () => {
-            el.style.width = "56px";
-            const labels = el.querySelectorAll(".rail-label");
-            labels.forEach((label) => {
-              (label as HTMLElement).style.opacity = "0";
-            });
-          });
-        },
       },
     },
     [
