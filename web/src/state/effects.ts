@@ -10,7 +10,7 @@
 import type { ViewName, TaskPointer, TaskWithPointer, TaskNode } from "../types/domain.js";
 import type { FilePath, TaskIndex } from "../types/branded.js";
 import type { Action } from "./actions.js";
-import { fetchTasks, fetchSearchResults, fetchProjectTree, fetchParentProject, captureTask, changeKeyword, changePriority, addTag, removeTag, deleteTask } from "../api/client.js";
+import { fetchTasks, fetchSearchResults, fetchProjectTree, fetchParentProject, captureTask, editTask, addTag, removeTag } from "../api/client.js";
 import { assertNever } from "../types/utils.js";
 
 export type Effect =
@@ -27,7 +27,6 @@ export type Effect =
   | { type: 'ChangePriority'; file: FilePath; taskIndex: TaskIndex; priority: number | null }
   | { type: 'AddTag'; file: FilePath; taskIndex: TaskIndex; tag: string }
   | { type: 'RemoveTag'; file: FilePath; taskIndex: TaskIndex; tag: string }
-  | { type: 'DeleteTask'; file: FilePath; taskIndex: TaskIndex }
   | { type: 'Batch'; effects: ReadonlyArray<Effect> };
 
 export type Dispatch = (action: Action) => void;
@@ -231,7 +230,7 @@ export async function runEffect(effect: Effect, dispatch: Dispatch): Promise<voi
 
     case 'ChangeKeyword':
       try {
-        const updated = await changeKeyword(effect.file, effect.taskIndex, effect.keyword);
+        const updated = await editTask({ file: effect.file, taskIndex: effect.taskIndex, keyword: effect.keyword });
         dispatch({ type: 'MutationSucceeded', updatedTask: updated });
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Failed to change keyword";
@@ -241,7 +240,7 @@ export async function runEffect(effect: Effect, dispatch: Dispatch): Promise<voi
 
     case 'ChangePriority':
       try {
-        const updated = await changePriority(effect.file, effect.taskIndex, effect.priority);
+        const updated = await editTask({ file: effect.file, taskIndex: effect.taskIndex, priority: effect.priority });
         dispatch({ type: 'MutationSucceeded', updatedTask: updated });
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Failed to change priority";
@@ -265,16 +264,6 @@ export async function runEffect(effect: Effect, dispatch: Dispatch): Promise<voi
         dispatch({ type: 'MutationSucceeded', updatedTask: updated });
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Failed to remove tag";
-        dispatch({ type: 'MutationFailed', error: errorMessage });
-      }
-      break;
-
-    case 'DeleteTask':
-      try {
-        await deleteTask(effect.file, effect.taskIndex);
-        dispatch({ type: 'DeleteSucceeded' });
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : "Failed to delete task";
         dispatch({ type: 'MutationFailed', error: errorMessage });
       }
       break;

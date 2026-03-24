@@ -165,6 +165,8 @@ export const cssClasses = {
 export const todoKeywordColors = {
   TODO: "#fbbf24",      // racing gold
   INBOX: "#e2e8f0",     // off-white
+  TODAY: "#ff6b6b",     // hot red
+  SOON: "#38bdf8",      // sky blue
   WAITING: "#a855f7",   // violet
   DONE: "#585b70",      // muted (dimmed)
   PROJECT: "#84cc16",   // lime green

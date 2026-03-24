@@ -3,14 +3,13 @@ import type { VNode } from "snabbdom/build/vnode.js";
 import type { TaskWithPointer } from "../../../types/domain.js";
 import type { FilePath, TaskIndex } from "../../../types/branded.js";
 import { renderSidebarSection } from "./SidebarSection.js";
-import { getTodoKeywordColor, fontSize, fontWeight, fonts, spacing, colors } from "../../designSystem.js";
+import { getTodoKeywordColor, fontSize, fontWeight, fonts, spacing } from "../../designSystem.js";
 
 export interface MutationCallbacks {
   readonly onChangeKeyword: (file: FilePath, taskIndex: TaskIndex, keyword: string) => void;
-  readonly onDelete: (file: FilePath, taskIndex: TaskIndex) => void;
 }
 
-const KEYWORD_OPTIONS = ["INBOX", "TODO", "WAITING", "SOMEDAY", "DONE", "TRASH"] as const;
+const KEYWORD_OPTIONS = ["INBOX", "TODAY", "TODO", "SOON", "SOMEDAY", "WAITING", "PROJECT", "LIST", "DONE", "TRASH"] as const;
 
 function renderKeywordButton(
   keyword: string,
@@ -45,33 +44,6 @@ function renderKeywordButton(
   }, keyword);
 }
 
-function renderDeleteButton(onClick: () => void): VNode {
-  return h('button', {
-    style: {
-      padding: `${spacing.sm} ${spacing.lg}`,
-      fontSize: fontSize.sm,
-      fontFamily: fonts.mono,
-      fontWeight: fontWeight.bold,
-      letterSpacing: '0.08em',
-      textTransform: 'uppercase',
-      color: colors.redBright,
-      backgroundColor: 'transparent',
-      border: `1px solid ${colors.redBright}`,
-      borderRadius: '3px',
-      cursor: 'pointer',
-      opacity: '0.7',
-      transition: 'all 0.2s',
-      marginTop: spacing.sm,
-    },
-    on: {
-      click: (e: Event) => {
-        e.stopPropagation();
-        onClick();
-      },
-    },
-  }, 'DELETE TASK');
-}
-
 export function renderMutationActions(
   taskWithPointer: TaskWithPointer,
   callbacks: MutationCallbacks
@@ -92,16 +64,12 @@ export function renderMutationActions(
     )
   ));
 
-  const deleteButton = renderDeleteButton(
-    () => callbacks.onDelete(pointer.file, pointer.taskIndex)
-  );
-
   const content = h('div', {
     style: {
       display: 'flex',
       flexDirection: 'column',
     },
-  }, [keywordButtons, deleteButton]);
+  }, [keywordButtons]);
 
   return renderSidebarSection('Actions', content)!;
 }

@@ -124,7 +124,47 @@ export async function fetchParentProject(
   return result.data[0] ?? null;
 }
 
-// --- Mutation API functions ---
+// --- Edit Task API (unified mutation endpoint) ---
+
+export interface EditTaskParams {
+  readonly file: FilePath;
+  readonly taskIndex: TaskIndex;
+  readonly keyword?: string;
+  readonly priority?: number | null;
+  readonly title?: string;
+  readonly tags?: ReadonlyArray<string>;
+  readonly scheduled?: import("../types/domain.js").OrgTime | null;
+  readonly deadline?: import("../types/domain.js").OrgTime | null;
+}
+
+/**
+ * Unified task edit endpoint. Only includes fields that are being changed.
+ * For nullable fields (priority, scheduled, deadline):
+ *   - omitted = don't change
+ *   - null = clear the field
+ *   - value = set to this value
+ */
+export async function editTask(params: EditTaskParams): Promise<TaskWithPointer> {
+  const body: Record<string, unknown> = {
+    file: unwrapFilePath(params.file),
+    taskIndex: unwrapTaskIndex(params.taskIndex),
+  };
+  if (params.keyword !== undefined) body.keyword = params.keyword;
+  if (params.priority !== undefined) body.priority = params.priority;
+  if (params.title !== undefined) body.title = params.title;
+  if (params.tags !== undefined) body.tags = params.tags;
+  if (params.scheduled !== undefined) body.scheduled = params.scheduled;
+  if (params.deadline !== undefined) body.deadline = params.deadline;
+
+  const response = await fetch(`${API_BASE_URL}/api/tasks/edit`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return parseMutationResponse(response);
+}
+
+// --- Legacy Mutation API functions ---
 
 async function parseMutationResponse(response: Response): Promise<TaskWithPointer> {
   if (!response.ok) {

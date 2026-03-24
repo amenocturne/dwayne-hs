@@ -23,6 +23,7 @@ module Api.Handlers
 
     -- * Mutation Handlers
     withMutation,
+    editTaskHandler,
     changeKeywordHandler,
     changePriorityHandler,
     addTagHandler,
@@ -31,7 +32,7 @@ module Api.Handlers
   )
 where
 
-import Api.Types (CaptureRequest (..), ChangeKeywordRequest (..), ChangePriorityRequest (..), PaginatedResponse (..), ProjectTreeResponse (..), ResponseMetadata (..), TagRequest (..), TaskNode (..), TaskPointerRequest (..), TaskWithPointer (..))
+import Api.Types (CaptureRequest (..), ChangeKeywordRequest (..), ChangePriorityRequest (..), EditTaskRequest (..), PaginatedResponse (..), ProjectTreeResponse (..), ResponseMetadata (..), TagRequest (..), TaskNode (..), TaskPointerRequest (..), TaskWithPointer (..), requestToTransform)
 import Control.Concurrent.MVar (MVar, modifyMVar)
 import Control.Lens (preview, set, view, (&), (.~))
 import Control.Monad.IO.Class (liftIO)
@@ -294,6 +295,24 @@ withMutation cacheVar ptr operation = do
         case Ops.getTask ptr newFs of
           Nothing -> return (ctx, Left "Task not found after update")
           Just task -> return (newCtx, Right (TaskWithPointer task ptr))
+  case result of
+    Left err -> throwError $ err400 {errBody = BSL.pack err}
+    Right twp -> return twp
+
+editTaskHandler :: MVar (AppContext Task) -> EditTaskRequest -> Handler TaskWithPointer
+editTaskHandler cacheVar req = do
+  let ptr = TaskPointer (etrFile req) (etrTaskIndex req)
+      transform = requestToTransform req
+  result <- liftIO $ modifyMVar cacheVar $ \ctx -> do
+    let fs = view fileStateLens ctx
+    case Ops.editTask ptr transform fs of
+      Left err -> return (ctx, Left err)
+      Right (newFs, updatedTask) -> do
+        let newCtx = set fileStateLens newFs ctx
+        case view (system . taskStoreOps) ctx of
+          Just ops -> storeSave ops newFs
+          Nothing -> return ()
+        return (newCtx, Right (TaskWithPointer updatedTask ptr))
   case result of
     Left err -> throwError $ err400 {errBody = BSL.pack err}
     Right twp -> return twp

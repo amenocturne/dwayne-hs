@@ -14,6 +14,11 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 
 class ApiTaskRepository(private val baseUrl: String) : TaskRepository {
 
@@ -49,27 +54,39 @@ class ApiTaskRepository(private val baseUrl: String) : TaskRepository {
         }.body()
     }
 
-    override suspend fun changeKeyword(pointer: TaskPointer, keyword: String): TaskWithPointer {
-        return client.put("$baseUrl/api/tasks/keyword") {
+    override suspend fun editTask(request: EditTaskRequest): TaskWithPointer {
+        val jsonSerializer = Json { ignoreUnknownKeys = true; isLenient = true }
+        val body = buildJsonObject {
+            put("file", request.file)
+            put("taskIndex", request.taskIndex)
+            request.keyword?.let { put("keyword", it) }
+            request.priority?.let { clearOrSet ->
+                if (clearOrSet.value == null) put("priority", JsonNull) else put("priority", clearOrSet.value)
+            }
+            request.title?.let { put("title", it) }
+            request.tags?.let { tagList ->
+                putJsonArray("tags") { tagList.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } }
+            }
+            request.scheduled?.let { clearOrSet ->
+                if (clearOrSet.value == null) put("scheduled", JsonNull)
+                else put("scheduled", jsonSerializer.encodeToJsonElement(clearOrSet.value))
+            }
+            request.deadline?.let { clearOrSet ->
+                if (clearOrSet.value == null) put("deadline", JsonNull)
+                else put("deadline", jsonSerializer.encodeToJsonElement(clearOrSet.value))
+            }
+        }
+        return client.put("$baseUrl/api/tasks/edit") {
             contentType(ContentType.Application.Json)
-            setBody(ChangeKeywordRequest(
-                ckrFile = pointer.file,
-                ckrTaskIndex = pointer.taskIndex,
-                ckrKeyword = keyword,
-            ))
+            setBody(body)
         }.body()
     }
 
-    override suspend fun changePriority(pointer: TaskPointer, priority: Int?): TaskWithPointer {
-        return client.put("$baseUrl/api/tasks/priority") {
-            contentType(ContentType.Application.Json)
-            setBody(ChangePriorityRequest(
-                cprFile = pointer.file,
-                cprTaskIndex = pointer.taskIndex,
-                cprPriority = priority,
-            ))
-        }.body()
-    }
+    override suspend fun changeKeyword(pointer: TaskPointer, keyword: String): TaskWithPointer =
+        editTask(EditTaskRequest(file = pointer.file, taskIndex = pointer.taskIndex, keyword = keyword))
+
+    override suspend fun changePriority(pointer: TaskPointer, priority: Int?): TaskWithPointer =
+        editTask(EditTaskRequest(file = pointer.file, taskIndex = pointer.taskIndex, priority = ClearOrSet(priority)))
 
     override suspend fun addTag(pointer: TaskPointer, tag: String): TaskWithPointer {
         return client.post("$baseUrl/api/tasks/tags/add") {
@@ -93,13 +110,6 @@ class ApiTaskRepository(private val baseUrl: String) : TaskRepository {
         }.body()
     }
 
-    override suspend fun deleteTask(pointer: TaskPointer): TaskWithPointer {
-        return client.post("$baseUrl/api/tasks/delete") {
-            contentType(ContentType.Application.Json)
-            setBody(TaskPointerRequest(
-                tprFile = pointer.file,
-                tprTaskIndex = pointer.taskIndex,
-            ))
-        }.body()
-    }
+    override suspend fun deleteTask(pointer: TaskPointer): TaskWithPointer =
+        editTask(EditTaskRequest(file = pointer.file, taskIndex = pointer.taskIndex, keyword = "TRASH"))
 }

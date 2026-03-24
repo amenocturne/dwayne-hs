@@ -651,12 +651,6 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
         { type: 'RemoveTag', file: action.file, taskIndex: action.taskIndex, tag: action.tag }
       ];
 
-    case 'DeleteRequested':
-      return [
-        state,
-        { type: 'DeleteTask', file: action.file, taskIndex: action.taskIndex }
-      ];
-
     case 'MutationSucceeded': {
       // Update the selected task in detail card with the updated data, then reload the view
       const reloadEffect: Effect = state.view.projectPointer
@@ -694,34 +688,6 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
           type: 'Batch',
           effects: [
             { type: 'ShowToast', message: 'Task captured' },
-            reloadEffect,
-          ]
-        }
-      ];
-    }
-
-    case 'DeleteSucceeded': {
-      // Close detail card, reload view, and show toast
-      const reloadEffect: Effect = state.view.projectPointer
-        ? { type: 'FetchProjectTree', pointer: state.view.projectPointer, requestId: state.detail.projectTreeRequestId + 1, updateTaskList: true }
-        : { type: 'FetchTasks', view: state.view.currentView, offset: 0, limit: 100 };
-
-      return [
-        {
-          ...state,
-          detail: {
-            ...state.detail,
-            selectedTask: null,
-            projectTreeRequestId: state.view.projectPointer
-              ? state.detail.projectTreeRequestId + 1
-              : state.detail.projectTreeRequestId,
-          },
-          taskList: { ...state.taskList, loading: true },
-        },
-        {
-          type: 'Batch',
-          effects: [
-            { type: 'ShowToast', message: 'Task deleted' },
             reloadEffect,
           ]
         }

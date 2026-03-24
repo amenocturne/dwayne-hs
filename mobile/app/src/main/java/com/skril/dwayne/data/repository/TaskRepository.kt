@@ -7,6 +7,7 @@ interface TaskRepository {
     suspend fun getView(viewName: String, offset: Int = 0, limit: Int = 100): PaginatedResponse
     suspend fun search(query: String, view: String? = null, offset: Int = 0, limit: Int = 100): PaginatedResponse
     suspend fun capture(title: String): TaskWithPointer
+    suspend fun editTask(request: EditTaskRequest): TaskWithPointer
     suspend fun changeKeyword(pointer: TaskPointer, keyword: String): TaskWithPointer
     suspend fun changePriority(pointer: TaskPointer, priority: Int?): TaskWithPointer
     suspend fun addTag(pointer: TaskPointer, tag: String): TaskWithPointer
@@ -61,21 +62,27 @@ class MockTaskRepository : TaskRepository {
         return newTask
     }
 
-    override suspend fun changeKeyword(pointer: TaskPointer, keyword: String): TaskWithPointer {
+    override suspend fun editTask(request: EditTaskRequest): TaskWithPointer {
+        val pointer = TaskPointer(request.file, request.taskIndex)
         val idx = tasks.indexOfFirst { it.pointer == pointer }
         if (idx == -1) error("Task not found")
-        val updated = tasks[idx].let { it.copy(task = it.task.copy(todoKeyword = keyword)) }
+        var task = tasks[idx].task
+        request.keyword?.let { task = task.copy(todoKeyword = it) }
+        request.priority?.let { task = task.copy(priority = it.value) }
+        request.title?.let { task = task.copy(title = listOf(TextNode.Plain(it))) }
+        request.tags?.let { task = task.copy(tags = it) }
+        request.scheduled?.let { task = task.copy(scheduled = it.value) }
+        request.deadline?.let { task = task.copy(deadline = it.value) }
+        val updated = tasks[idx].copy(task = task)
         tasks[idx] = updated
         return updated
     }
 
-    override suspend fun changePriority(pointer: TaskPointer, priority: Int?): TaskWithPointer {
-        val idx = tasks.indexOfFirst { it.pointer == pointer }
-        if (idx == -1) error("Task not found")
-        val updated = tasks[idx].let { it.copy(task = it.task.copy(priority = priority)) }
-        tasks[idx] = updated
-        return updated
-    }
+    override suspend fun changeKeyword(pointer: TaskPointer, keyword: String): TaskWithPointer =
+        editTask(EditTaskRequest(file = pointer.file, taskIndex = pointer.taskIndex, keyword = keyword))
+
+    override suspend fun changePriority(pointer: TaskPointer, priority: Int?): TaskWithPointer =
+        editTask(EditTaskRequest(file = pointer.file, taskIndex = pointer.taskIndex, priority = ClearOrSet(priority)))
 
     override suspend fun addTag(pointer: TaskPointer, tag: String): TaskWithPointer {
         val idx = tasks.indexOfFirst { it.pointer == pointer }
@@ -93,10 +100,6 @@ class MockTaskRepository : TaskRepository {
         return updated
     }
 
-    override suspend fun deleteTask(pointer: TaskPointer): TaskWithPointer {
-        val idx = tasks.indexOfFirst { it.pointer == pointer }
-        if (idx == -1) error("Task not found")
-        val removed = tasks.removeAt(idx)
-        return removed
-    }
+    override suspend fun deleteTask(pointer: TaskPointer): TaskWithPointer =
+        editTask(EditTaskRequest(file = pointer.file, taskIndex = pointer.taskIndex, keyword = "TRASH"))
 }

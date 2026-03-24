@@ -119,3 +119,22 @@ data class TaskPointerRequest(
     val tprFile: String,
     val tprTaskIndex: Int,
 )
+
+/**
+ * Unified edit request. Only non-null fields are included in the JSON body.
+ * For fields like priority/scheduled/deadline, use the sentinel [ClearOrSet] wrapper
+ * to distinguish "don't change" (null) from "clear" (ClearOrSet(null)) from "set" (ClearOrSet(value)).
+ */
+data class EditTaskRequest(
+    val file: String,
+    val taskIndex: Int,
+    val keyword: String? = null,
+    val priority: ClearOrSet<Int>? = null,
+    val title: String? = null,
+    val tags: List<String>? = null,
+    val scheduled: ClearOrSet<OrgTime>? = null,
+    val deadline: ClearOrSet<OrgTime>? = null,
+)
+
+/** Wrapper to distinguish "clear this field" (value=null) from "set to X" (value=X). */
+data class ClearOrSet<T>(val value: T?)

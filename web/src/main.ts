@@ -125,9 +125,6 @@ const callbacks: AppCallbacks = {
   onChangeKeyword: (file, taskIndex, keyword) => {
     dispatch({ type: 'ChangeKeywordRequested', file, taskIndex, keyword });
   },
-  onDelete: (file, taskIndex) => {
-    dispatch({ type: 'DeleteRequested', file, taskIndex });
-  },
   onCapture: (title) => {
     dispatch({ type: 'CaptureRequested', title });
   },

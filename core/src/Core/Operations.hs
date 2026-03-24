@@ -108,13 +108,15 @@ addTask fp task fs =
           ptr = TaskPointer fp newIdx
        in Right (updatedFs, ptr)
 
--- | Edit a task by replacing it with a new version
-editTask :: TaskPointer -> Task -> FileState Task -> Either String (FileState Task)
-editTask ptr newTask fs =
+-- | Edit a task by applying a transformation function
+editTask :: TaskPointer -> (Task -> Task) -> FileState Task -> Either String (FileState Task, Task)
+editTask ptr transform fs =
   case getTask ptr fs of
     Nothing -> Left $ "Task not found at: " ++ show ptr
-    Just _ ->
-      Right $ fs & ix (view file ptr) . success . content . ix (view taskIndex ptr) .~ newTask
+    Just task ->
+      let newTask = transform task
+          newFs = fs & ix (view file ptr) . success . content . ix (view taskIndex ptr) .~ newTask
+       in Right (newFs, newTask)
 
 -- | Delete a task by marking it as TRASH
 deleteTask :: TaskPointer -> FileState Task -> Either String (FileState Task)

@@ -51,8 +51,6 @@ export type Action =
   | { type: 'ChangePriorityRequested'; file: FilePath; taskIndex: TaskIndex; priority: number | null }
   | { type: 'AddTagRequested'; file: FilePath; taskIndex: TaskIndex; tag: string }
   | { type: 'RemoveTagRequested'; file: FilePath; taskIndex: TaskIndex; tag: string }
-  | { type: 'DeleteRequested'; file: FilePath; taskIndex: TaskIndex }
   | { type: 'MutationSucceeded'; updatedTask: TaskWithPointer }
   | { type: 'CaptureSucceeded' }
-  | { type: 'DeleteSucceeded' }
   | { type: 'MutationFailed'; error: string };

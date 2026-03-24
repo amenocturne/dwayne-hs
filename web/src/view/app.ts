@@ -30,7 +30,6 @@ export interface AppCallbacks {
   readonly onDebugToggle: () => void;
   readonly onDebugParamChange: (param: keyof import("../types/state.js").Carousel3DParams, value: number | boolean) => void;
   readonly onChangeKeyword: (file: FilePath, taskIndex: TaskIndex, keyword: string) => void;
-  readonly onDelete: (file: FilePath, taskIndex: TaskIndex) => void;
   readonly onCapture: (title: string) => void;
 }
 
@@ -56,7 +55,6 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
 
   const mutationCallbacks: MutationCallbacks = {
     onChangeKeyword: callbacks.onChangeKeyword,
-    onDelete: callbacks.onDelete,
   };
 
   const detailCardCallbacks: DetailCardCallbacks = {

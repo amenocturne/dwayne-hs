@@ -174,21 +174,32 @@ spec = do
         addTask "nonexistent.org" task fs `shouldSatisfy` isLeft
 
     describe "editTask" $ do
-      it "replaces task with new version" $ do
+      it "applies transformation to task" $ do
         let oldTask = mkTask "TODO" "Old Title" 1
-            newTask = mkTask "DONE" "New Title" 2
             fs = mkFileState [("file1.org", [oldTask])]
             ptr = TaskPointer "file1.org" 0
-        case editTask ptr newTask fs of
-          Right newFs ->
-            getTask ptr newFs `shouldBe` Just newTask
+            transform t = t & todoKeyword .~ "DONE"
+        case editTask ptr transform fs of
+          Right (newFs, updatedTask) -> do
+            view todoKeyword updatedTask `shouldBe` "DONE"
+            getTask ptr newFs `shouldBe` Just updatedTask
+          Left err -> expectationFailure $ "Expected success but got error: " ++ err
+
+      it "returns the transformed task" $ do
+        let oldTask = mkTask "TODO" "Task" 1
+            fs = mkFileState [("file1.org", [oldTask])]
+            ptr = TaskPointer "file1.org" 0
+            transform t = t & priority .~ Just 1 & todoKeyword .~ "WAITING"
+        case editTask ptr transform fs of
+          Right (_, updatedTask) -> do
+            view priority updatedTask `shouldBe` Just 1
+            view todoKeyword updatedTask `shouldBe` "WAITING"
           Left err -> expectationFailure $ "Expected success but got error: " ++ err
 
       it "returns error when task doesn't exist" $ do
-        let task = mkTask "TODO" "Task" 1
-            fs = mkFileState []
+        let fs = mkFileState []
             ptr = TaskPointer "file1.org" 0
-        editTask ptr task fs `shouldSatisfy` isLeft
+        editTask ptr id fs `shouldSatisfy` isLeft
 
     describe "deleteTask" $ it "marks task as TRASH" $ do
       let task = mkTask "TODO" "Task" 1

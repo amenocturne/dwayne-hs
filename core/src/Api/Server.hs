@@ -9,7 +9,7 @@ module Api.Server
 where
 
 import qualified Api.Handlers
-import Api.Types (ApiBinding (..), ApiMethod (..), CaptureRequest, ChangeKeywordRequest, ChangePriorityRequest, PaginatedResponse (..), ProjectTreeResponse, ResponseMetadata (..), TagRequest, TaskPointerRequest, TaskWithPointer)
+import Api.Types (ApiBinding (..), ApiMethod (..), CaptureRequest, ChangeKeywordRequest, ChangePriorityRequest, EditTaskRequest, PaginatedResponse (..), ProjectTreeResponse, ResponseMetadata (..), TagRequest, TaskPointerRequest, TaskWithPointer)
 import qualified Api.WebSocket as WS
 import Commands.Command (Command (..), getEnabledCommands)
 import Commands.Registry (allCommands)
@@ -24,7 +24,7 @@ import qualified FileWatcher as FW
 import Model.OrgMode (Task, TaskFile)
 import Network.Wai.Handler.Warp (run)
 import qualified Network.Wai.Handler.WebSockets as WaiWS
-import Network.Wai.Middleware.Cors (simpleCors)
+import Network.Wai.Middleware.Cors (cors, corsMethods, corsRequestHeaders, simpleCorsResourcePolicy)
 import qualified Network.WebSockets as WebSockets
 import Parser.Parser (runParser)
 import Servant
@@ -98,7 +98,8 @@ type CaptureAPI =
 
 -- | Mutation API for task modifications
 type MutationAPI =
-  "tasks" :> "keyword" :> ReqBody '[JSON] ChangeKeywordRequest :> Put '[JSON] TaskWithPointer
+  "tasks" :> "edit" :> ReqBody '[JSON] EditTaskRequest :> Put '[JSON] TaskWithPointer
+    :<|> "tasks" :> "keyword" :> ReqBody '[JSON] ChangeKeywordRequest :> Put '[JSON] TaskWithPointer
     :<|> "tasks" :> "priority" :> ReqBody '[JSON] ChangePriorityRequest :> Put '[JSON] TaskWithPointer
     :<|> "tasks" :> "tags" :> "add" :> ReqBody '[JSON] TagRequest :> Post '[JSON] TaskWithPointer
     :<|> "tasks" :> "tags" :> "remove" :> ReqBody '[JSON] TagRequest :> Post '[JSON] TaskWithPointer
@@ -181,7 +182,8 @@ captureServer serverState = Api.Handlers.captureHandler (stateCache serverState)
 -- | Mutation server implementation
 mutationServer :: ServerState -> Server MutationAPI
 mutationServer serverState =
-  Api.Handlers.changeKeywordHandler (stateCache serverState)
+  Api.Handlers.editTaskHandler (stateCache serverState)
+    :<|> Api.Handlers.changeKeywordHandler (stateCache serverState)
     :<|> Api.Handlers.changePriorityHandler (stateCache serverState)
     :<|> Api.Handlers.addTagHandler (stateCache serverState)
     :<|> Api.Handlers.removeTagHandler (stateCache serverState)
@@ -195,7 +197,16 @@ apiServer serverState =
 
 -- | Convert the API server to a WAI Application with CORS support
 app :: ServerState -> Application
-app serverState = simpleCors $ serve (Proxy :: Proxy API) (apiServer serverState)
+app serverState = corsMiddleware $ serve (Proxy :: Proxy API) (apiServer serverState)
+  where
+    corsMiddleware =
+      cors $
+        const $
+          Just
+            simpleCorsResourcePolicy
+              { corsRequestHeaders = ["Content-Type"],
+                corsMethods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+              }
 
 -- | Run the web server on the specified port
 -- Serves REST API at /api/* and static files from web/dist/ at /*
