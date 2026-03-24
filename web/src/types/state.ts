@@ -102,6 +102,10 @@ export interface AppState {
   readonly error: string | null;
   readonly listFilters: ReadonlyArray<string>;
   readonly backlogCollapsed: ReadonlyArray<string>;
+  readonly focusedTaskIndex: number | null;
+  readonly inboxCount: number;
+  readonly lastCapturedTask: TaskWithPointer | null;
+  readonly animatingOutTasks: ReadonlyArray<string>;
 }
 
 /**

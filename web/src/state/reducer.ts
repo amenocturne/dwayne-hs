@@ -32,6 +32,7 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
           activeView: action.activeView,
           commandBarMode: 'capture',
           detailPanel: { open: false, task: null },
+          focusedTaskIndex: null,
         },
         { type: 'None' }
       ];
@@ -149,6 +150,10 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
 
     case 'TasksLoaded': {
       const receivedFull = action.tasks.length === 100;
+      // Update inbox count when loading inbox view
+      const updatedInboxCount = state.view.currentView === 'inbox'
+        ? action.total
+        : state.inboxCount;
       return [
         {
           ...state,
@@ -161,6 +166,7 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
             pagesLoaded: 1,
             loadingMore: receivedFull,
           },
+          inboxCount: updatedInboxCount,
           error: null,
         },
         receivedFull
@@ -764,6 +770,49 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
       ];
     }
 
+    case 'CaptureSucceededWithTask': {
+      const capturedTask = action.task;
+      const titleText = capturedTask.task.title
+        .map((n) => (n.type === "plain" ? n.text : n.url))
+        .join("")
+        .slice(0, 40);
+      const toastMsg = `Captured: ${titleText}${titleText.length >= 40 ? '...' : ''}`;
+      const taskKey = `${capturedTask.pointer.file}-${capturedTask.pointer.taskIndex}`;
+
+      const reloadEffect: Effect = state.view.projectPointer
+        ? { type: 'FetchProjectTree', pointer: state.view.projectPointer, requestId: state.detail.projectTreeRequestId + 1, updateTaskList: true }
+        : { type: 'FetchTasks', view: state.view.currentView, offset: 0, limit: 100 };
+
+      return [
+        {
+          ...state,
+          taskList: { ...state.taskList, loading: true },
+          lastCapturedTask: capturedTask,
+          inboxCount: state.inboxCount + 1,
+        },
+        {
+          type: 'Batch',
+          effects: [
+            { type: 'ShowClickableToast', message: toastMsg, taskKey },
+            reloadEffect,
+          ]
+        }
+      ];
+    }
+
+    case 'OpenLastCapturedTask': {
+      if (!state.lastCapturedTask) {
+        return [state, { type: 'None' }];
+      }
+      return [
+        {
+          ...state,
+          detailPanel: { open: true, task: state.lastCapturedTask },
+        },
+        { type: 'None' }
+      ];
+    }
+
     case 'MutationFailed':
       return [
         state,
@@ -799,6 +848,38 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
         { type: 'None' }
       ];
     }
+
+    // --- Keyboard navigation actions ---
+
+    case 'TaskFocusChanged':
+      return [
+        { ...state, focusedTaskIndex: action.index },
+        { type: 'None' }
+      ];
+
+    case 'TaskAnimatingOut':
+      return [
+        {
+          ...state,
+          animatingOutTasks: [...state.animatingOutTasks, action.taskKey],
+        },
+        { type: 'None' }
+      ];
+
+    case 'TaskAnimationComplete':
+      return [
+        {
+          ...state,
+          animatingOutTasks: state.animatingOutTasks.filter((k) => k !== action.taskKey),
+        },
+        { type: 'None' }
+      ];
+
+    case 'InboxCountLoaded':
+      return [
+        { ...state, inboxCount: action.count },
+        { type: 'None' }
+      ];
 
     default:
       // Exhaustiveness check - ensures all action types are handled at compile time

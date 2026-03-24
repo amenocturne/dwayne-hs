@@ -31,6 +31,8 @@ export interface BacklogViewCallbacks {
   readonly onTaskClick: (task: TaskWithPointer) => void;
   readonly onQuickAction: (task: TaskWithPointer, keyword: string) => void;
   readonly onToggleSection: (sectionId: string) => void;
+  readonly focusedTaskIndex?: number | null;
+  readonly animatingOutTasks?: ReadonlyArray<string>;
 }
 
 // --- Quick actions for backlog rows ---
@@ -246,22 +248,30 @@ function renderSectionHeader(
 function renderSectionBody(
   section: BacklogSection,
   callbacks: BacklogViewCallbacks,
+  globalIndexStart: number,
 ): VNode {
+  const focusedIdx = callbacks.focusedTaskIndex ?? null;
+  const animatingOut = callbacks.animatingOutTasks ?? [];
+
   return h("div.backlog-section-body", {
     key: `body-${section.id}`,
     style: {
       borderLeft: `3px solid rgba(255, 255, 255, 0.03)`,
       marginLeft: "0",
     },
-  }, section.tasks.map((twp) =>
-    renderTaskRow({
+  }, section.tasks.map((twp, localIdx) => {
+    const globalIdx = globalIndexStart + localIdx;
+    const taskKey = `${twp.pointer.file}-${twp.pointer.taskIndex}`;
+    return renderTaskRow({
       task: twp,
       showKeyword: true,
       quickActions: BACKLOG_QUICK_ACTIONS as QuickAction[],
       onTaskClick: (t) => callbacks.onTaskClick(t),
       onQuickAction: (t, keyword) => callbacks.onQuickAction(t, keyword),
-    })
-  ));
+      isFocused: focusedIdx === globalIdx,
+      isAnimatingOut: animatingOut.includes(taskKey),
+    });
+  }));
 }
 
 // --- View header ---
@@ -295,6 +305,24 @@ function renderBacklogHeader(totalCount: number): VNode {
       },
     }, `${totalCount} tasks`),
   ]);
+}
+
+/**
+ * Returns the flat ordered task list as rendered in the backlog sections.
+ * Used for keyboard navigation to map focusedTaskIndex to the correct task.
+ */
+export function getBacklogVisibleTasks(
+  tasks: ReadonlyArray<TaskWithPointer>,
+  collapsedSections: ReadonlyArray<string>,
+): ReadonlyArray<TaskWithPointer> {
+  const sections = buildSections(tasks);
+  const result: TaskWithPointer[] = [];
+  for (const section of sections) {
+    if (!collapsedSections.includes(section.id)) {
+      result.push(...section.tasks);
+    }
+  }
+  return result;
 }
 
 // --- Main render ---
@@ -359,11 +387,13 @@ export function renderBacklogView(
   const sectionTaskCount = sections.reduce((acc, s) => acc + s.tasks.length, 0);
 
   const sectionNodes: VNode[] = [];
+  let globalIndex = 0;
   for (const section of sections) {
     const isCollapsed = collapsedSections.includes(section.id);
     sectionNodes.push(renderSectionHeader(section, isCollapsed, callbacks.onToggleSection));
     if (!isCollapsed) {
-      sectionNodes.push(renderSectionBody(section, callbacks));
+      sectionNodes.push(renderSectionBody(section, callbacks, globalIndex));
+      globalIndex += section.tasks.length;
     }
   }
 

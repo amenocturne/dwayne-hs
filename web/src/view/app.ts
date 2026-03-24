@@ -143,6 +143,8 @@ function renderTaskListView(
   quickActions: ReadonlyArray<QuickAction>,
   emptyMessage: string,
   callbacks: AppCallbacks,
+  focusedTaskIndex: number | null = null,
+  animatingOutTasks: ReadonlyArray<string> = [],
 ): VNode {
   if (loading) {
     return h("div.list-view", {
@@ -183,25 +185,28 @@ function renderTaskListView(
             overflowY: "auto",
             overflowX: "hidden",
           },
-        }, tasks.map((twp) =>
-          renderTaskRow({
+        }, tasks.map((twp, idx) => {
+          const taskKey = `${twp.pointer.file}-${twp.pointer.taskIndex}`;
+          return renderTaskRow({
             task: twp,
             showKeyword,
             quickActions: quickActions as QuickAction[],
             onTaskClick: (t) => callbacks.onDetailPanelOpen(t),
             onQuickAction: (t, keyword) => callbacks.onChangeKeyword(t.pointer.file, t.pointer.taskIndex, keyword),
-          })
-        )),
+            isFocused: focusedTaskIndex === idx,
+            isAnimatingOut: animatingOutTasks.includes(taskKey),
+          });
+        })),
   ]);
 }
 
 function computeInboxCount(state: AppState): number {
-  // When viewing inbox, we have the total count available
-  if (state.view.currentView === 'inbox') {
+  // When viewing inbox, use the live total count
+  if (state.activeView === 'inbox') {
     return state.taskList.totalCount;
   }
-  // Otherwise, no reliable count without a separate API call
-  return 0;
+  // Otherwise, use the stored inbox count (fetched at startup and updated on capture)
+  return state.inboxCount;
 }
 
 function renderGarageView(state: AppState, callbacks: AppCallbacks): VNode {
@@ -306,6 +311,8 @@ function renderContentArea(state: AppState, callbacks: AppCallbacks): VNode {
         TODAY_QUICK_ACTIONS,
         "Nothing committed for today. Pull tasks from the backlog, or capture something new.",
         callbacks,
+        state.focusedTaskIndex,
+        state.animatingOutTasks,
       );
       break;
     case 'inbox':
@@ -318,6 +325,8 @@ function renderContentArea(state: AppState, callbacks: AppCallbacks): VNode {
         INBOX_QUICK_ACTIONS,
         "Inbox zero. Enjoy it.",
         callbacks,
+        state.focusedTaskIndex,
+        state.animatingOutTasks,
       );
       break;
     case 'backlog': {
@@ -325,6 +334,8 @@ function renderContentArea(state: AppState, callbacks: AppCallbacks): VNode {
         onTaskClick: (t) => callbacks.onDetailPanelOpen(t),
         onQuickAction: (t, keyword) => callbacks.onChangeKeyword(t.pointer.file, t.pointer.taskIndex, keyword),
         onToggleSection: callbacks.onBacklogSectionToggle,
+        focusedTaskIndex: state.focusedTaskIndex,
+        animatingOutTasks: state.animatingOutTasks,
       };
       content = renderBacklogView(
         state.taskList.tasks,

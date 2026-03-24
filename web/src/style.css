@@ -426,3 +426,43 @@ body::after {
 .view-selector-arrow.arrow-interactive:hover {
   transform: scale(1.1);
 }
+
+/* Keyword button press micro-interaction */
+.keyword-option:active,
+.quick-action-btn:active,
+.filter-chip:active,
+.filter-chip-all:active {
+  transform: scale(0.95) !important;
+  transition: transform 50ms ease !important;
+}
+
+/* Task row focus state (keyboard navigation) */
+.task-row-focused {
+  border-left: 3px solid var(--cyan-bright) !important;
+  background: var(--row-focus) !important;
+}
+
+/* Task row animating out (state change) */
+.task-row-animating-out {
+  opacity: 0 !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  min-height: 0 !important;
+  border-bottom: none !important;
+  transition: opacity 200ms ease-out, max-height 200ms ease-out, padding 200ms ease-out, min-height 200ms ease-out !important;
+}
+
+/* Completion dot green flash */
+.completion-dot:active {
+  border-color: var(--green-bright) !important;
+  color: var(--green-bright) !important;
+  box-shadow: 0 0 8px var(--green-bright) !important;
+  transition: all 50ms !important;
+}
+
+/* Rail label fade-in delay when rail expands */
+.rail:hover .rail-label {
+  transition-delay: 150ms;
+}

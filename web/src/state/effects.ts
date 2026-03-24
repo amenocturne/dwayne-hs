@@ -28,7 +28,8 @@ export type Effect =
   | { type: 'AddTag'; file: FilePath; taskIndex: TaskIndex; tag: string }
   | { type: 'RemoveTag'; file: FilePath; taskIndex: TaskIndex; tag: string }
   | { type: 'EditTask'; file: FilePath; taskIndex: TaskIndex; title?: string; tags?: ReadonlyArray<string>; scheduled?: OrgTime | null; deadline?: OrgTime | null }
-  | { type: 'Batch'; effects: ReadonlyArray<Effect> };
+  | { type: 'Batch'; effects: ReadonlyArray<Effect> }
+  | { type: 'ShowClickableToast'; message: string; taskKey: string };
 
 export type Dispatch = (action: Action) => void;
 
@@ -73,6 +74,48 @@ function showToastDOM(message: string): void {
     toast.style.animation = "slideOut 0.3s ease-out";
     setTimeout(() => {
       document.body.removeChild(toast);
+    }, 300);
+  }, 3000);
+}
+
+/**
+ * Shows a clickable toast notification that dispatches an action when clicked.
+ */
+function showClickableToastDOM(message: string, _taskKey: string, dispatch: Dispatch): void {
+  const toast = document.createElement("div");
+  toast.textContent = message;
+  toast.style.cssText = `
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--link-color);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    z-index: 10000;
+    font-size: 14px;
+    animation: slideIn 0.3s ease-out;
+    cursor: pointer;
+    user-select: none;
+  `;
+
+  toast.addEventListener("click", () => {
+    dispatch({ type: 'OpenLastCapturedTask' });
+    // Remove toast immediately on click
+    if (toast.parentNode) {
+      toast.parentNode.removeChild(toast);
+    }
+  });
+
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.animation = "slideOut 0.3s ease-out";
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.parentNode.removeChild(toast);
+      }
     }, 300);
   }, 3000);
 }
@@ -221,8 +264,8 @@ export async function runEffect(effect: Effect, dispatch: Dispatch): Promise<voi
 
     case 'CaptureTask':
       try {
-        await captureTask(effect.title);
-        dispatch({ type: 'CaptureSucceeded' });
+        const captured = await captureTask(effect.title);
+        dispatch({ type: 'CaptureSucceededWithTask', task: captured });
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Capture failed";
         dispatch({ type: 'MutationFailed', error: errorMessage });
@@ -288,6 +331,10 @@ export async function runEffect(effect: Effect, dispatch: Dispatch): Promise<voi
 
     case 'ShowToast':
       showToastDOM(effect.message);
+      break;
+
+    case 'ShowClickableToast':
+      showClickableToastDOM(effect.message, effect.taskKey, dispatch);
       break;
 
     case 'Batch':

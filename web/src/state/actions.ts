@@ -66,4 +66,11 @@ export type Action =
   // Lists filter actions
   | { type: 'ListFilterToggled'; tag: string }
   // Backlog section collapse actions
-  | { type: 'BacklogSectionToggled'; sectionId: string };
+  | { type: 'BacklogSectionToggled'; sectionId: string }
+  // Keyboard navigation actions
+  | { type: 'TaskFocusChanged'; index: number | null }
+  | { type: 'CaptureSucceededWithTask'; task: TaskWithPointer }
+  | { type: 'OpenLastCapturedTask' }
+  | { type: 'TaskAnimatingOut'; taskKey: string }
+  | { type: 'TaskAnimationComplete'; taskKey: string }
+  | { type: 'InboxCountLoaded'; count: number };

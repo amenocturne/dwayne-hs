@@ -30,6 +30,8 @@ export interface TaskRowProps {
   readonly quickActions: ReadonlyArray<QuickAction>;
   readonly onTaskClick: (task: TaskWithPointer) => void;
   readonly onQuickAction: (task: TaskWithPointer, keyword: string) => void;
+  readonly isFocused?: boolean;
+  readonly isAnimatingOut?: boolean;
 }
 
 // --- Priority helpers ---
@@ -226,7 +228,7 @@ function renderQuickActionButton(
 // --- Main render ---
 
 export function renderTaskRow(props: TaskRowProps): VNode {
-  const { task: twp, showKeyword, quickActions, onTaskClick, onQuickAction } = props;
+  const { task: twp, showKeyword, quickActions, onTaskClick, onQuickAction, isFocused = false, isAnimatingOut = false } = props;
   const { task } = twp;
 
   // Determine created date for relative time
@@ -298,24 +300,45 @@ export function renderTaskRow(props: TaskRowProps): VNode {
       ))
     : null;
 
-  return h("div.task-row", {
+  const focusClass = isFocused ? ".task-row-focused" : "";
+  const animClass = isAnimatingOut ? ".task-row-animating-out" : "";
+
+  const animatingOutStyle = isAnimatingOut ? {
+    opacity: "0",
+    maxHeight: "0",
+    overflow: "hidden",
+    padding: "0",
+    minHeight: "0",
+    borderBottom: "none",
+  } : {
+    opacity: "1",
+    maxHeight: "100px",
+    overflow: "visible",
+    minHeight: "44px",
+    padding: `${spacing.sm} ${spacing.md}`,
+    borderBottom: `1px solid rgba(255, 255, 255, 0.03)`,
+  };
+
+  return h(`div.task-row${focusClass}${animClass}`, {
     key: `${twp.pointer.file}-${twp.pointer.taskIndex}`,
     style: {
       display: "flex",
       alignItems: "center",
       gap: spacing.sm,
-      minHeight: "44px",
-      padding: `${spacing.sm} ${spacing.md}`,
       cursor: "pointer",
-      transition: `background ${transitions.normal}`,
+      transition: `background ${transitions.normal}, border-left 100ms ease, opacity 200ms ease-out, max-height 200ms ease-out`,
       position: "relative",
-      borderBottom: `1px solid rgba(255, 255, 255, 0.03)`,
+      borderLeft: isFocused ? `3px solid ${colors.cyanBright}` : '3px solid transparent',
+      background: isFocused ? colors.rowFocus : "transparent",
+      ...animatingOutStyle,
     },
     on: {
       click: () => onTaskClick(twp),
       mouseenter: (e: Event) => {
         const el = e.currentTarget as HTMLElement;
-        el.style.background = colors.rowHover;
+        if (!isFocused) {
+          el.style.background = colors.rowHover;
+        }
         // Show quick actions
         const qa = el.querySelector(".task-row-quick-actions") as HTMLElement | null;
         if (qa) {
@@ -325,7 +348,9 @@ export function renderTaskRow(props: TaskRowProps): VNode {
       },
       mouseleave: (e: Event) => {
         const el = e.currentTarget as HTMLElement;
-        el.style.background = "transparent";
+        if (!isFocused) {
+          el.style.background = "transparent";
+        }
         // Hide quick actions
         const qa = el.querySelector(".task-row-quick-actions") as HTMLElement | null;
         if (qa) {
