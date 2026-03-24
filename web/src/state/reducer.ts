@@ -25,6 +25,44 @@ import { assertNever } from "../types/utils.js";
  */
 export function update(state: AppState, action: Action): readonly [AppState, Effect] {
   switch (action.type) {
+    case 'ActiveViewChanged':
+      return [
+        {
+          ...state,
+          activeView: action.activeView,
+          commandBarMode: 'capture',
+          detailPanel: { open: false, task: null },
+        },
+        { type: 'None' }
+      ];
+
+    case 'CommandBarModeChanged':
+      return [
+        {
+          ...state,
+          commandBarMode: action.mode,
+        },
+        { type: 'None' }
+      ];
+
+    case 'DetailPanelOpened':
+      return [
+        {
+          ...state,
+          detailPanel: { open: true, task: action.task },
+        },
+        { type: 'None' }
+      ];
+
+    case 'DetailPanelClosed':
+      return [
+        {
+          ...state,
+          detailPanel: { open: false, task: null },
+        },
+        { type: 'None' }
+      ];
+
     case 'ViewChanged':
       return [
         {

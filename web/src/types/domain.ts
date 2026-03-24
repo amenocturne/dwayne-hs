@@ -87,6 +87,8 @@ export type ViewName =
   | "waiting"
   | "project"
   | "todo"
+  | "today"
+  | "soon"
   | "done"
   | "trash";
 
@@ -99,6 +101,8 @@ export const VIEW_ORDER: ReadonlyArray<ViewName> = [
   "inbox",
   "relevant",
   "todo",
+  "today",
+  "soon",
   "waiting",
   "project",
   "someday",
@@ -106,4 +110,19 @@ export const VIEW_ORDER: ReadonlyArray<ViewName> = [
   "list",
   "done",
   "trash",
+];
+
+/**
+ * The 5 top-level shell views in the new layout.
+ * Maps to rail items. Garage renders the existing carousel,
+ * others will have dedicated view components.
+ */
+export type ActiveView = 'today' | 'inbox' | 'backlog' | 'lists' | 'garage';
+
+export const ACTIVE_VIEW_ORDER: ReadonlyArray<ActiveView> = [
+  'today',
+  'inbox',
+  'backlog',
+  'lists',
+  'garage',
 ];

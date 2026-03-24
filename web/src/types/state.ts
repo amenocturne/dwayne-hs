@@ -4,7 +4,7 @@
  * Structured into logical groups for better organization and maintainability.
  */
 
-import type { TaskWithPointer, TaskNode, ViewName, TaskPointer } from "./domain.js";
+import type { TaskWithPointer, TaskNode, ViewName, TaskPointer, ActiveView } from "./domain.js";
 
 /**
  * State for the task list (main content area)
@@ -75,9 +75,25 @@ export interface Carousel3DParams {
 }
 
 /**
+ * Command bar mode: capture creates INBOX tasks, search filters tasks.
+ */
+export type CommandBarMode = 'capture' | 'search';
+
+/**
+ * State for the detail panel (slide-in from right).
+ */
+export interface DetailPanelState {
+  readonly open: boolean;
+  readonly task: TaskWithPointer | null;
+}
+
+/**
  * Root application state
  */
 export interface AppState {
+  readonly activeView: ActiveView;
+  readonly commandBarMode: CommandBarMode;
+  readonly detailPanel: DetailPanelState;
   readonly taskList: TaskListState;
   readonly view: ViewState;
   readonly detail: DetailCardState;

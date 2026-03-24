@@ -31,10 +31,32 @@
   /* Shared accent aliases */
   --accent-blue: #00e5ff;
   --border-color: #2a2a2a;
+  --orange-bright: #ff6b35;
 
   --tag-bg: rgba(74, 154, 168, 0.15);
   --tag-text: #4a9aa8;
   --link-color: #00e5ff;
+
+  /* Keyword colors */
+  --kw-inbox: #e2e8f0;
+  --kw-today: #ff6b35;
+  --kw-todo: #fbbf24;
+  --kw-soon: #c084fc;
+  --kw-someday: #f97316;
+  --kw-waiting: #a855f7;
+  --kw-project: #84cc16;
+  --kw-list: #2dd4bf;
+  --kw-done: #585b70;
+  --kw-trash: #585b70;
+
+  /* Surface colors */
+  --rail-bg: #0d0d0d;
+  --rail-active: rgba(255, 107, 53, 0.12);
+  --row-hover: rgba(255, 255, 255, 0.03);
+  --row-focus: rgba(0, 229, 255, 0.06);
+  --scrim: rgba(0, 0, 0, 0.3);
+  --status-bg: #080808;
+  --status-text: #555555;
 
   /* Typography - JDM Street Racing */
   --font-display: 'Audiowide', sans-serif;
@@ -42,11 +64,7 @@
   --font-mono: 'Space Mono', 'SF Mono', Monaco, Consolas, monospace;
 
   color: var(--text-primary);
-  background: radial-gradient(
-    ellipse 120% 100% at center 40%,
-    #151518 0%,
-    #0a0a0a 60%
-  );
+  background-color: #0a0a0a;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;

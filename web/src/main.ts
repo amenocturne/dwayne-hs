@@ -7,14 +7,19 @@ import { attributesModule } from "snabbdom/build/modules/attributes.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 
 import type { AppState } from "./types/state.js";
-import type { TaskPointer, TaskWithPointer } from "./types/domain.js";
+import type { ActiveView, TaskPointer, TaskWithPointer } from "./types/domain.js";
 import { view } from "./view/app.js";
 import type { AppCallbacks } from "./view/app.js";
 import { createStore } from "./state/store.js";
 import type { Dispatch } from "./state/effects.js";
-import { carousel3DConfig } from "./view/constants.js";
 
 const initialState: AppState = {
+  activeView: 'garage',
+  commandBarMode: 'capture',
+  detailPanel: {
+    open: false,
+    task: null,
+  },
   taskList: {
     tasks: [],
     loading: true,
@@ -99,36 +104,145 @@ function debouncedSearch(query: string): void {
 }
 
 const callbacks: AppCallbacks = {
+  // Shell navigation
+  onActiveViewChange: (activeView: ActiveView) => {
+    dispatch({ type: 'ActiveViewChanged', activeView });
+    // When switching to garage, load tasks via the legacy view system
+    if (activeView === 'garage') {
+      dispatch({ type: 'ViewChanged', view: 'all' });
+    }
+  },
+  onCommandBarModeChange: (mode) => {
+    dispatch({ type: 'CommandBarModeChanged', mode });
+  },
+
+  // Search + capture
   onSearchChange: (query: string) => {
     dispatch({ type: 'SearchQueryChanged', query });
     debouncedSearch(query);
   },
   onClearSearch: () => dispatch({ type: 'SearchCleared' }),
+  onCapture: (title) => dispatch({ type: 'CaptureRequested', title }),
+
+  // Legacy view system
   onViewChange: (newView) => dispatch({ type: 'ViewChanged', view: newView }),
+
+  // Task interactions
   onTaskClick: (taskWithPointer) => dispatch({ type: 'TaskClicked', task: taskWithPointer }),
   onCloseDetailCard: () => dispatch({ type: 'DetailCardClosed' }),
   onViewAllSubtasks: (pointer: TaskPointer) => dispatch({ type: 'ProjectViewRequested', pointer }),
   onClickParentProject: (parent: TaskWithPointer) => dispatch({ type: 'TaskClicked', task: parent }),
   onBackToView: () => dispatch({ type: 'BackToViewRequested' }),
+
+  // Carousel
   onCarouselRotate: (delta: number) => {
     dispatch({ type: 'CarouselRotate', delta });
   },
   onLoadMore: () => {
     dispatch({ type: 'LoadMoreStarted' });
   },
+
+  // Debug
   onDebugToggle: () => {
     dispatch({ type: 'DebugToggled' });
   },
   onDebugParamChange: (param, value) => {
     dispatch({ type: 'DebugParamChanged', param, value });
   },
+
+  // Mutations
   onChangeKeyword: (file, taskIndex, keyword) => {
     dispatch({ type: 'ChangeKeywordRequested', file, taskIndex, keyword });
   },
-  onCapture: (title) => {
-    dispatch({ type: 'CaptureRequested', title });
-  },
 };
+
+function isInputFocused(): boolean {
+  const active = document.activeElement;
+  if (!active) return false;
+  const tag = active.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || (active as HTMLElement).isContentEditable;
+}
+
+function focusCommandBarInput(mode: 'capture' | 'search'): void {
+  dispatch({ type: 'CommandBarModeChanged', mode });
+  // Focus the input after state update triggers re-render
+  requestAnimationFrame(() => {
+    const input = document.querySelector('.command-bar-input') as HTMLInputElement | null;
+    if (input) {
+      input.focus();
+    }
+  });
+}
+
+const ACTIVE_VIEW_KEYS: Record<string, ActiveView> = {
+  '1': 'today',
+  '2': 'inbox',
+  '3': 'backlog',
+  '4': 'lists',
+  '5': 'garage',
+};
+
+function handleKeydown(e: KeyboardEvent): void {
+  // Escape: close detail panel, exit search, or blur input
+  if (e.key === "Escape") {
+    const state = store.getState();
+
+    if (isInputFocused()) {
+      (document.activeElement as HTMLElement).blur();
+      if (state.commandBarMode === 'search') {
+        dispatch({ type: 'SearchCleared' });
+        dispatch({ type: 'CommandBarModeChanged', mode: 'capture' });
+      }
+      return;
+    }
+
+    if (state.detail.selectedTask) {
+      dispatch({ type: 'DetailCardClosed' });
+      return;
+    }
+
+    if (state.detailPanel.open) {
+      dispatch({ type: 'DetailPanelClosed' });
+      return;
+    }
+
+    return;
+  }
+
+  // All shortcuts below only fire when no input is focused
+  if (isInputFocused()) return;
+
+  // Number keys: switch views
+  const activeView = ACTIVE_VIEW_KEYS[e.key];
+  if (activeView) {
+    e.preventDefault();
+    callbacks.onActiveViewChange(activeView);
+    return;
+  }
+
+  // `/` → focus command bar in search mode
+  if (e.key === "/") {
+    e.preventDefault();
+    focusCommandBarInput('search');
+    return;
+  }
+
+  // `c` → focus command bar in capture mode
+  if (e.key === "c") {
+    e.preventDefault();
+    focusCommandBarInput('capture');
+    return;
+  }
+
+  // Legacy arrow key navigation (garage carousel)
+  if (e.key === "ArrowLeft") {
+    e.preventDefault();
+    dispatch({ type: 'ViewNavigateLeft' });
+  } else if (e.key === "ArrowRight") {
+    e.preventDefault();
+    dispatch({ type: 'ViewNavigateRight' });
+  }
+}
 
 function handleScroll(): void {
   const scrollTop = window.scrollY;
@@ -137,19 +251,6 @@ function handleScroll(): void {
 
   if (scrollHeight - scrollTop - clientHeight < 300) {
     dispatch({ type: 'LoadMoreStarted' });
-  }
-}
-
-function handleKeydown(e: KeyboardEvent): void {
-  // Don't handle if user is typing in an input
-  if ((e.target as HTMLElement).tagName === "INPUT") return;
-
-  if (e.key === "ArrowLeft") {
-    e.preventDefault();
-    dispatch({ type: 'ViewNavigateLeft' });
-  } else if (e.key === "ArrowRight") {
-    e.preventDefault();
-    dispatch({ type: 'ViewNavigateRight' });
   }
 }
 
@@ -179,6 +280,7 @@ function connectWebSocket(): void {
   }
 }
 
+// Initial render + load
 render(initialState);
 dispatch({ type: 'ViewChanged', view: 'all' });
 

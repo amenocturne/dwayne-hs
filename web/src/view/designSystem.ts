@@ -1,19 +1,36 @@
 export const colors = {
+  // Background
   void: '#0a0a0a',
   asphalt: '#121212',
   concrete: '#1a1a1a',
   concreteDark: '#2a2a2a',
+
+  // Text
   white: '#e8e8e8',
   greyLight: '#888888',
   grey: '#555555',
   greyDark: '#2a2a2a',
+
+  // Accents - bright
   cyanBright: '#00e5ff',
-  pinkBright: '#ff0099',
+  orangeBright: '#ff6b35',
   greenBright: '#b0ff00',
   redBright: '#ff3333',
+  pinkBright: '#ff0099',
+
+  // Accents - dim
   cyanDim: '#4a9aa8',
   pinkDim: '#994466',
   greenDim: '#77aa33',
+
+  // Surfaces
+  railBg: '#0d0d0d',
+  railActive: 'rgba(255, 107, 53, 0.12)',
+  rowHover: 'rgba(255, 255, 255, 0.03)',
+  rowFocus: 'rgba(0, 229, 255, 0.06)',
+  scrim: 'rgba(0, 0, 0, 0.3)',
+  statusBg: '#080808',
+  statusText: '#555555',
 } as const;
 
 export const fonts = {
@@ -161,20 +178,20 @@ export const cssClasses = {
   hoverableButton: 'hoverable-button',
 } as const;
 
-// Todo keyword colors (JDM racing palette)
+// Keyword colors (JDM racing palette, updated per spec)
 export const todoKeywordColors = {
   TODO: "#fbbf24",      // racing gold
   INBOX: "#e2e8f0",     // off-white
-  TODAY: "#ff6b6b",     // hot red
-  SOON: "#38bdf8",      // sky blue
-  WAITING: "#a855f7",   // violet
-  DONE: "#585b70",      // muted (dimmed)
-  PROJECT: "#84cc16",   // lime green
-  SOMEDAY: "#f97316",   // racing orange
-  RELEVANT: "#c084fc",  // lavender purple
-  NOTES: "#22c55e",     // pure green
-  LIST: "#2dd4bf",      // JDM teal
-  TRASH: "#585b70",     // muted (dimmed)
+  TODAY: "#ff6b35",      // warm orange (brake lights, urgency)
+  SOON: "#c084fc",       // lavender purple (approaching)
+  WAITING: "#a855f7",    // violet (blocked, external)
+  DONE: "#585b70",       // muted grey
+  PROJECT: "#84cc16",    // lime green
+  SOMEDAY: "#f97316",    // deeper orange
+  RELEVANT: "#c084fc",   // lavender purple (legacy)
+  NOTES: "#22c55e",      // pure green
+  LIST: "#2dd4bf",       // JDM teal
+  TRASH: "#585b70",      // muted grey
 } as const satisfies Record<string, string>;
 
 export function getTodoKeywordColor(keyword: string): string {

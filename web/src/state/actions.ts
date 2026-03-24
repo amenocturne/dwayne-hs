@@ -5,10 +5,15 @@
  * Each action is a pure data structure describing what happened.
  */
 
-import type { ViewName, TaskWithPointer, TaskPointer, TaskNode } from "../types/domain.js";
+import type { ViewName, TaskWithPointer, TaskPointer, TaskNode, ActiveView } from "../types/domain.js";
 import type { FilePath, TaskIndex } from "../types/branded.js";
+import type { CommandBarMode } from "../types/state.js";
 
 export type Action =
+  | { type: 'ActiveViewChanged'; activeView: ActiveView }
+  | { type: 'CommandBarModeChanged'; mode: CommandBarMode }
+  | { type: 'DetailPanelOpened'; task: TaskWithPointer }
+  | { type: 'DetailPanelClosed' }
   | { type: 'ViewChanged'; view: ViewName }
   | { type: 'SearchQueryChanged'; query: string }
   | { type: 'SearchCleared' }

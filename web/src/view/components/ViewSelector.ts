@@ -13,6 +13,8 @@ export const VIEW_LABELS: Readonly<Record<ViewName, string>> = {
   waiting: "Waiting",
   project: "Projects",
   todo: "TODO",
+  today: "Today",
+  soon: "Soon",
   done: "Done",
   trash: "Trash",
 };
