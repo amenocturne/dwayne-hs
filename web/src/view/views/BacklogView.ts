@@ -266,7 +266,7 @@ function renderSectionBody(
     style: {
       borderLeft: `3px solid ${section.accent}`,
       marginLeft: "0",
-      opacity: "0.95",
+      paddingLeft: spacing.lg,
     },
   }, section.tasks.map((twp, localIdx) => {
     const globalIdx = globalIndexStart + localIdx;
@@ -288,43 +288,37 @@ function renderSectionBody(
 
 // --- View header ---
 
-function renderExpandCollapseBtn(
-  hasExpanded: boolean,
-  onExpandAll: () => void,
-  onCollapseAll: () => void,
-): VNode {
-  const isExpanded = hasExpanded;
-  const label = isExpanded ? "\u25B2 Collapse" : "\u25BC Expand";
-  return h("button.expand-collapse-btn", {
+function renderSmallButton(label: string, onClick: () => void): VNode {
+  return h("button", {
     style: {
       padding: `2px ${spacing.sm}`,
       fontFamily: `'${fonts.mono}', monospace`,
       fontSize: fontSize.xs,
       color: colors.grey,
       backgroundColor: "transparent",
-      border: `1px solid ${colors.grey}`,
+      border: `1px solid ${colors.greyDark}`,
       borderRadius: "3px",
       cursor: "pointer",
       transition: `all ${transitions.fast}`,
       whiteSpace: "nowrap",
     },
     on: {
-      click: () => isExpanded ? onCollapseAll() : onExpandAll(),
+      click: () => onClick(),
       mouseenter: (e: Event) => {
         const el = e.currentTarget as HTMLElement;
         el.style.color = colors.white;
-        el.style.borderColor = colors.white;
+        el.style.borderColor = colors.greyLight;
       },
       mouseleave: (e: Event) => {
         const el = e.currentTarget as HTMLElement;
         el.style.color = colors.grey;
-        el.style.borderColor = colors.grey;
+        el.style.borderColor = colors.greyDark;
       },
     },
   }, label);
 }
 
-function renderBacklogHeader(totalCount: number, expandCollapseNode?: VNode): VNode {
+function renderBacklogHeader(totalCount: number, headerButtons?: ReadonlyArray<VNode>): VNode {
   return h("div.backlog-header", {
     style: {
       display: "flex",
@@ -354,7 +348,7 @@ function renderBacklogHeader(totalCount: number, expandCollapseNode?: VNode): VN
         marginLeft: "auto",
       },
     }, [
-      ...(expandCollapseNode ? [expandCollapseNode] : []),
+      ...(headerButtons ?? []),
       h("span", {
         style: {
           fontFamily: `'${fonts.mono}', monospace`,
@@ -394,18 +388,8 @@ export function renderBacklogView(
   callbacks: BacklogViewCallbacks,
 ): VNode {
   const expandedTasks = callbacks.expandedTasks ?? [];
-  const hasExpanded = expandedTasks.length > 0;
-
-  // Collect all visible tasks for expand-all
+  const hasExpandedTasks = expandedTasks.length > 0;
   const allVisibleTasks = getBacklogVisibleTasks(tasks, collapsedSections);
-
-  const expandCollapseBtn = allVisibleTasks.length > 0 && callbacks.onExpandAll && callbacks.onCollapseAll
-    ? renderExpandCollapseBtn(
-        hasExpanded,
-        () => callbacks.onExpandAll!(allVisibleTasks),
-        () => callbacks.onCollapseAll!(),
-      )
-    : undefined;
 
   if (loading) {
     return h("div.backlog-view", {
@@ -459,6 +443,44 @@ export function renderBacklogView(
   // Count all tasks across visible sections
   const sectionTaskCount = sections.reduce((acc, s) => acc + s.tasks.length, 0);
 
+  // Two-level expand/collapse buttons
+  const allSectionsCollapsed = sections.every(s => collapsedSections.includes(s.id));
+  const headerButtons: VNode[] = [];
+
+  // Sections toggle
+  headerButtons.push(
+    renderSmallButton(
+      allSectionsCollapsed ? "\u25BC sections" : "\u25B2 sections",
+      () => {
+        if (allSectionsCollapsed) {
+          // Expand all sections — toggle each collapsed one
+          for (const s of sections) {
+            if (collapsedSections.includes(s.id)) {
+              callbacks.onToggleSection(s.id);
+            }
+          }
+        } else {
+          // Collapse all sections
+          for (const s of sections) {
+            if (!collapsedSections.includes(s.id)) {
+              callbacks.onToggleSection(s.id);
+            }
+          }
+        }
+      },
+    )
+  );
+
+  // Tasks toggle
+  if (allVisibleTasks.length > 0 && callbacks.onExpandAll && callbacks.onCollapseAll) {
+    headerButtons.push(
+      renderSmallButton(
+        hasExpandedTasks ? "\u25B2 tasks" : "\u25BC tasks",
+        () => hasExpandedTasks ? callbacks.onCollapseAll!() : callbacks.onExpandAll!(allVisibleTasks),
+      )
+    );
+  }
+
   const sectionNodes: VNode[] = [];
   let globalIndex = 0;
   for (const section of sections) {
@@ -477,7 +499,7 @@ export function renderBacklogView(
       height: "100%",
     },
   }, [
-    renderBacklogHeader(sectionTaskCount, expandCollapseBtn),
+    renderBacklogHeader(sectionTaskCount, headerButtons),
     h("div.backlog-sections", {
       style: {
         flex: "1",
