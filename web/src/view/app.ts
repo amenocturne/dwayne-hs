@@ -453,11 +453,15 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
     // Status bar (bottom)
     renderStatusBar(statusBarData),
 
-    // Detail card modal (floating, rendered outside normal flow — for garage view)
-    renderDetailCard(state.detail.selectedTask, state, detailCardCallbacks),
+    // Detail card modal (only in garage view)
+    ...(state.activeView === 'garage'
+      ? [renderDetailCard(state.detail.selectedTask, state, detailCardCallbacks)]
+      : []),
 
     // Detail panel (slide-in from right — for list views)
-    renderDetailPanel(state, detailPanelCallbacks),
+    ...(state.activeView !== 'garage'
+      ? [renderDetailPanel(state, detailPanelCallbacks)]
+      : []),
 
     // Debug panel and toggle (only if feature flag enabled)
     ...(ENABLE_DEBUG_MODE ? [

@@ -1,15 +1,15 @@
 export const colors = {
-  // Background
-  void: '#0a0a0a',
-  asphalt: '#121212',
-  concrete: '#1a1a1a',
-  concreteDark: '#2a2a2a',
+  // Background — lifted from pure black for readability
+  void: '#141418',
+  asphalt: '#1c1c22',
+  concrete: '#252530',
+  concreteDark: '#353542',
 
-  // Text
-  white: '#e8e8e8',
-  greyLight: '#888888',
-  grey: '#555555',
-  greyDark: '#2a2a2a',
+  // Text — high contrast
+  white: '#f0f0f0',
+  greyLight: '#a0a0a8',
+  grey: '#707078',
+  greyDark: '#404048',
 
   // Accents - bright
   cyanBright: '#00e5ff',
@@ -23,14 +23,14 @@ export const colors = {
   pinkDim: '#994466',
   greenDim: '#77aa33',
 
-  // Surfaces
-  railBg: '#0d0d0d',
-  railActive: 'rgba(255, 107, 53, 0.12)',
-  rowHover: 'rgba(255, 255, 255, 0.03)',
-  rowFocus: 'rgba(0, 229, 255, 0.06)',
-  scrim: 'rgba(0, 0, 0, 0.3)',
-  statusBg: '#080808',
-  statusText: '#555555',
+  // Surfaces — lighter for visibility
+  railBg: '#18181e',
+  railActive: 'rgba(255, 107, 53, 0.15)',
+  rowHover: 'rgba(255, 255, 255, 0.06)',
+  rowFocus: 'rgba(0, 229, 255, 0.10)',
+  scrim: 'rgba(0, 0, 0, 0.4)',
+  statusBg: '#111116',
+  statusText: '#707078',
 } as const;
 
 export const fonts = {

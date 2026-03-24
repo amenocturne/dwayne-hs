@@ -7,15 +7,15 @@
 
   color-scheme: dark;
 
-  /* JDM Street Racing Theme */
-  --bg-primary: #0a0a0a;
-  --bg-secondary: #121212;
-  --card-bg: #1a1a1a;
-  --card-bg-hover: #2a2a2a;
-  --card-border: #2a2a2a;
-  --text-primary: #e8e8e8;
-  --text-secondary: #888888;
-  --text-tertiary: #555555;
+  /* JDM Street Racing Theme — lifted for readability */
+  --bg-primary: #141418;
+  --bg-secondary: #1c1c22;
+  --card-bg: #252530;
+  --card-bg-hover: #353542;
+  --card-border: #353542;
+  --text-primary: #f0f0f0;
+  --text-secondary: #a0a0a8;
+  --text-tertiary: #707078;
 
   /* Accent colors - bright */
   --cyan-bright: #00e5ff;
@@ -64,7 +64,7 @@
   --font-mono: 'Space Mono', 'SF Mono', Monaco, Consolas, monospace;
 
   color: var(--text-primary);
-  background-color: #0a0a0a;
+  background-color: #141418;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
