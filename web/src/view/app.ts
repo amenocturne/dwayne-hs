@@ -435,10 +435,7 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
       backgroundColor: colors.void,
     },
   }, [
-    // Command bar (top)
-    renderCommandBar(state.commandBarMode, state.view.searchQuery, commandBarCallbacks),
-
-    // Middle: rail + content area
+    // Main body: rail (full height) + right column (command bar + content + status bar)
     h("div.shell-body", {
       style: {
         display: "flex",
@@ -447,11 +444,21 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
       },
     }, [
       renderRail(state.activeView, inboxCount, railCallbacks),
-      renderContentArea(state, callbacks),
-    ]),
 
-    // Status bar (bottom)
-    renderStatusBar(statusBarData),
+      // Right column: command bar + content + status bar
+      h("div.shell-right", {
+        style: {
+          display: "flex",
+          flexDirection: "column",
+          flex: "1",
+          overflow: "hidden",
+        },
+      }, [
+        renderCommandBar(state.commandBarMode, state.view.searchQuery, commandBarCallbacks),
+        renderContentArea(state, callbacks),
+        renderStatusBar(statusBarData),
+      ]),
+    ]),
 
     // Detail card modal (only in garage view)
     ...(state.activeView === 'garage'
