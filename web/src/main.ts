@@ -175,6 +175,9 @@ const callbacks: AppCallbacks = {
   onChangeTitle: (file, taskIndex, title) => {
     dispatch({ type: 'ChangeTitleRequested', file, taskIndex, title });
   },
+  onChangeDescription: (file, taskIndex, description) => {
+    dispatch({ type: 'ChangeDescriptionRequested', file, taskIndex, description });
+  },
   onChangeTags: (file, taskIndex, tags) => {
     dispatch({ type: 'ChangeTagsRequested', file, taskIndex, tags });
   },

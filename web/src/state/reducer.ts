@@ -701,6 +701,12 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
         { type: 'EditTask', file: action.file, taskIndex: action.taskIndex, title: action.title }
       ];
 
+    case 'ChangeDescriptionRequested':
+      return [
+        state,
+        { type: 'EditTask', file: action.file, taskIndex: action.taskIndex, description: action.description }
+      ];
+
     case 'ChangeTagsRequested':
       return [
         state,

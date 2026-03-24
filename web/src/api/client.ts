@@ -132,6 +132,7 @@ export interface EditTaskParams {
   readonly keyword?: string;
   readonly priority?: number | null;
   readonly title?: string;
+  readonly description?: string;
   readonly tags?: ReadonlyArray<string>;
   readonly scheduled?: import("../types/domain.js").OrgTime | null;
   readonly deadline?: import("../types/domain.js").OrgTime | null;
@@ -152,6 +153,7 @@ export async function editTask(params: EditTaskParams): Promise<TaskWithPointer>
   if (params.keyword !== undefined) body.keyword = params.keyword;
   if (params.priority !== undefined) body.priority = params.priority;
   if (params.title !== undefined) body.title = params.title;
+  if (params.description !== undefined) body.description = params.description;
   if (params.tags !== undefined) body.tags = params.tags;
   if (params.scheduled !== undefined) body.scheduled = params.scheduled;
   if (params.deadline !== undefined) body.deadline = params.deadline;

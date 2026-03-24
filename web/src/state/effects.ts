@@ -27,7 +27,7 @@ export type Effect =
   | { type: 'ChangePriority'; file: FilePath; taskIndex: TaskIndex; priority: number | null }
   | { type: 'AddTag'; file: FilePath; taskIndex: TaskIndex; tag: string }
   | { type: 'RemoveTag'; file: FilePath; taskIndex: TaskIndex; tag: string }
-  | { type: 'EditTask'; file: FilePath; taskIndex: TaskIndex; title?: string; tags?: ReadonlyArray<string>; scheduled?: OrgTime | null; deadline?: OrgTime | null }
+  | { type: 'EditTask'; file: FilePath; taskIndex: TaskIndex; title?: string; description?: string; tags?: ReadonlyArray<string>; scheduled?: OrgTime | null; deadline?: OrgTime | null }
   | { type: 'Batch'; effects: ReadonlyArray<Effect> }
   | { type: 'ShowClickableToast'; message: string; taskKey: string };
 
@@ -318,6 +318,7 @@ export async function runEffect(effect: Effect, dispatch: Dispatch): Promise<voi
           file: effect.file,
           taskIndex: effect.taskIndex,
           ...(effect.title !== undefined ? { title: effect.title } : {}),
+          ...(effect.description !== undefined ? { description: effect.description } : {}),
           ...(effect.tags !== undefined ? { tags: effect.tags } : {}),
           ...(effect.scheduled !== undefined ? { scheduled: effect.scheduled } : {}),
           ...(effect.deadline !== undefined ? { deadline: effect.deadline } : {}),

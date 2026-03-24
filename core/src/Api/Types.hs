@@ -185,6 +185,7 @@ data EditTaskRequest = EditTaskRequest
     etrKeyword :: Maybe T.Text,
     etrPriority :: Maybe (Maybe Int),
     etrTitle :: Maybe T.Text,
+    etrDescription :: Maybe T.Text,
     etrTags :: Maybe [T.Text],
     etrScheduled :: Maybe (Maybe OrgTime),
     etrDeadline :: Maybe (Maybe OrgTime)
@@ -199,6 +200,7 @@ instance FromJSON EditTaskRequest where
       <*> v .:? "keyword"
       <*> parseMaybeNullable v "priority"
       <*> v .:? "title"
+      <*> v .:? "description"
       <*> v .:? "tags"
       <*> parseMaybeNullable v "scheduled"
       <*> parseMaybeNullable v "deadline"
@@ -224,6 +226,7 @@ instance ToJSON EditTaskRequest where
         ++ maybe [] (\kw -> ["keyword" .= kw]) (etrKeyword req)
         ++ maybe [] (\mp -> ["priority" .= mp]) (etrPriority req)
         ++ maybe [] (\t -> ["title" .= t]) (etrTitle req)
+        ++ maybe [] (\d -> ["description" .= d]) (etrDescription req)
         ++ maybe [] (\ts -> ["tags" .= ts]) (etrTags req)
         ++ maybe [] (\ms -> ["scheduled" .= ms]) (etrScheduled req)
         ++ maybe [] (\md -> ["deadline" .= md]) (etrDeadline req)
@@ -235,6 +238,7 @@ requestToTransform req =
   applyIf (etrKeyword req) (CT.todoKeyword .~)
     . applyIf (etrPriority req) (CT.priority .~)
     . applyIf (etrTitle req) (\t -> CT.title .~ plainToRichText t)
+    . applyIf (etrDescription req) (\d -> CT.description .~ plainToRichText d)
     . applyIf (etrTags req) (\ts -> CT.tags .~ S.fromList ts)
     . applyIf (etrScheduled req) (CT.scheduled .~)
     . applyIf (etrDeadline req) (CT.deadline .~)

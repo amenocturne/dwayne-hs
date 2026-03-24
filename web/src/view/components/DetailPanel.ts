@@ -21,6 +21,7 @@ export interface DetailPanelCallbacks {
   readonly onChangeKeyword: (file: FilePath, taskIndex: TaskIndex, keyword: string) => void;
   readonly onChangePriority: (file: FilePath, taskIndex: TaskIndex, priority: number | null) => void;
   readonly onChangeTitle: (file: FilePath, taskIndex: TaskIndex, title: string) => void;
+  readonly onChangeDescription: (file: FilePath, taskIndex: TaskIndex, description: string) => void;
   readonly onChangeTags: (file: FilePath, taskIndex: TaskIndex, tags: ReadonlyArray<string>) => void;
   readonly onChangeScheduled: (file: FilePath, taskIndex: TaskIndex, scheduled: OrgTime | null) => void;
   readonly onChangeDeadline: (file: FilePath, taskIndex: TaskIndex, deadline: OrgTime | null) => void;
@@ -752,20 +753,56 @@ export function renderDetailPanel(
         : []),
     ]),
 
-    // Description
-    ...(descriptionText.trim()
-      ? [h("div.panel-description", {
-          style: {
-            padding: `0 ${spacing.xxl}`,
-            fontFamily: `'${fonts.body}', sans-serif`,
-            fontSize: fontSize.md,
-            color: colors.greyLight,
-            whiteSpace: "pre-wrap",
-            lineHeight: "1.6",
-            wordBreak: "break-word",
-          },
-        }, descriptionText)]
-      : []),
+    // Description (click to edit)
+    h("div.panel-description", {
+      style: {
+        padding: `0 ${spacing.xxl}`,
+        fontFamily: `'${fonts.body}', sans-serif`,
+        fontSize: fontSize.md,
+        color: descriptionText.trim() ? colors.greyLight : colors.grey,
+        whiteSpace: "pre-wrap",
+        lineHeight: "1.6",
+        wordBreak: "break-word",
+        cursor: "pointer",
+        minHeight: "24px",
+        borderRadius: "3px",
+        transition: `background ${transitions.fast}`,
+      },
+      on: {
+        click: (e: Event) => {
+          e.stopPropagation();
+          const el = (e.target as HTMLElement).closest(".panel-description") as HTMLElement;
+          if (!el || el.querySelector("textarea")) return;
+          const display = el.querySelector(".desc-display") as HTMLElement;
+          if (display) display.style.display = "none";
+          const textarea = document.createElement("textarea");
+          textarea.value = descriptionText;
+          textarea.style.cssText = `
+            width: 100%; min-height: 80px; padding: 8px;
+            font-family: '${fonts.body}', sans-serif; font-size: ${fontSize.md};
+            color: ${colors.white}; background: rgba(255,255,255,0.05);
+            border: 1px solid ${colors.cyanBright}; border-radius: 3px;
+            resize: vertical; outline: none; line-height: 1.6;
+          `;
+          el.appendChild(textarea);
+          textarea.focus();
+          textarea.addEventListener("keydown", (ev) => {
+            if (ev.key === "Escape") {
+              textarea.remove();
+              if (display) display.style.display = "";
+            }
+          });
+          textarea.addEventListener("blur", () => {
+            const newDesc = textarea.value;
+            if (newDesc !== descriptionText) {
+              callbacks.onChangeDescription(file, taskIndex, newDesc);
+            }
+            textarea.remove();
+            if (display) display.style.display = "";
+          });
+        },
+      },
+    }, [h("span.desc-display", {}, descriptionText.trim() || "Click to add description...")]),
 
     // --- STATE section ---
     h("div.panel-body", {

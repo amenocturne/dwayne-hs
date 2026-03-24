@@ -57,6 +57,7 @@ export type Action =
   | { type: 'AddTagRequested'; file: FilePath; taskIndex: TaskIndex; tag: string }
   | { type: 'RemoveTagRequested'; file: FilePath; taskIndex: TaskIndex; tag: string }
   | { type: 'ChangeTitleRequested'; file: FilePath; taskIndex: TaskIndex; title: string }
+  | { type: 'ChangeDescriptionRequested'; file: FilePath; taskIndex: TaskIndex; description: string }
   | { type: 'ChangeTagsRequested'; file: FilePath; taskIndex: TaskIndex; tags: ReadonlyArray<string> }
   | { type: 'ChangeScheduledRequested'; file: FilePath; taskIndex: TaskIndex; scheduled: OrgTime | null }
   | { type: 'ChangeDeadlineRequested'; file: FilePath; taskIndex: TaskIndex; deadline: OrgTime | null }

@@ -49,6 +49,7 @@ export interface AppCallbacks {
   readonly onDetailPanelClose: () => void;
   readonly onChangePriority: (file: FilePath, taskIndex: TaskIndex, priority: number | null) => void;
   readonly onChangeTitle: (file: FilePath, taskIndex: TaskIndex, title: string) => void;
+  readonly onChangeDescription: (file: FilePath, taskIndex: TaskIndex, description: string) => void;
   readonly onChangeTags: (file: FilePath, taskIndex: TaskIndex, tags: ReadonlyArray<string>) => void;
   readonly onChangeScheduled: (file: FilePath, taskIndex: TaskIndex, scheduled: OrgTime | null) => void;
   readonly onChangeDeadline: (file: FilePath, taskIndex: TaskIndex, deadline: OrgTime | null) => void;
@@ -418,6 +419,7 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
     onChangeKeyword: callbacks.onChangeKeyword,
     onChangePriority: callbacks.onChangePriority,
     onChangeTitle: callbacks.onChangeTitle,
+    onChangeDescription: callbacks.onChangeDescription,
     onChangeTags: callbacks.onChangeTags,
     onChangeScheduled: callbacks.onChangeScheduled,
     onChangeDeadline: callbacks.onChangeDeadline,
