@@ -7,14 +7,14 @@ import { attributesModule } from "snabbdom/build/modules/attributes.js";
 import type { VNode } from "snabbdom/build/vnode.js";
 
 import type { AppState } from "./types/state.js";
-import type { ActiveView, TaskPointer, TaskWithPointer } from "./types/domain.js";
+import type { ActiveView, ViewName, TaskPointer, TaskWithPointer } from "./types/domain.js";
 import { view } from "./view/app.js";
 import type { AppCallbacks } from "./view/app.js";
 import { createStore } from "./state/store.js";
 import type { Dispatch } from "./state/effects.js";
 
 const initialState: AppState = {
-  activeView: 'garage',
+  activeView: 'today',
   commandBarMode: 'capture',
   detailPanel: {
     open: false,
@@ -107,10 +107,15 @@ const callbacks: AppCallbacks = {
   // Shell navigation
   onActiveViewChange: (activeView: ActiveView) => {
     dispatch({ type: 'ActiveViewChanged', activeView });
-    // When switching to garage, load tasks via the legacy view system
-    if (activeView === 'garage') {
-      dispatch({ type: 'ViewChanged', view: 'all' });
-    }
+    // Load tasks via the appropriate backend view
+    const viewMap: Record<ActiveView, ViewName> = {
+      today: 'today',
+      inbox: 'inbox',
+      backlog: 'todo',
+      lists: 'list',
+      garage: 'all',
+    };
+    dispatch({ type: 'ViewChanged', view: viewMap[activeView] });
   },
   onCommandBarModeChange: (mode) => {
     dispatch({ type: 'CommandBarModeChanged', mode });
@@ -148,6 +153,29 @@ const callbacks: AppCallbacks = {
   },
   onDebugParamChange: (param, value) => {
     dispatch({ type: 'DebugParamChanged', param, value });
+  },
+
+  // Detail panel
+  onDetailPanelOpen: (task) => {
+    dispatch({ type: 'DetailPanelOpened', task });
+  },
+  onDetailPanelClose: () => {
+    dispatch({ type: 'DetailPanelClosed' });
+  },
+  onChangePriority: (file, taskIndex, priority) => {
+    dispatch({ type: 'ChangePriorityRequested', file, taskIndex, priority });
+  },
+  onChangeTitle: (file, taskIndex, title) => {
+    dispatch({ type: 'ChangeTitleRequested', file, taskIndex, title });
+  },
+  onChangeTags: (file, taskIndex, tags) => {
+    dispatch({ type: 'ChangeTagsRequested', file, taskIndex, tags });
+  },
+  onChangeScheduled: (file, taskIndex, scheduled) => {
+    dispatch({ type: 'ChangeScheduledRequested', file, taskIndex, scheduled });
+  },
+  onChangeDeadline: (file, taskIndex, deadline) => {
+    dispatch({ type: 'ChangeDeadlineRequested', file, taskIndex, deadline });
   },
 
   // Mutations

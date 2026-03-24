@@ -7,7 +7,7 @@
  * Phase 4: Enhanced with exhaustiveness checking using assertNever.
  */
 
-import type { ViewName, TaskPointer, TaskWithPointer, TaskNode } from "../types/domain.js";
+import type { ViewName, TaskPointer, TaskWithPointer, TaskNode, OrgTime } from "../types/domain.js";
 import type { FilePath, TaskIndex } from "../types/branded.js";
 import type { Action } from "./actions.js";
 import { fetchTasks, fetchSearchResults, fetchProjectTree, fetchParentProject, captureTask, editTask, addTag, removeTag } from "../api/client.js";
@@ -27,6 +27,7 @@ export type Effect =
   | { type: 'ChangePriority'; file: FilePath; taskIndex: TaskIndex; priority: number | null }
   | { type: 'AddTag'; file: FilePath; taskIndex: TaskIndex; tag: string }
   | { type: 'RemoveTag'; file: FilePath; taskIndex: TaskIndex; tag: string }
+  | { type: 'EditTask'; file: FilePath; taskIndex: TaskIndex; title?: string; tags?: ReadonlyArray<string>; scheduled?: OrgTime | null; deadline?: OrgTime | null }
   | { type: 'Batch'; effects: ReadonlyArray<Effect> };
 
 export type Dispatch = (action: Action) => void;
@@ -264,6 +265,23 @@ export async function runEffect(effect: Effect, dispatch: Dispatch): Promise<voi
         dispatch({ type: 'MutationSucceeded', updatedTask: updated });
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Failed to remove tag";
+        dispatch({ type: 'MutationFailed', error: errorMessage });
+      }
+      break;
+
+    case 'EditTask':
+      try {
+        const updated = await editTask({
+          file: effect.file,
+          taskIndex: effect.taskIndex,
+          ...(effect.title !== undefined ? { title: effect.title } : {}),
+          ...(effect.tags !== undefined ? { tags: effect.tags } : {}),
+          ...(effect.scheduled !== undefined ? { scheduled: effect.scheduled } : {}),
+          ...(effect.deadline !== undefined ? { deadline: effect.deadline } : {}),
+        });
+        dispatch({ type: 'MutationSucceeded', updatedTask: updated });
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Failed to edit task";
         dispatch({ type: 'MutationFailed', error: errorMessage });
       }
       break;

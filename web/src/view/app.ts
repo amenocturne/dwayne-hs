@@ -3,7 +3,7 @@ import type { VNode } from "snabbdom/build/vnode.js";
 import type { AppState } from "../types/state.js";
 import type { CommandBarMode } from "../types/state.js";
 import { hasMoreTasks, isProjectView } from "../types/state.js";
-import type { ActiveView } from "../types/domain.js";
+import type { ActiveView, OrgTime } from "../types/domain.js";
 import type { ViewName, TaskPointer, TaskWithPointer } from "../types/domain.js";
 import type { FilePath, TaskIndex } from "../types/branded.js";
 
@@ -17,7 +17,9 @@ import { renderDebugPanel, renderDebugToggleButton, type DebugPanelCallbacks } f
 import type { TaskCardCallbacks } from "./components/card/TaskCard.js";
 import { ENABLE_DEBUG_MODE } from "./constants.js";
 import { renderAtmosphere } from "./components/Atmosphere.js";
-import { colors, fonts, fontSize } from "./designSystem.js";
+import { renderTaskRow, type QuickAction } from "./components/TaskRow.js";
+import { renderDetailPanel, type DetailPanelCallbacks } from "./components/DetailPanel.js";
+import { colors, fonts, fontSize, spacing, fontWeight } from "./designSystem.js";
 import { assertNever } from "../types/utils.js";
 
 export interface AppCallbacks {
@@ -39,6 +41,15 @@ export interface AppCallbacks {
   readonly onViewAllSubtasks: (pointer: TaskPointer) => void;
   readonly onClickParentProject: (parent: TaskWithPointer) => void;
   readonly onBackToView: () => void;
+
+  // Detail panel
+  readonly onDetailPanelOpen: (task: TaskWithPointer) => void;
+  readonly onDetailPanelClose: () => void;
+  readonly onChangePriority: (file: FilePath, taskIndex: TaskIndex, priority: number | null) => void;
+  readonly onChangeTitle: (file: FilePath, taskIndex: TaskIndex, title: string) => void;
+  readonly onChangeTags: (file: FilePath, taskIndex: TaskIndex, tags: ReadonlyArray<string>) => void;
+  readonly onChangeScheduled: (file: FilePath, taskIndex: TaskIndex, scheduled: OrgTime | null) => void;
+  readonly onChangeDeadline: (file: FilePath, taskIndex: TaskIndex, deadline: OrgTime | null) => void;
 
   // Carousel
   readonly onCarouselRotate: (delta: number) => void;
@@ -67,6 +78,134 @@ function renderViewPlaceholder(label: string): VNode {
       userSelect: "none",
     },
   }, `${label} view \u2014 coming soon`);
+}
+
+// --- Quick action presets per view ---
+
+const INBOX_QUICK_ACTIONS: ReadonlyArray<QuickAction> = [
+  { label: "[T]", keyword: "TODAY" },
+  { label: "[O]", keyword: "TODO" },
+  { label: "[S]", keyword: "SOMEDAY" },
+  { label: "[X]", keyword: "TRASH" },
+];
+
+const BACKLOG_QUICK_ACTIONS: ReadonlyArray<QuickAction> = [
+  { label: "\u25CF", keyword: "TODAY" },
+];
+
+const TODAY_QUICK_ACTIONS: ReadonlyArray<QuickAction> = [];
+
+// --- View header ---
+
+function renderViewHeader(title: string, count: number): VNode {
+  return h("div.view-header", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "baseline",
+      padding: `${spacing.lg} ${spacing.lg} ${spacing.sm}`,
+      borderBottom: `1px solid rgba(255, 255, 255, 0.05)`,
+    },
+  }, [
+    h("h1", {
+      style: {
+        margin: "0",
+        fontFamily: `'${fonts.display}', sans-serif`,
+        fontSize: fontSize.xl,
+        fontWeight: fontWeight.bold,
+        letterSpacing: "0.05em",
+        textTransform: "uppercase",
+        color: colors.white,
+      },
+    }, title),
+    h("span", {
+      style: {
+        fontFamily: `'${fonts.mono}', monospace`,
+        fontSize: fontSize.xs,
+        color: colors.grey,
+      },
+    }, `${count} tasks`),
+  ]);
+}
+
+// --- Empty state ---
+
+function renderEmptyState(message: string): VNode {
+  return h("div.empty-state", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      height: "200px",
+      color: colors.grey,
+      fontFamily: `'${fonts.body}', sans-serif`,
+      fontSize: fontSize.md,
+      fontStyle: "italic",
+    },
+  }, message);
+}
+
+// --- Task list view (reusable for Today, Inbox, Backlog) ---
+
+function renderTaskListView(
+  title: string,
+  tasks: ReadonlyArray<TaskWithPointer>,
+  totalCount: number,
+  loading: boolean,
+  showKeyword: boolean,
+  quickActions: ReadonlyArray<QuickAction>,
+  emptyMessage: string,
+  callbacks: AppCallbacks,
+): VNode {
+  if (loading) {
+    return h("div.list-view", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+      },
+    }, [
+      renderViewHeader(title, 0),
+      h("div.loading", {
+        style: {
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flex: "1",
+          color: colors.grey,
+          fontFamily: `'${fonts.mono}', monospace`,
+          fontSize: fontSize.sm,
+        },
+      }, "Loading..."),
+    ]);
+  }
+
+  return h("div.list-view", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      height: "100%",
+    },
+  }, [
+    renderViewHeader(title, totalCount),
+    tasks.length === 0
+      ? renderEmptyState(emptyMessage)
+      : h("div.task-list", {
+          style: {
+            flex: "1",
+            overflowY: "auto",
+            overflowX: "hidden",
+          },
+        }, tasks.map((twp) =>
+          renderTaskRow({
+            task: twp,
+            showKeyword,
+            quickActions: quickActions as QuickAction[],
+            onTaskClick: (t) => callbacks.onDetailPanelOpen(t),
+            onQuickAction: (t, keyword) => callbacks.onChangeKeyword(t.pointer.file, t.pointer.taskIndex, keyword),
+          })
+        )),
+  ]);
 }
 
 function computeInboxCount(state: AppState): number {
@@ -171,13 +310,40 @@ function renderContentArea(state: AppState, callbacks: AppCallbacks): VNode {
 
   switch (state.activeView) {
     case 'today':
-      content = renderViewPlaceholder('Today');
+      content = renderTaskListView(
+        "Today",
+        state.taskList.tasks,
+        state.taskList.totalCount,
+        state.taskList.loading,
+        false,
+        TODAY_QUICK_ACTIONS,
+        "Nothing committed for today. Pull tasks from the backlog, or capture something new.",
+        callbacks,
+      );
       break;
     case 'inbox':
-      content = renderViewPlaceholder('Inbox');
+      content = renderTaskListView(
+        "Inbox",
+        state.taskList.tasks,
+        state.taskList.totalCount,
+        state.taskList.loading,
+        false,
+        INBOX_QUICK_ACTIONS,
+        "Inbox zero. Enjoy it.",
+        callbacks,
+      );
       break;
     case 'backlog':
-      content = renderViewPlaceholder('Backlog');
+      content = renderTaskListView(
+        "Backlog",
+        state.taskList.tasks,
+        state.taskList.totalCount,
+        state.taskList.loading,
+        true,
+        BACKLOG_QUICK_ACTIONS,
+        "No active backlog items.",
+        callbacks,
+      );
       break;
     case 'lists':
       content = renderViewPlaceholder('Lists');
@@ -235,6 +401,16 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
     onParamChange: callbacks.onDebugParamChange,
   };
 
+  const detailPanelCallbacks: DetailPanelCallbacks = {
+    onClose: callbacks.onDetailPanelClose,
+    onChangeKeyword: callbacks.onChangeKeyword,
+    onChangePriority: callbacks.onChangePriority,
+    onChangeTitle: callbacks.onChangeTitle,
+    onChangeTags: callbacks.onChangeTags,
+    onChangeScheduled: callbacks.onChangeScheduled,
+    onChangeDeadline: callbacks.onChangeDeadline,
+  };
+
   return h("div.shell", {
     style: {
       display: "flex",
@@ -263,8 +439,11 @@ export function view(state: AppState, callbacks: AppCallbacks): VNode {
     // Status bar (bottom)
     renderStatusBar(statusBarData),
 
-    // Detail card modal (floating, rendered outside normal flow)
+    // Detail card modal (floating, rendered outside normal flow — for garage view)
     renderDetailCard(state.detail.selectedTask, state, detailCardCallbacks),
+
+    // Detail panel (slide-in from right — for list views)
+    renderDetailPanel(state, detailPanelCallbacks),
 
     // Debug panel and toggle (only if feature flag enabled)
     ...(ENABLE_DEBUG_MODE ? [

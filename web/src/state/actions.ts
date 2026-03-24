@@ -5,7 +5,7 @@
  * Each action is a pure data structure describing what happened.
  */
 
-import type { ViewName, TaskWithPointer, TaskPointer, TaskNode, ActiveView } from "../types/domain.js";
+import type { ViewName, TaskWithPointer, TaskPointer, TaskNode, ActiveView, OrgTime } from "../types/domain.js";
 import type { FilePath, TaskIndex } from "../types/branded.js";
 import type { CommandBarMode } from "../types/state.js";
 
@@ -56,6 +56,10 @@ export type Action =
   | { type: 'ChangePriorityRequested'; file: FilePath; taskIndex: TaskIndex; priority: number | null }
   | { type: 'AddTagRequested'; file: FilePath; taskIndex: TaskIndex; tag: string }
   | { type: 'RemoveTagRequested'; file: FilePath; taskIndex: TaskIndex; tag: string }
+  | { type: 'ChangeTitleRequested'; file: FilePath; taskIndex: TaskIndex; title: string }
+  | { type: 'ChangeTagsRequested'; file: FilePath; taskIndex: TaskIndex; tags: ReadonlyArray<string> }
+  | { type: 'ChangeScheduledRequested'; file: FilePath; taskIndex: TaskIndex; scheduled: OrgTime | null }
+  | { type: 'ChangeDeadlineRequested'; file: FilePath; taskIndex: TaskIndex; deadline: OrgTime | null }
   | { type: 'MutationSucceeded'; updatedTask: TaskWithPointer }
   | { type: 'CaptureSucceeded' }
   | { type: 'MutationFailed'; error: string };

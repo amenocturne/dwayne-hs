@@ -689,11 +689,42 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
         { type: 'RemoveTag', file: action.file, taskIndex: action.taskIndex, tag: action.tag }
       ];
 
+    case 'ChangeTitleRequested':
+      return [
+        state,
+        { type: 'EditTask', file: action.file, taskIndex: action.taskIndex, title: action.title }
+      ];
+
+    case 'ChangeTagsRequested':
+      return [
+        state,
+        { type: 'EditTask', file: action.file, taskIndex: action.taskIndex, tags: action.tags }
+      ];
+
+    case 'ChangeScheduledRequested':
+      return [
+        state,
+        { type: 'EditTask', file: action.file, taskIndex: action.taskIndex, scheduled: action.scheduled }
+      ];
+
+    case 'ChangeDeadlineRequested':
+      return [
+        state,
+        { type: 'EditTask', file: action.file, taskIndex: action.taskIndex, deadline: action.deadline }
+      ];
+
     case 'MutationSucceeded': {
-      // Update the selected task in detail card with the updated data, then reload the view
+      // Update the selected task in detail card and detail panel with the updated data, then reload the view
       const reloadEffect: Effect = state.view.projectPointer
         ? { type: 'FetchProjectTree', pointer: state.view.projectPointer, requestId: state.detail.projectTreeRequestId + 1, updateTaskList: true }
         : { type: 'FetchTasks', view: state.view.currentView, offset: 0, limit: 100 };
+
+      // Update detail panel task if the mutated task matches
+      const updatedDetailPanel = state.detailPanel.open && state.detailPanel.task
+        && state.detailPanel.task.pointer.file === action.updatedTask.pointer.file
+        && state.detailPanel.task.pointer.taskIndex === action.updatedTask.pointer.taskIndex
+        ? { ...state.detailPanel, task: action.updatedTask }
+        : state.detailPanel;
 
       return [
         {
@@ -705,6 +736,7 @@ export function update(state: AppState, action: Action): readonly [AppState, Eff
               ? state.detail.projectTreeRequestId + 1
               : state.detail.projectTreeRequestId,
           },
+          detailPanel: updatedDetailPanel,
           taskList: { ...state.taskList, loading: true },
         },
         reloadEffect
