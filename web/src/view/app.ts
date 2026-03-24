@@ -79,14 +79,7 @@ export interface AppCallbacks {
 
 // --- Quick action presets per view ---
 
-const INBOX_QUICK_ACTIONS: ReadonlyArray<QuickAction> = [
-  { label: "[T]", keyword: "TODAY" },
-  { label: "[O]", keyword: "TODO" },
-  { label: "[S]", keyword: "SOMEDAY" },
-  { label: "[X]", keyword: "TRASH" },
-];
-
-const TODAY_QUICK_ACTIONS: ReadonlyArray<QuickAction> = [];
+const EMPTY_QUICK_ACTIONS: ReadonlyArray<QuickAction> = [];
 
 // --- View header ---
 
@@ -390,7 +383,7 @@ function renderContentArea(state: AppState, callbacks: AppCallbacks): VNode {
         state.taskList.totalCount,
         state.taskList.loading,
         false,
-        TODAY_QUICK_ACTIONS,
+        EMPTY_QUICK_ACTIONS,
         "Nothing committed for today. Pull tasks from the backlog, or capture something new.",
         callbacks,
         state,
@@ -405,7 +398,7 @@ function renderContentArea(state: AppState, callbacks: AppCallbacks): VNode {
         state.taskList.totalCount,
         state.taskList.loading,
         false,
-        INBOX_QUICK_ACTIONS,
+        EMPTY_QUICK_ACTIONS,
         "Inbox zero. Enjoy it.",
         callbacks,
         state,

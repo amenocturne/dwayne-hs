@@ -44,21 +44,19 @@ export interface BacklogViewCallbacks {
 
 // --- Quick actions for backlog rows ---
 
-const BACKLOG_QUICK_ACTIONS: ReadonlyArray<QuickAction> = [
-  { label: "\u25CF", keyword: "TODAY" },
-];
+const BACKLOG_QUICK_ACTIONS: ReadonlyArray<QuickAction> = [];
 
 // --- Section accent colors ---
 
 const SECTION_ACCENTS: Record<string, string> = {
   overdue: colors.redBright,
   'scheduled-today': colors.orangeBright,
-  waiting: '#a855f7',
-  soon: '#c084fc',
-  'todo-prioritized': '#fbbf24',
-  'todo-unprioritized': 'rgba(251, 191, 36, 0.5)',
-  projects: '#84cc16',
-  someday: 'rgba(249, 115, 22, 0.5)',
+  waiting: '#b4befe',      // Lavender (Catppuccin)
+  soon: '#cba6f7',         // Mauve (Catppuccin)
+  'todo-prioritized': '#f9e2af',    // Yellow (Catppuccin)
+  'todo-unprioritized': '#f9e2af',  // Yellow (Catppuccin), same color, dimmed via opacity in body
+  projects: '#a6e3a1',     // Green (Catppuccin)
+  someday: '#fab387',      // Peach (Catppuccin)
 };
 
 // --- Date helpers ---
@@ -266,8 +264,9 @@ function renderSectionBody(
   return h("div.backlog-section-body", {
     key: `body-${section.id}`,
     style: {
-      borderLeft: `3px solid rgba(255, 255, 255, 0.03)`,
+      borderLeft: `3px solid ${section.accent}`,
       marginLeft: "0",
+      opacity: "0.95",
     },
   }, section.tasks.map((twp, localIdx) => {
     const globalIdx = globalIndexStart + localIdx;
