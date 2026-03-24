@@ -7,64 +7,64 @@
 
   color-scheme: dark;
 
-  /* JDM Street Racing Theme — lifted for readability */
-  --bg-primary: #141418;
-  --bg-secondary: #1c1c22;
-  --card-bg: #252530;
-  --card-bg-hover: #353542;
-  --card-border: #353542;
-  --text-primary: #f0f0f0;
-  --text-secondary: #a0a0a8;
-  --text-tertiary: #707078;
+  /* Catppuccin Mocha */
+  --bg-primary: #1e1e2e;
+  --bg-secondary: #181825;
+  --card-bg: #313244;
+  --card-bg-hover: #45475a;
+  --card-border: #585b70;
+  --text-primary: #cdd6f4;
+  --text-secondary: #bac2de;
+  --text-tertiary: #a6adc8;
 
-  /* Accent colors - bright */
-  --cyan-bright: #00e5ff;
-  --pink-bright: #ff0099;
-  --green-bright: #b0ff00;
-  --red-bright: #ff3333;
+  /* Accent colors - Catppuccin Mocha */
+  --cyan-bright: #89dceb;
+  --pink-bright: #f5c2e7;
+  --green-bright: #a6e3a1;
+  --red-bright: #f38ba8;
 
   /* Accent colors - dimmed */
-  --cyan-dim: #4a9aa8;
-  --pink-dim: #994466;
-  --green-dim: #77aa33;
-  
+  --cyan-dim: #94e2d5;
+  --pink-dim: #eba0ac;
+  --green-dim: #a6e3a1;
+
   /* Shared accent aliases */
-  --accent-blue: #00e5ff;
-  --border-color: #2a2a2a;
-  --orange-bright: #ff6b35;
+  --accent-blue: #89b4fa;
+  --border-color: #585b70;
+  --orange-bright: #fab387;
 
-  --tag-bg: rgba(74, 154, 168, 0.15);
-  --tag-text: #4a9aa8;
-  --link-color: #00e5ff;
+  --tag-bg: rgba(148, 226, 213, 0.15);
+  --tag-text: #94e2d5;
+  --link-color: #89b4fa;
 
-  /* Keyword colors */
-  --kw-inbox: #e2e8f0;
-  --kw-today: #ff6b35;
-  --kw-todo: #fbbf24;
-  --kw-soon: #c084fc;
-  --kw-someday: #f97316;
-  --kw-waiting: #a855f7;
-  --kw-project: #84cc16;
-  --kw-list: #2dd4bf;
-  --kw-done: #585b70;
-  --kw-trash: #585b70;
+  /* Keyword colors - Catppuccin Mocha */
+  --kw-inbox: #bac2de;
+  --kw-today: #fab387;
+  --kw-todo: #f9e2af;
+  --kw-soon: #cba6f7;
+  --kw-someday: #f9e2af;
+  --kw-waiting: #b4befe;
+  --kw-project: #a6e3a1;
+  --kw-list: #94e2d5;
+  --kw-done: #6c7086;
+  --kw-trash: #6c7086;
 
-  /* Surface colors */
-  --rail-bg: #0d0d0d;
-  --rail-active: rgba(255, 107, 53, 0.12);
-  --row-hover: rgba(255, 255, 255, 0.03);
-  --row-focus: rgba(0, 229, 255, 0.06);
-  --scrim: rgba(0, 0, 0, 0.3);
-  --status-bg: #080808;
-  --status-text: #555555;
+  /* Surface colors - Catppuccin Mocha */
+  --rail-bg: #181825;
+  --rail-active: rgba(203, 166, 247, 0.15);
+  --row-hover: rgba(205, 214, 244, 0.05);
+  --row-focus: rgba(137, 220, 235, 0.10);
+  --scrim: rgba(17, 17, 27, 0.5);
+  --status-bg: #181825;
+  --status-text: #6c7086;
 
-  /* Typography - JDM Street Racing */
+  /* Typography */
   --font-display: 'Audiowide', sans-serif;
   --font-body: 'Tektur', sans-serif;
   --font-mono: 'Space Mono', 'SF Mono', Monaco, Consolas, monospace;
 
   color: var(--text-primary);
-  background-color: #141418;
+  background-color: #1e1e2e;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;

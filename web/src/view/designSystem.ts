@@ -1,36 +1,36 @@
 export const colors = {
-  // Background — lifted from pure black for readability
-  void: '#141418',
-  asphalt: '#1c1c22',
-  concrete: '#252530',
-  concreteDark: '#353542',
+  // Catppuccin Mocha — backgrounds
+  void: '#1e1e2e',       // Base
+  asphalt: '#313244',    // Surface0
+  concrete: '#45475a',   // Surface1
+  concreteDark: '#585b70', // Surface2
 
-  // Text — high contrast
-  white: '#f0f0f0',
-  greyLight: '#a0a0a8',
-  grey: '#707078',
-  greyDark: '#404048',
+  // Catppuccin Mocha — text
+  white: '#cdd6f4',      // Text
+  greyLight: '#bac2de',  // Subtext1
+  grey: '#a6adc8',       // Subtext0
+  greyDark: '#6c7086',   // Overlay0
 
-  // Accents - bright
-  cyanBright: '#00e5ff',
-  orangeBright: '#ff6b35',
-  greenBright: '#b0ff00',
-  redBright: '#ff3333',
-  pinkBright: '#ff0099',
+  // Catppuccin Mocha — accents
+  cyanBright: '#89dceb',  // Sky
+  orangeBright: '#fab387', // Peach
+  greenBright: '#a6e3a1', // Green
+  redBright: '#f38ba8',   // Red
+  pinkBright: '#f5c2e7',  // Pink
 
   // Accents - dim
-  cyanDim: '#4a9aa8',
-  pinkDim: '#994466',
-  greenDim: '#77aa33',
+  cyanDim: '#94e2d5',     // Teal
+  pinkDim: '#eba0ac',     // Maroon
+  greenDim: '#a6e3a1',    // Green
 
-  // Surfaces — lighter for visibility
-  railBg: '#18181e',
-  railActive: 'rgba(255, 107, 53, 0.15)',
-  rowHover: 'rgba(255, 255, 255, 0.06)',
-  rowFocus: 'rgba(0, 229, 255, 0.10)',
-  scrim: 'rgba(0, 0, 0, 0.4)',
-  statusBg: '#111116',
-  statusText: '#707078',
+  // Surfaces
+  railBg: '#181825',      // Mantle
+  railActive: 'rgba(203, 166, 247, 0.15)', // Mauve tint
+  rowHover: 'rgba(205, 214, 244, 0.05)',   // Text tint
+  rowFocus: 'rgba(137, 220, 235, 0.10)',   // Sky tint
+  scrim: 'rgba(17, 17, 27, 0.5)',          // Crust
+  statusBg: '#181825',    // Mantle
+  statusText: '#6c7086',  // Overlay0
 } as const;
 
 export const fonts = {
@@ -178,20 +178,20 @@ export const cssClasses = {
   hoverableButton: 'hoverable-button',
 } as const;
 
-// Keyword colors (JDM racing palette, updated per spec)
+// Keyword colors (Catppuccin Mocha palette)
 export const todoKeywordColors = {
-  TODO: "#fbbf24",      // racing gold
-  INBOX: "#e2e8f0",     // off-white
-  TODAY: "#ff6b35",      // warm orange (brake lights, urgency)
-  SOON: "#c084fc",       // lavender purple (approaching)
-  WAITING: "#a855f7",    // violet (blocked, external)
-  DONE: "#585b70",       // muted grey
-  PROJECT: "#84cc16",    // lime green
-  SOMEDAY: "#f97316",    // deeper orange
-  RELEVANT: "#c084fc",   // lavender purple (legacy)
-  NOTES: "#22c55e",      // pure green
-  LIST: "#2dd4bf",       // JDM teal
-  TRASH: "#585b70",      // muted grey
+  TODO: "#f9e2af",      // Yellow
+  INBOX: "#bac2de",     // Subtext1
+  TODAY: "#fab387",     // Peach
+  SOON: "#cba6f7",      // Mauve
+  WAITING: "#b4befe",   // Lavender
+  DONE: "#6c7086",      // Overlay0
+  PROJECT: "#a6e3a1",   // Green
+  SOMEDAY: "#f9e2af",   // Yellow (dimmer usage)
+  RELEVANT: "#cba6f7",  // Mauve (legacy)
+  NOTES: "#a6e3a1",     // Green
+  LIST: "#94e2d5",      // Teal
+  TRASH: "#6c7086",     // Overlay0
 } as const satisfies Record<string, string>;
 
 export function getTodoKeywordColor(keyword: string): string {
