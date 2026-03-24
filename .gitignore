@@ -24,3 +24,4 @@ raycast/dist
 AGENTS.md
 tmp/
 raycast/raycast-env.d.ts
+.claude/tasks/
