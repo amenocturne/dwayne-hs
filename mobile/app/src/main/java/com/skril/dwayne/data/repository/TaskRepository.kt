@@ -25,6 +25,9 @@ class MockTaskRepository : TaskRepository {
             "today" -> tasks.filter { it.task.todoKeyword == "TODAY" }.sortedBy { it.task.priority ?: Int.MAX_VALUE }
             "soon" -> tasks.filter { it.task.todoKeyword == "SOON" }.sortedBy { it.task.priority ?: Int.MAX_VALUE }
             "todo" -> tasks.filter { it.task.todoKeyword == "TODO" }.sortedBy { it.task.priority ?: Int.MAX_VALUE }
+            "waiting" -> tasks.filter { it.task.todoKeyword == "WAITING" }
+            "someday" -> tasks.filter { it.task.todoKeyword == "SOMEDAY" }
+            "list" -> tasks.filter { it.task.todoKeyword == "LIST" }
             "work-queue" -> tasks.filter { it.task.todoKeyword in listOf("TODAY", "SOON") }.sortedBy { it.task.priority ?: Int.MAX_VALUE }
             "done" -> tasks.filter { it.task.todoKeyword == "DONE" }
             "trash" -> tasks.filter { it.task.todoKeyword == "TRASH" }

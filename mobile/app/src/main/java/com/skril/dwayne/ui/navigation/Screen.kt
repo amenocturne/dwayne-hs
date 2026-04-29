@@ -4,4 +4,5 @@ sealed class Screen(val route: String) {
     data object Feed : Screen("feed")
     data object Capture : Screen("capture")
     data object Swipe : Screen("swipe")
+    data object Search : Screen("search")
 }

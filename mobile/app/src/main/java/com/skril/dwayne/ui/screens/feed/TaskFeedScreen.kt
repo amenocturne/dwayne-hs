@@ -12,7 +12,7 @@ import com.skril.dwayne.data.repository.TaskRepository
 import com.skril.dwayne.ui.components.TaskCard
 import kotlinx.coroutines.launch
 
-private val viewTabs = listOf("work-queue", "inbox", "today", "soon", "todo", "done")
+private val viewTabs = listOf("work-queue", "inbox", "today", "soon", "todo", "waiting", "someday", "list", "done")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

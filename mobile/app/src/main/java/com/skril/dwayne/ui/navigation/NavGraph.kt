@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwipeRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -11,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -20,9 +22,11 @@ import androidx.navigation.compose.rememberNavController
 import com.skril.dwayne.BuildConfig
 import com.skril.dwayne.data.repository.ApiTaskRepository
 import com.skril.dwayne.data.repository.MockTaskRepository
+import com.skril.dwayne.data.repository.SavedQueryStore
 import com.skril.dwayne.data.repository.TaskRepository
 import com.skril.dwayne.ui.screens.capture.CaptureScreen
 import com.skril.dwayne.ui.screens.feed.TaskFeedScreen
+import com.skril.dwayne.ui.screens.search.SearchScreen
 import com.skril.dwayne.ui.screens.swipe.SwipeProcessingScreen
 
 private data class BottomNavItem(
@@ -35,6 +39,7 @@ private val bottomNavItems = listOf(
     BottomNavItem(Screen.Feed, "Feed", Icons.AutoMirrored.Default.List),
     BottomNavItem(Screen.Capture, "Capture", Icons.Default.Add),
     BottomNavItem(Screen.Swipe, "Process", Icons.Default.SwipeRight),
+    BottomNavItem(Screen.Search, "Search", Icons.Default.Search),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,6 +50,8 @@ fun DwayneNavHost() {
         if (BuildConfig.USE_MOCK_DATA) MockTaskRepository()
         else ApiTaskRepository(BuildConfig.API_BASE_URL)
     }
+    val context = LocalContext.current
+    val savedQueryStore = remember { SavedQueryStore(context) }
 
     Scaffold(
         bottomBar = {
@@ -83,6 +90,9 @@ fun DwayneNavHost() {
             }
             composable(Screen.Swipe.route) {
                 SwipeProcessingScreen(repository = repository)
+            }
+            composable(Screen.Search.route) {
+                SearchScreen(repository = repository, store = savedQueryStore)
             }
         }
     }
