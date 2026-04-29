@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module Tui.Events where
@@ -23,7 +24,7 @@ import Data.Time (diffUTCTime, getCurrentTime)
 import Data.Time.Clock (UTCTime)
 import qualified Data.Vector as V
 import Graphics.Vty.Input.Events
-import Model.OrgMode (Task)
+import Model.OrgMode (Task, TaskFile)
 import Parser.Parser
 import Refile.Refile (refileTaskToProject)
 import Refile.Refileable (Refileable)
@@ -256,25 +257,7 @@ handleEvent (AppEvent event) = case event of
                     "Aborting save, external edits detected in: "
                       ++ intercalate ", " modifiedChanged
                 )
-          else do
-            results <- liftIO $ case view (system . taskStoreOps) ctx of
-              Just ops -> do
-                storeSave ops (M.fromList changedFiles)
-                traverse (uncurry writeTaskFile) changedFiles
-              Nothing ->
-                traverse (uncurry writeTaskFile) changedFiles
-            let errors = [err | Left err <- results]
-            if null errors
-              then do
-                modify $ \c ->
-                  let updated = foldl (\m (fp, f) -> M.insert fp f m) (view originalFileStateLens c) changedFiles
-                   in set originalFileStateLens updated c
-                modify $ set (appState . cmdState) (Just $ ShowingMessage $ T.pack $ "Saved " ++ show (length changedFiles) ++ " file(s)")
-              else do
-                liftIO $
-                  writeBChan
-                    (view (appState . eventChannel) ctx)
-                    (Error $ "Failed to save some files:\n" ++ intercalate "\n" errors)
+          else writeChangedFiles ctx changedFiles
   ForceWriteAll -> do
     ctx <- get
     let currentState = view fileStateLens ctx
@@ -286,25 +269,7 @@ handleEvent (AppEvent event) = case event of
           ]
     if null changedFiles
       then modify $ set (appState . cmdState) (Just $ ShowingMessage "No changes to save")
-      else do
-        results <- liftIO $ case view (system . taskStoreOps) ctx of
-          Just ops -> do
-            storeSave ops (M.fromList changedFiles)
-            traverse (uncurry writeTaskFile) changedFiles
-          Nothing ->
-            traverse (uncurry writeTaskFile) changedFiles
-        let errors = [err | Left err <- results]
-        if null errors
-          then do
-            modify $ \c ->
-              let updated = foldl (\m (fp, f) -> M.insert fp f m) (view originalFileStateLens c) changedFiles
-               in set originalFileStateLens updated c
-            modify $ set (appState . cmdState) (Just $ ShowingMessage $ T.pack $ "Saved " ++ show (length changedFiles) ++ " file(s)")
-          else do
-            liftIO $
-              writeBChan
-                (view (appState . eventChannel) ctx)
-                (Error $ "Failed to save some files:\n" ++ intercalate "\n" errors)
+      else writeChangedFiles ctx changedFiles
   QuitApp -> do
     ctx <- get
     if checkUnsavedChanges ctx
@@ -345,6 +310,37 @@ handleEvent (AppEvent event) = case event of
       else performReload
   ForceReloadFiles -> performReload
 handleEvent _ = return ()
+
+-- | Common save path: persist the changed files via the configured task
+-- store (DB primary, org export secondary). When no store is configured we
+-- fall back to writing org files directly. On success, mark the originals
+-- to clear the dirty flag and show a status message; on failure, surface
+-- an error dialog.
+writeChangedFiles ::
+  (Eq a, Writer a) =>
+  AppContext a ->
+  [(FilePath, ParserResult (TaskFile a))] ->
+  GlobalAppState a
+writeChangedFiles ctx changedFiles = do
+  results <- liftIO $ case view (system . taskStoreOps) ctx of
+    Just ops ->
+      (storeSave ops (M.fromList changedFiles) >> return [])
+        `catch` \(e :: IOException) ->
+          return [unlines ["Failed to save: " ++ show e]]
+    Nothing -> do
+      perFile <- traverse (uncurry writeTaskFile) changedFiles
+      return [err | Left err <- perFile]
+  if null results
+    then do
+      modify $ \c ->
+        let updated = foldl (\m (fp, f) -> M.insert fp f m) (view originalFileStateLens c) changedFiles
+         in set originalFileStateLens updated c
+      modify $ set (appState . cmdState) (Just $ ShowingMessage $ T.pack $ "Saved " ++ show (length changedFiles) ++ " file(s)")
+    else
+      liftIO $
+        writeBChan
+          (view (appState . eventChannel) ctx)
+          (Error $ "Failed to save some files:\n" ++ intercalate "\n" results)
 
 writeTaskFile :: (Writer a) => FilePath -> ParserResult a -> IO (Either String ())
 writeTaskFile path file = case file of

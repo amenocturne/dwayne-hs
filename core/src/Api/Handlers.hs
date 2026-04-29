@@ -270,7 +270,8 @@ captureHandler cacheVar req = do
             newCtx = set fileStateLens (M.insert fp (ParserSuccess updatedTf) fs) ctx
             ptr = TaskPointer fp idx
         case view (system . taskStoreOps) ctx of
-          Just ops -> storeSave ops (view fileStateLens newCtx)
+          Just ops ->
+            storeSave ops (M.singleton fp (ParserSuccess updatedTf))
           Nothing -> return ()
         return (newCtx, Right (TaskWithPointer newTask ptr))
   case result of
@@ -290,7 +291,7 @@ withMutation cacheVar ptr operation = do
       Right newFs -> do
         let newCtx = set fileStateLens newFs ctx
         case view (system . taskStoreOps) ctx of
-          Just ops -> storeSave ops newFs
+          Just ops -> storeSave ops (singleFileSlice (_file ptr) newFs)
           Nothing -> return ()
         case Ops.getTask ptr newFs of
           Nothing -> return (ctx, Left "Task not found after update")
@@ -310,12 +311,20 @@ editTaskHandler cacheVar req = do
       Right (newFs, updatedTask) -> do
         let newCtx = set fileStateLens newFs ctx
         case view (system . taskStoreOps) ctx of
-          Just ops -> storeSave ops newFs
+          Just ops -> storeSave ops (singleFileSlice (etrFile req) newFs)
           Nothing -> return ()
         return (newCtx, Right (TaskWithPointer updatedTask ptr))
   case result of
     Left err -> throwError $ err400 {errBody = BSL.pack err}
     Right twp -> return twp
+
+-- | Project a FileState down to a single file's entry, or empty if the
+-- file isn't present (which shouldn't happen for a successful mutation).
+-- Used to keep DB writes scoped to the file actually modified.
+singleFileSlice :: FilePath -> FileState Task -> FileState Task
+singleFileSlice fp fs = case M.lookup fp fs of
+  Just entry -> M.singleton fp entry
+  Nothing -> M.empty
 
 changeKeywordHandler :: MVar (AppContext Task) -> ChangeKeywordRequest -> Handler TaskWithPointer
 changeKeywordHandler cacheVar req =

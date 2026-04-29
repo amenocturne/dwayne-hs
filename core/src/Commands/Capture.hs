@@ -2,16 +2,22 @@
 
 module Commands.Capture (captureCommand) where
 
-import Commands.CliHelpers (loadConfig)
+import Commands.CliHelpers (loadFileState)
 import Commands.Command (Command (..))
 import Commands.UrlEnrich (enrichText)
+import Control.Lens (view, (&), (.~))
+import DB.TaskStore (DatabaseStore (..), TaskStore (..))
+import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Data.Time (getZonedTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import qualified Data.Vector as V
 import Model.OrgMode
   ( Task (..),
+    TaskFile (..),
+    content,
     orgDayTimeFormat,
     orgInboxKeyword,
     plainToRichText,
@@ -21,7 +27,6 @@ import Parser.OrgParser (dateTimeParserReimplemented)
 import Parser.Parser (ParserResult (..), runParser)
 import Tui.Types (AppConfig (..))
 import Writer.OrgWriter ()
-import Writer.Writer (write)
 
 captureCommand :: Command Task
 captureCommand =
@@ -40,8 +45,9 @@ captureCommand =
 
 runCapture :: Bool -> String -> IO ()
 runCapture noEnrich input = do
-  conf <- loadConfig
+  (conf, fState) <- loadFileState
   let fp = _inboxFile conf
+      dbFile = _database conf
       inputText = T.pack input
       (titleLine, bodyText) = case T.breakOn "\n" inputText of
         (t, rest)
@@ -78,10 +84,15 @@ runCapture noEnrich input = do
             _properties = [],
             _description = descRich
           }
-      taskText = write task
 
-  existing <- TIO.readFile fp
-  let separator = if T.null existing || "\n\n" `T.isSuffixOf` existing then "" else "\n\n"
-  TIO.appendFile fp (separator <> taskText <> "\n")
-
-  TIO.putStrLn $ "Captured: " <> titleLine
+  case M.lookup fp fState of
+    Just (ParserSuccess tf) -> do
+      let updatedTf = tf & content .~ V.snoc (view content tf) task
+      saveTasks (DatabaseStore dbFile) (M.singleton fp (ParserSuccess updatedTf))
+      TIO.putStrLn $ "Captured: " <> titleLine
+    Just (ParserFailure e) ->
+      TIO.putStrLn $ "Error: inbox file has parse errors: " <> T.pack e
+    Nothing -> do
+      let newTf = TaskFile Nothing (V.singleton task)
+      saveTasks (DatabaseStore dbFile) (M.singleton fp (ParserSuccess newTf))
+      TIO.putStrLn $ "Captured: " <> titleLine

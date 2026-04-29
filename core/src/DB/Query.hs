@@ -5,6 +5,7 @@ module DB.Query
     insertTaskQuery,
     selectTaskQuery,
     deleteAllTasksQuery,
+    deleteTasksByFileQuery,
     intercalateQuery,
   )
 where
@@ -48,3 +49,6 @@ selectTaskQuery =
 
 deleteAllTasksQuery :: Query
 deleteAllTasksQuery = "DELETE FROM tasks"
+
+deleteTasksByFileQuery :: Query
+deleteTasksByFileQuery = "DELETE FROM tasks WHERE file_path = ?"

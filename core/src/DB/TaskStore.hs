@@ -8,14 +8,16 @@ module DB.TaskStore
   )
 where
 
+import Control.Exception (IOException, try)
 import Core.Types (FileState, TaskStoreOps (..))
 import DB.Connection (withDatabase)
 import DB.Export (loadTasksFromDB)
-import DB.Import (importFileState)
+import DB.Import (saveFileState)
 import qualified Data.Map.Strict as M
 import qualified Data.Text.IO as TIO
 import Model.OrgMode (Task, TaskFile)
 import Parser.Parser (Parser, ParserResult (..), runParser)
+import System.IO (hPutStrLn, stderr)
 import TextUtils (readFileExample)
 import Writer.OrgWriter ()
 import Writer.Writer (Writer (..))
@@ -61,10 +63,23 @@ instance TaskStore DatabaseStore where
     withDatabase (dbPath store) $ \conn ->
       loadTasksFromDB conn
 
-  saveTasks store fs =
+  -- DB is the source of truth: write to SQLite first, then mirror the same
+  -- entries out to org files as a best-effort secondary action. Org export
+  -- failures are logged but do not surface as errors to the caller.
+  saveTasks store fs = do
     withDatabase (dbPath store) $ \conn -> do
-      _ <- importFileState conn fs
+      _ <- saveFileState conn fs
       pure ()
+    mapM_ writeOrgFile (M.toList fs)
+    where
+      writeOrgFile (fp, ParserSuccess taskFile) = do
+        result <- try (TIO.writeFile fp (write taskFile)) :: IO (Either IOException ())
+        case result of
+          Right () -> pure ()
+          Left e ->
+            hPutStrLn stderr $
+              "warning: failed to mirror DB write to org file " ++ fp ++ ": " ++ show e
+      writeOrgFile (_, ParserFailure _) = pure ()
 
 -- | Create TaskStoreOps closures from any TaskStore instance
 mkTaskStoreOps :: (TaskStore s) => s -> TaskStoreOps Task

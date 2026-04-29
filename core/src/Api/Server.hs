@@ -14,19 +14,15 @@ import qualified Api.WebSocket as WS
 import Commands.Command (Command (..), getEnabledCommands)
 import Commands.Registry (allCommands)
 import Control.Concurrent.MVar
-import Control.Lens (set, view)
-import Control.Monad (forM)
+import Control.Lens (view)
 import Control.Monad.IO.Class (liftIO)
-import Core.Types (TaskStoreOps (..))
-import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified FileWatcher as FW
-import Model.OrgMode (Task, TaskFile)
+import Model.OrgMode (Task)
 import Network.Wai.Handler.Warp (run)
 import qualified Network.Wai.Handler.WebSockets as WaiWS
 import Network.Wai.Middleware.Cors (cors, corsMethods, corsRequestHeaders, simpleCorsResourcePolicy)
 import qualified Network.WebSockets as WebSockets
-import Parser.Parser (runParser)
 import Servant
   ( Application,
     Capture,
@@ -49,8 +45,7 @@ import Servant
     type (:<|>) (..),
     type (:>),
   )
-import TextUtils (readFileExample)
-import Tui.Types (AppContext, commands, config, fileParser, fileStateLens, getAllFiles, system, taskStoreOps)
+import Tui.Types (AppContext, commands, config, getAllFiles)
 
 -- | API type for view endpoints — catch-all route that dispatches at runtime
 type ViewsAPI =
@@ -114,22 +109,6 @@ data ServerState = ServerState
     stateRegistry :: WS.ClientRegistry,
     stateWatcher :: Maybe FW.WatcherHandle
   }
-
--- | Reload all org files from disk and update the context
--- This ensures the API always returns the most current data
-reloadContext :: AppContext Task -> IO (AppContext Task)
-reloadContext ctx = do
-  newFileState <- case view (system . taskStoreOps) ctx of
-    Just ops -> storeLoad ops
-    Nothing -> do
-      let fps = getAllFiles (view config ctx)
-          parser = view (system . fileParser) ctx
-      results <- forM fps $ \fp -> do
-        txt <- readFileExample fp
-        let (_, _, parsed) = runParser parser txt
-        return (fp, parsed)
-      return $ M.fromList results
-  return $ set fileStateLens newFileState ctx
 
 -- | Find the API handler for a given endpoint in the command list
 findViewHandler :: T.Text -> [Command Task] -> Maybe (AppContext Task -> Maybe Int -> Maybe Int -> Handler (PaginatedResponse TaskWithPointer))
@@ -210,20 +189,20 @@ app serverState = corsMiddleware $ serve (Proxy :: Proxy API) (apiServer serverS
 
 -- | Run the web server on the specified port
 -- Serves REST API at /api/* and static files from web/dist/ at /*
--- Starts file watcher to automatically reload and broadcast changes
+-- Watches org files and warns on external edits (DB is canonical, so
+-- those edits will not propagate until the user runs `dwayne dbImport`).
 runServer :: Int -> AppContext Task -> IO ()
 runServer port initialCtx = do
   -- Create server state with cached context
   cacheVar <- newMVar initialCtx
   registry <- WS.newClientRegistry
 
-  -- Start file watcher that invalidates cache and broadcasts to clients
+  -- Watch org files for external edits. DB is canonical now, so we don't
+  -- reload from disk — we just warn the operator that the change won't
+  -- propagate without an explicit dbImport.
   let files = getAllFiles (view config initialCtx)
-  watcher <- FW.startWatcher files $ do
-    putStrLn "Files changed, reloading..."
-    newCtx <- reloadContext initialCtx
-    modifyMVar_ cacheVar (const $ return newCtx)
-    WS.broadcast registry "reload"
+  watcher <- FW.startWatcher files $
+    putStrLn "warning: external org edit detected. DB is canonical; run `dwayne dbImport` to sync if intended."
 
   let serverState = ServerState cacheVar registry (Just watcher)
 

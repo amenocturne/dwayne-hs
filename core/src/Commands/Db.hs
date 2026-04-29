@@ -58,6 +58,7 @@ dbImportCommand =
       cmdCli = Just $ pure $ do
         (conf, fState) <- loadFileStateFromOrg
         let dbFile = _database conf
+        initDatabase dbFile
         count <- withDatabase dbFile $ \conn ->
           importFileState conn fState
         putStrLn $ "Imported " ++ show count ++ " tasks from " ++ show (M.size fState) ++ " files",
