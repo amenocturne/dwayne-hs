@@ -33,5 +33,9 @@ jobs:
           tags: |
             ghcr.io/skril3366/dwayne:latest
             ghcr.io/skril3366/dwayne:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: |
+            type=registry,ref=ghcr.io/skril3366/dwayne:buildcache
+            type=gha
+          cache-to: |
+            type=registry,ref=ghcr.io/skril3366/dwayne:buildcache,mode=max
+            type=gha,mode=max

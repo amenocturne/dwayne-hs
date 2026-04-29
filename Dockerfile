@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.7
+
 # Stage 1: Build Haskell executable
 FROM haskell:9.6 AS haskell-builder
 
@@ -7,7 +9,10 @@ COPY LICENSE LICENSE
 COPY core/ core/
 
 WORKDIR /build/core
-RUN cabal update && cabal build exe:dwayne \
+RUN --mount=type=cache,target=/root/.cabal,sharing=locked \
+    --mount=type=cache,target=/build/core/dist-newstyle,sharing=locked \
+    cabal update \
+    && cabal build exe:dwayne \
     && cp "$(cabal list-bin exe:dwayne)" /build/dwayne
 
 # Stage 2: Build web frontend
@@ -16,7 +21,8 @@ FROM node:20-slim AS web-builder
 WORKDIR /build/web
 
 COPY web/package.json web/package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm ci
 
 COPY web/ ./
 RUN npm run build
