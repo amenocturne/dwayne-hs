@@ -53,7 +53,10 @@ private val bottomNavItems = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DwayneNavHost() {
+fun DwayneNavHost(
+    initialCaptureText: String? = null,
+    onCaptureConsumed: () -> Unit = {},
+) {
     val context = LocalContext.current
     val app = context.applicationContext as DwayneApp
     val settingsStore = app.settingsStore
@@ -79,6 +82,15 @@ fun DwayneNavHost() {
     }
 
     val navController = rememberNavController()
+
+    androidx.compose.runtime.LaunchedEffect(initialCaptureText) {
+        if (!initialCaptureText.isNullOrEmpty()) {
+            navController.navigate(Screen.Capture.route) {
+                launchSingleTop = true
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            }
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -138,7 +150,12 @@ fun DwayneNavHost() {
                 )
             }
             composable(Screen.Capture.route) {
-                CaptureScreen(repository = repository, onError = showError)
+                CaptureScreen(
+                    repository = repository,
+                    onError = showError,
+                    initialText = initialCaptureText.orEmpty(),
+                    onInitialTextConsumed = onCaptureConsumed,
+                )
             }
             composable(Screen.Swipe.route) {
                 SwipeProcessingScreen(

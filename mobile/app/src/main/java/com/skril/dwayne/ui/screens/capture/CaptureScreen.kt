@@ -20,8 +20,13 @@ import kotlinx.coroutines.launch
 fun CaptureScreen(
     repository: TaskRepository,
     onError: (String) -> Unit,
+    initialText: String = "",
+    onInitialTextConsumed: () -> Unit = {},
 ) {
-    var inputText by remember { mutableStateOf("") }
+    var inputText by remember(initialText) { mutableStateOf(initialText) }
+    LaunchedEffect(initialText) {
+        if (initialText.isNotEmpty()) onInitialTextConsumed()
+    }
     var recentCaptures by remember { mutableStateOf<List<TaskWithPointer>>(emptyList()) }
     val scope = rememberCoroutineScope()
 
@@ -41,7 +46,8 @@ fun CaptureScreen(
                 onValueChange = { inputText = it },
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("What's on your mind?") },
-                singleLine = true,
+                singleLine = false,
+                maxLines = 6,
             )
             Spacer(modifier = Modifier.width(8.dp))
             IconButton(
