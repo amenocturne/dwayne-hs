@@ -1,14 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- | Handler implementations for view endpoints.
+-- | Handler implementations for view and mutation endpoints.
 --
--- Read handlers (views, search, projects/*) consult the CQRS read model
--- via 'Repo.TaskRepo' (a 'Repo.EventStoreRepo' wired in at server boot).
--- Mutation handlers still own the legacy in-memory 'FileState' write
--- path; Phase 2b switches them over.
+-- Both reads and writes consult the CQRS read model + event log via
+-- 'Repo.TaskRepo' (a 'Repo.EventStoreRepo' wired in at server boot).
+-- Reads run SQL against @task_current_state@; writes append to @events@
+-- and the @events_to_state@ trigger projects them into
+-- @task_current_state@ atomically. The legacy in-memory 'FileState'
+-- cache is no longer consulted by any API handler — Phase 3 removes the
+-- field outright.
 --
--- The repo is kept in 'SystemConfig._taskRepo'. Read handlers fetch it
--- via 'taskRepoLens'; if the field is 'Nothing' (server bootstrapped
+-- The repo is kept in 'SystemConfig._taskRepo'. Handlers fetch it via
+-- 'taskRepoLens'; if the field is 'Nothing' (server bootstrapped
 -- without a DB-backed repo) the handler returns HTTP 500. The
 -- production 'Main.initializeAppContext' always wires a repo, so
 -- 'Nothing' indicates either a misconfigured fixture or a regression in
@@ -45,32 +48,27 @@ module Api.Handlers
 where
 
 import Api.Types (CaptureRequest (..), ChangeKeywordRequest (..), ChangePriorityRequest (..), EditTaskRequest (..), PaginatedResponse (..), ProjectTreeResponse (..), ResponseMetadata (..), TagRequest (..), TaskNode (..), TaskPointerRequest (..), TaskWithPointer (..), requestToTransform)
-import Control.Concurrent.MVar (MVar, modifyMVar)
-import Control.Lens (set, view, (&), (.~))
+import Control.Concurrent.MVar (MVar, readMVar)
+import Control.Lens (over, view)
 import Control.Monad.IO.Class (liftIO)
-import qualified Core.Operations as Ops
-import Core.Types (FileState, TaskPointer (..), level, taskIndex)
+import Core.Types (TaskPointer (..), level, taskIndex)
+import qualified Core.Types as CT
 import qualified Data.ByteString.Lazy.Char8 as BSL
-import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as S
 import qualified Data.Text as T
 import Data.Time (getCurrentTime, getZonedTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import qualified Data.Vector as V
-import DB.Connection (withDatabase)
 import Events.Diff (diffTaskAsEvent, fullEvent)
-import Events.Store (insertEvent)
-import Model.OrgMode (Task (..), content, orgDayTimeFormat, orgInboxKeyword, orgProjectKeyword, plainToRichText)
+import Model.OrgMode (Task (..), orgDayTimeFormat, orgInboxKeyword, orgProjectKeyword, orgTrashKeyword, plainToRichText)
 import Parser.OrgParser (dateTimeParserReimplemented)
 import Parser.Parser (ParserResult (..), runParser)
 import qualified Repo.EventStoreRepo as Repo
 import Repo.TaskRepo (Query (..), SortField (..), View (..), emptyQuery)
 import qualified Repo.TaskRepo as TR
 import Searcher.OrgSearcher ()
-import Servant (Handler, err400, err404, err500, errBody, throwError)
-import Tui.Types (AppContext, config, fileStateLens, inboxFile, taskRepoLens)
-import qualified Tui.Types as TT
+import Servant (Handler, err404, err500, errBody, throwError)
+import Tui.Types (AppContext, config, inboxFile, taskRepoLens)
 import Writer.OrgWriter ()
 
 -- ---------------------------------------------------------------------------
@@ -318,14 +316,33 @@ buildProjectTreeFromList projectPtr projectTask rows =
           children = buildChildren taskLevel descendants
        in TaskNode task ptr children
 
+-- | Capture a freshly-typed task into the inbox file. The new flow is
+-- entirely event-sourced:
+--
+--   1. Read the inbox file path from 'AppConfig'.
+--   2. Pick the next free @task_index@ via the events log
+--      ('Repo.nextTaskIndex' over @MAX(task_index)@). The legacy path
+--      computed this from an in-memory 'FileState' projection; the new
+--      path queries SQL directly.
+--   3. Append a genesis event ('fullEvent') carrying every task field.
+--      The @events_to_state@ trigger materializes the row into
+--      @task_current_state@ atomically.
+--
+-- The MVar is not mutated — the in-memory 'FileState' cache is no
+-- longer consulted by API handlers. The cache stays threaded through
+-- the handler signature for symmetry with the read paths and to avoid
+-- churn in 'Api.Server' until Phase 3 retires the field.
 captureHandler ::
   MVar (AppContext Task) ->
   CaptureRequest ->
   Handler TaskWithPointer
 captureHandler cacheVar req = do
+  ctx <- liftIO $ readMVar cacheVar
+  repo <- requireRepo ctx
   now <- liftIO getZonedTime
   utcNow <- liftIO getCurrentTime
-  let titleText = captureTitle req
+  let fp = view (config . inboxFile) ctx
+      titleText = captureTitle req
       createdStr = T.pack $ formatTime defaultTimeLocale orgDayTimeFormat now
       (_, _, createdResult) = runParser dateTimeParserReimplemented createdStr
       createdTime = case createdResult of
@@ -345,90 +362,85 @@ captureHandler cacheVar req = do
             _properties = [],
             _description = plainToRichText ""
           }
-  result <- liftIO $ modifyMVar cacheVar $ \ctx -> do
-    let fp = view (config . inboxFile) ctx
-        fs = view fileStateLens ctx
-        dbFile = TT._database (view config ctx)
-    case M.lookup fp fs of
-      Nothing -> return (ctx, Left "Inbox file not found")
-      Just (ParserFailure _) -> return (ctx, Left "Inbox file has parse errors")
-      Just (ParserSuccess tf) -> do
-        let idx = V.length (view content tf)
-            updatedTf = tf & content .~ V.snoc (view content tf) newTask
-            newCtx = set fileStateLens (M.insert fp (ParserSuccess updatedTf) fs) ctx
-            ptr = TaskPointer fp idx
-        withDatabase dbFile $ \conn ->
-          insertEvent conn (fullEvent fp idx utcNow newTask)
-        return (newCtx, Right (TaskWithPointer newTask ptr))
-  case result of
-    Left err -> throwError $ err400 {errBody = BSL.pack err}
-    Right twp -> return twp
+  idx <- liftIO $ Repo.nextTaskIndex repo fp
+  let ptr = TaskPointer fp idx
+  liftIO $ TR.appendEvent repo (fullEvent fp idx utcNow newTask)
+  pure $ TaskWithPointer newTask ptr
 
+-- | Apply a pure 'Task -> Task' op to the task at 'ptr', persisting the
+-- delta as a single event.
+--
+-- Flow:
+--   1. 'requireRepo' — HTTP 500 if no repo is wired.
+--   2. 'TR.getTask' — HTTP 404 if the task does not exist in
+--      @task_current_state@.
+--   3. Apply the pure op, compute a delta event with 'diffTaskAsEvent'
+--      (only fields that changed end up as @Just _@), and append it.
+--   4. Return the updated 'Task'. We rely on the diff being a
+--      faithful representation of @op old@ — if no field changed the
+--      event is a row-identity no-op, which the trigger upserts back
+--      onto the same row idempotently.
+--
+-- The op cannot fail (no @Either@); legacy ops in 'Core.Operations' had
+-- failure modes only for "task not found", which is now handled here
+-- via the 404 path. This keeps the seam symmetric with the read
+-- handlers and makes mutation flow obvious at every call site.
 withMutation ::
   MVar (AppContext Task) ->
   TaskPointer ->
-  (TaskPointer -> FileState Task -> Either String (FileState Task)) ->
+  (Task -> Task) ->
   Handler TaskWithPointer
-withMutation cacheVar ptr operation = do
+withMutation cacheVar ptr op = do
+  ctx <- liftIO $ readMVar cacheVar
+  repo <- requireRepo ctx
   utcNow <- liftIO getCurrentTime
-  result <- liftIO $ modifyMVar cacheVar $ \ctx -> do
-    let fs = view fileStateLens ctx
-        dbFile = TT._database (view config ctx)
-    case Ops.getTask ptr fs of
-      Nothing -> return (ctx, Left ("Task not found at: " ++ show ptr))
-      Just oldTask ->
-        case operation ptr fs of
-          Left err -> return (ctx, Left err)
-          Right newFs -> do
-            let newCtx = set fileStateLens newFs ctx
-            case Ops.getTask ptr newFs of
-              Nothing -> return (ctx, Left "Task not found after update")
-              Just task -> do
-                withDatabase dbFile $ \conn ->
-                  insertEvent conn (diffTaskAsEvent (_file ptr) (_taskIndex ptr) utcNow oldTask task)
-                return (newCtx, Right (TaskWithPointer task ptr))
-  case result of
-    Left err -> throwError $ err400 {errBody = BSL.pack err}
-    Right twp -> return twp
+  mTask <- liftIO $ TR.getTask repo (_file ptr, _taskIndex ptr)
+  case mTask of
+    Nothing -> throwError $ err404 {errBody = BSL.pack ("Task not found at: " ++ show ptr)}
+    Just oldTask -> do
+      let newTask = op oldTask
+          event = diffTaskAsEvent (_file ptr) (_taskIndex ptr) utcNow oldTask newTask
+      liftIO $ TR.appendEvent repo event
+      pure $ TaskWithPointer newTask ptr
 
 editTaskHandler :: MVar (AppContext Task) -> EditTaskRequest -> Handler TaskWithPointer
-editTaskHandler cacheVar req = do
-  let ptr = TaskPointer (etrFile req) (etrTaskIndex req)
-      transform = requestToTransform req
-  utcNow <- liftIO getCurrentTime
-  result <- liftIO $ modifyMVar cacheVar $ \ctx -> do
-    let fs = view fileStateLens ctx
-        dbFile = TT._database (view config ctx)
-    case Ops.getTask ptr fs of
-      Nothing -> return (ctx, Left ("Task not found at: " ++ show ptr))
-      Just oldTask ->
-        case Ops.editTask ptr transform fs of
-          Left err -> return (ctx, Left err)
-          Right (newFs, updatedTask) -> do
-            let newCtx = set fileStateLens newFs ctx
-            withDatabase dbFile $ \conn ->
-              insertEvent conn (diffTaskAsEvent (etrFile req) (etrTaskIndex req) utcNow oldTask updatedTask)
-            return (newCtx, Right (TaskWithPointer updatedTask ptr))
-  case result of
-    Left err -> throwError $ err400 {errBody = BSL.pack err}
-    Right twp -> return twp
+editTaskHandler cacheVar req =
+  withMutation
+    cacheVar
+    (TaskPointer (etrFile req) (etrTaskIndex req))
+    (requestToTransform req)
 
 changeKeywordHandler :: MVar (AppContext Task) -> ChangeKeywordRequest -> Handler TaskWithPointer
 changeKeywordHandler cacheVar req =
-  withMutation cacheVar (TaskPointer (ckrFile req) (ckrTaskIndex req)) (Ops.changeTodoKeyword (ckrKeyword req))
+  withMutation
+    cacheVar
+    (TaskPointer (ckrFile req) (ckrTaskIndex req))
+    (over CT.todoKeyword (const (ckrKeyword req)))
 
 changePriorityHandler :: MVar (AppContext Task) -> ChangePriorityRequest -> Handler TaskWithPointer
 changePriorityHandler cacheVar req =
-  withMutation cacheVar (TaskPointer (cprFile req) (cprTaskIndex req)) (Ops.changeTaskPriority (cprPriority req))
+  withMutation
+    cacheVar
+    (TaskPointer (cprFile req) (cprTaskIndex req))
+    (over CT.priority (const (cprPriority req)))
 
 addTagHandler :: MVar (AppContext Task) -> TagRequest -> Handler TaskWithPointer
 addTagHandler cacheVar req =
-  withMutation cacheVar (TaskPointer (trFile req) (trTaskIndex req)) (Ops.addTaskTag (trTag req))
+  withMutation
+    cacheVar
+    (TaskPointer (trFile req) (trTaskIndex req))
+    (over CT.tags (S.insert (trTag req)))
 
 removeTagHandler :: MVar (AppContext Task) -> TagRequest -> Handler TaskWithPointer
 removeTagHandler cacheVar req =
-  withMutation cacheVar (TaskPointer (trFile req) (trTaskIndex req)) (Ops.deleteTaskTag (trTag req))
+  withMutation
+    cacheVar
+    (TaskPointer (trFile req) (trTaskIndex req))
+    (over CT.tags (S.delete (trTag req)))
 
 deleteTaskHandler :: MVar (AppContext Task) -> TaskPointerRequest -> Handler TaskWithPointer
 deleteTaskHandler cacheVar req =
-  withMutation cacheVar (TaskPointer (tprFile req) (tprTaskIndex req)) Ops.deleteTask
+  withMutation
+    cacheVar
+    (TaskPointer (tprFile req) (tprTaskIndex req))
+    (over CT.todoKeyword (const orgTrashKeyword))

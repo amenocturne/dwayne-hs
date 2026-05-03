@@ -20,6 +20,7 @@
 module Repo.EventStoreRepo
   ( EventStoreRepo (..),
     mkEventStoreRepo,
+    nextTaskIndex,
     rebuildTaskCurrentState,
   )
 where
@@ -77,6 +78,14 @@ instance TaskRepo EventStoreRepo IO where
 
   appendEvents repo evs =
     withDatabase (esrDbFile repo) $ \conn -> ES.insertEvents conn evs
+
+-- | Next free @task_index@ for a file, computed from the events log.
+-- The capture handler uses this to pick the index for a freshly created
+-- task without relying on an in-memory 'FileState' projection. Returns
+-- @MAX(task_index) + 1@ for the file, or @0@ if no events exist.
+nextTaskIndex :: EventStoreRepo -> FilePath -> IO Int
+nextTaskIndex repo fp =
+  withDatabase (esrDbFile repo) $ \conn -> ES.nextTaskIndex conn fp
 
 -- ---------------------------------------------------------------------------
 -- Connection-level operations (used by the instance and tests)
