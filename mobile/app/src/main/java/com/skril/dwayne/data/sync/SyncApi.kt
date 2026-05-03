@@ -21,12 +21,22 @@ import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
+/**
+ * Sync transport contract. Lets [SyncEngine] be unit-tested with a fake.
+ * The real implementation is [SyncApi].
+ */
+interface SyncTransport {
+    suspend fun pull(since: String?): EventsResponse
+    suspend fun push(events: List<Event>): PostEventsResponse
+    fun close()
+}
+
 /** HTTP client for the events sync endpoints. Stateless; one per sync run. */
 class SyncApi(
     private val baseUrl: String,
     username: String,
     password: String,
-) {
+) : SyncTransport {
 
     private val basicAuthHeader: String? = run {
         val u = username.trim()
@@ -52,20 +62,20 @@ class SyncApi(
         }
     }
 
-    suspend fun pull(since: String?): EventsResponse {
+    override suspend fun pull(since: String?): EventsResponse {
         return client.get("$baseUrl/api/events") {
             if (!since.isNullOrBlank()) parameter("since", since)
         }.body()
     }
 
-    suspend fun push(events: List<Event>): PostEventsResponse {
+    override suspend fun push(events: List<Event>): PostEventsResponse {
         return client.post("$baseUrl/api/events") {
             contentType(ContentType.Application.Json)
             setBody(PostEventsRequest(events = events))
         }.body()
     }
 
-    fun close() {
+    override fun close() {
         client.close()
     }
 }

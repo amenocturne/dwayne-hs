@@ -21,7 +21,7 @@ import java.util.TimeZone
  */
 class SyncEngine(
     private val store: EventStore,
-    private val api: SyncApi,
+    private val api: SyncTransport,
     private val ownedFiles: List<String>,
     private val pullWindowHours: Int,
 ) {
@@ -64,12 +64,25 @@ class SyncEngine(
     }
 
     private fun shiftIso(iso: String, hours: Int): String {
-        val fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+        // Server emits "yyyy-MM-dd'T'HH:mm:ss'Z'" (no millis) but the device
+        // emits "...HH:mm:ss.SSS'Z'" (with millis) for monotonic uniqueness.
+        // Try the millis format first, then fall back. If neither parses we
+        // return the input unshifted — the next pull will simply re-fetch
+        // from `iso` instead of `iso - window`, which is safe (idempotent
+        // INSERT OR IGNORE) but loses the clock-skew safety net.
+        val fmtMillis = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("UTC")
         }
-        val parsed = runCatching { fmt.parse(iso) }.getOrNull() ?: return iso
+        val fmtNoMillis = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+        val parsed = runCatching { fmtMillis.parse(iso) }.getOrNull()
+            ?: runCatching { fmtNoMillis.parse(iso) }.getOrNull()
+            ?: return iso
         val shifted = Date(parsed.time + hours.toLong() * 3600L * 1000L)
-        return fmt.format(shifted)
+        // Emit with millis to preserve precision and stay strictly comparable
+        // to events written by isoNow() in LocalTaskRepository.
+        return fmtMillis.format(shifted)
     }
 
     companion object {
