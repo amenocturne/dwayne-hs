@@ -4,22 +4,24 @@ module Commands.CliHelpers
   ( loadConfig,
     loadFileState,
     loadFileStateFromOrg,
+    loadFileStateFromEvents,
     formatTaskLine,
   )
 where
 
-import Control.Monad (when)
 import Core.Types (FileState, TaskPointer (..))
-import DB.Connection (initDatabase)
-import DB.TaskStore (DatabaseStore (..), TaskStore (loadTasks))
+import DB.Connection (initDatabase, withDatabase)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import Data.Yaml.Aeson (ParseException, decodeFileEither)
+import Events.Projection (fileStateFromEvents)
+import Events.Store (selectAllEvents)
 import Model.OrgFormat (formatHeaderLine)
 import Model.OrgMode (Task (..), TaskFile)
 import Parser.OrgParser (orgFileParser)
 import Parser.Parser (ParserResult, runParser)
 import System.Exit (die)
+import qualified System.IO as IO
 import TextUtils (getConfigPath, readFileExample)
 import Tui.Types (AppConfig (..), expandConfigPaths, getAllFiles)
 
@@ -32,17 +34,35 @@ loadConfig = do
     Left err -> die $ "Failed to load config: " ++ show err
     Right conf -> expandConfigPaths conf
 
--- | Load FileState from the SQLite-backed task store. The database is
--- the canonical source of truth at runtime; org files are export-only.
+-- | Load FileState by replaying events from the @events@ table. The events
+-- log is the canonical source of truth at runtime; the legacy @tasks@ table
+-- is preserved only as a fallback / migration scaffold and is not consulted
+-- here.
+--
+-- If the events table is empty we emit a hint to stderr and return an
+-- empty FileState — the caller will see "no tasks" and can run
+-- @dwayne migrateToEvents@ to seed the log.
 loadFileState :: IO (AppConfig Task, FileState Task)
 loadFileState = do
   conf <- loadConfig
   let dbFile = _database conf
   initDatabase dbFile
-  fState <- loadTasks (DatabaseStore dbFile)
-  when (M.null fState) $
-    putStrLn "Database is empty. Run 'dwayne dbImport' to import org files."
+  fState <- loadFileStateFromEvents dbFile
   return (conf, fState)
+
+-- | Replay every event in the configured DB into a 'FileState Task'.
+-- Returns 'M.empty' when the events table is empty (with a stderr hint).
+loadFileStateFromEvents :: FilePath -> IO (FileState Task)
+loadFileStateFromEvents dbFile = do
+  events <- withDatabase dbFile selectAllEvents
+  case events of
+    [] -> do
+      IO.hPutStrLn IO.stderr $
+        "warning: events table is empty at "
+          ++ dbFile
+          ++ ". Run 'dwayne migrateToEvents' to seed it from your org files."
+      pure M.empty
+    _ -> pure (fileStateFromEvents events)
 
 -- | Parse the configured org files into a FileState without touching the
 -- database. Used by `dwayne dbImport` to seed the DB; not called from any

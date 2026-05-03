@@ -26,11 +26,15 @@ import qualified Data.Vector as V
 import Graphics.Vty.Input.Events
 import Model.OrgMode (Task, TaskFile)
 import Parser.Parser
+import Refile.OrgRefileable ()
 import Refile.Refile (refileTaskToProject)
 import Refile.Refileable (Refileable)
+import Searcher.OrgSearcher ()
 import Searcher.Searcher (Searcher, matches)
 import TextUtils (readFileExample)
+import Tui.MutationEvents (emitMutationEventsForChange)
 import Tui.Types
+import qualified Tui.Types as TT
 import Validation.ProjectValidation
 import Writer.OrgWriter ()
 import Writer.Writer
@@ -129,7 +133,7 @@ handleCmdInput c = modify $ over (appState . cmdState) (fmap appendC)
     appendC (Typing cmdType input) = Typing cmdType (input `T.snoc` c)
     appendC other = other
 
-handleRefileDialogInput :: (Searcher a, Refileable a) => Key -> [Modifier] -> GlobalAppState a
+handleRefileDialogInput :: Key -> [Modifier] -> GlobalAppState Task
 handleRefileDialogInput key mods = do
   case key of
     KEsc -> modify $ set (appState . refileDialog) Nothing
@@ -173,7 +177,16 @@ handleRefileDialogInput key mods = do
 
           case listToMaybe (drop selectedIdx filteredProjects) of
             Just selectedProject -> do
+              -- Capture the prior FileState so we can emit per-task events
+              -- (refile typically writes the task into a new project file
+              -- AND marks the source row TRASH — both surface as deltas).
+              ctxBefore <- get
+              let oldFs = view fileStateLens ctxBefore
               refileTaskToProject currentTask selectedProject
+              ctxAfter <- get
+              let newFs = view fileStateLens ctxAfter
+                  dbPath = TT._database (view config ctxAfter)
+              liftIO $ emitMutationEventsForChange dbPath oldFs newFs
               modify $ set (appState . refileDialog) Nothing
             Nothing ->
               modify $ set (appState . refileDialog) Nothing
@@ -197,7 +210,12 @@ handleValidationDialogInput key mods = do
   case key of
     _ -> return ()
 
-handleEvent :: (Writer a, Show a, Eq a, Searcher a, Refileable a) => BrickEvent Name AppEvent -> GlobalAppState a
+-- | Specialized to 'Task' because TUI mutation paths emit events into the
+-- @events@ table, which is currently Task-shaped (see 'Tui.MutationEvents').
+-- The polymorphism that used to live here was structural — every consumer
+-- always supplied 'Task' — so collapsing the type lets us avoid threading a
+-- type-class for event emission through every call site.
+handleEvent :: BrickEvent Name AppEvent -> GlobalAppState Task
 handleEvent (VtyEvent (EvKey key mods)) = do
   ctx <- get
   case view (appState . cmdState) ctx of

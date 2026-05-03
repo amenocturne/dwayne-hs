@@ -8,6 +8,7 @@ module Api.Server
   )
 where
 
+import qualified Api.EventHandlers as EH
 import qualified Api.Handlers
 import Api.Types (ApiBinding (..), ApiMethod (..), CaptureRequest, ChangeKeywordRequest, ChangePriorityRequest, EditTaskRequest, PaginatedResponse (..), ProjectTreeResponse, ResponseMetadata (..), TagRequest, TaskPointerRequest, TaskWithPointer)
 import qualified Api.WebSocket as WS
@@ -100,8 +101,13 @@ type MutationAPI =
     :<|> "tasks" :> "tags" :> "remove" :> ReqBody '[JSON] TagRequest :> Post '[JSON] TaskWithPointer
     :<|> "tasks" :> "delete" :> ReqBody '[JSON] TaskPointerRequest :> Post '[JSON] TaskWithPointer
 
+-- | Events API: event-sourced sync. Replaces the legacy /api/sync/* surface.
+type EventsAPI =
+  "events" :> QueryParam "since" T.Text :> Get '[JSON] EH.EventsResponse
+    :<|> "events" :> ReqBody '[JSON] EH.PostEventsRequest :> Post '[JSON] EH.PostEventsResponse
+
 -- | Combined API: /api/* for REST endpoints, /* for static files
-type API = "api" :> (ViewsAPI :<|> SearchAPI :<|> ProjectsAPI :<|> CaptureAPI :<|> MutationAPI) :<|> Raw
+type API = "api" :> (ViewsAPI :<|> SearchAPI :<|> ProjectsAPI :<|> CaptureAPI :<|> MutationAPI :<|> EventsAPI) :<|> Raw
 
 -- | Server state containing cached context and WebSocket registry
 data ServerState = ServerState
@@ -168,10 +174,22 @@ mutationServer serverState =
     :<|> Api.Handlers.removeTagHandler (stateCache serverState)
     :<|> Api.Handlers.deleteTaskHandler (stateCache serverState)
 
+-- | Events server implementation
+eventsServer :: ServerState -> Server EventsAPI
+eventsServer serverState =
+  EH.getEventsHandler (stateCache serverState)
+    :<|> EH.postEventsHandler (stateCache serverState)
+
 -- | Main API server combining views and static file serving
 apiServer :: ServerState -> Server API
 apiServer serverState =
-  (viewsServer serverState :<|> searchServer serverState :<|> projectsServer serverState :<|> captureServer serverState :<|> mutationServer serverState)
+  ( viewsServer serverState
+      :<|> searchServer serverState
+      :<|> projectsServer serverState
+      :<|> captureServer serverState
+      :<|> mutationServer serverState
+      :<|> eventsServer serverState
+  )
     :<|> serveDirectoryWebApp "web/dist" -- Assumes run from project root
 
 -- | Convert the API server to a WAI Application with CORS support

@@ -6,11 +6,14 @@ module Tui.Helpers where
 import Brick
 import Control.Lens
 import Control.Monad (when)
+import Control.Monad.IO.Class (liftIO)
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import qualified Model.LinearHistory as L
 import Model.OrgMode (Task, todoKeyword)
+import Tui.MutationEvents (emitMutationEventsForChange)
 import Tui.Types
+import qualified Tui.Types as TT
 import Writer.Writer
 
 adjustViewport :: GlobalAppState a
@@ -50,14 +53,29 @@ adjustCursor f = do
   modify $ set cursorLens newCursor
   adjustViewport
 
-saveForUndo :: (Eq a) => GlobalAppState a -> GlobalAppState a
+-- | Wrap a Task-mutating action so the change is captured in undo history
+-- AND emitted to the events table. This is the single seam through which
+-- every TUI keybinding-driven mutation should flow.
+--
+-- The action is run as-is; afterwards we compare the prior fileState against
+-- the new one. If they differ we (a) push the new state onto undo history
+-- and (b) compute one event per (file, taskIndex) that changed and write
+-- those events to the configured DB.
+--
+-- Event emission failures are logged to stderr but never thrown — see
+-- 'Tui.MutationEvents.emitMutationEvents'.
+saveForUndo :: GlobalAppState Task -> GlobalAppState Task
 saveForUndo f = do
   ctx <- get
   let oldHist = view (appState . fileState) ctx
+      oldState = view L.currentState oldHist
   f
   newCtx <- get
   let newState = view fileStateLens newCtx
-  when (newState /= view L.currentState oldHist) $ modify $ over (appState . fileState) (const $ L.append newState oldHist)
+  when (newState /= oldState) $ do
+    modify $ over (appState . fileState) (const $ L.append newState oldHist)
+    let dbPath = TT._database (view config newCtx)
+    liftIO $ emitMutationEventsForChange dbPath oldState newState
 
 undo :: AppContext a -> AppContext a
 undo = over (appState . fileState) L.undo

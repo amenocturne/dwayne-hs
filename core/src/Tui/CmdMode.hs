@@ -25,6 +25,7 @@ import Parser.OrgParser (dateTimeParserReimplemented)
 import Parser.Parser (ParserResult (..), runParser)
 import Searcher.OrgSearcher ()
 import Searcher.Searcher
+import qualified Tui.Helpers as Helpers
 import Tui.Types
 import Writer.OrgWriter ()
 import Writer.Writer
@@ -116,7 +117,11 @@ executeCommand = do
                           }
                       oldTasks = view content tf
                       updatedTf = tf & content .~ V.snoc oldTasks newTask
-                  modify $ set (fileLens fp) updatedTf
+                  -- Wrap the FileState mutation so it produces a genesis
+                  -- event for the newly captured task (Tui.Helpers.saveForUndo
+                  -- diffs old vs new and emits per-task events).
+                  Helpers.saveForUndo $
+                    modify $ set (fileLens fp) updatedTf
                   forceWriteAll
                   let msg = "Captured: " <> titleText
                   modify $ set (appState . cmdState) (Just $ ShowingMessage msg)

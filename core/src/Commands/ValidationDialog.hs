@@ -12,6 +12,7 @@ import Model.OrgMode (Task)
 import qualified Tui.Contexts as Ctx
 -- For acceptValidation, rejectValidation
 
+import qualified Tui.Helpers as Helpers
 import Tui.Keybindings (toKey)
 import Tui.Types
   ( KeyEvent (..),
@@ -33,7 +34,7 @@ validationDialogAcceptCommand =
             { tuiKeyEvent = ValidationDialogAccept,
               tuiKeybinding = toKey E.KEnter,
               tuiDescription = "Accept validation",
-              tuiAction = TuiValidationDialogs.acceptValidation,
+              tuiAction = Helpers.saveForUndo TuiValidationDialogs.acceptValidation,
               tuiContext = Ctx.validationDialogKeyContext
             },
       cmdCli = Nothing,

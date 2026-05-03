@@ -7,8 +7,8 @@ module DB.Migration
   )
 where
 
-import Control.Monad (forM_, unless)
-import DB.Schema (initialSchema)
+import Control.Monad (forM_)
+import DB.Schema (eventsSchema, initialSchema, syncSchema)
 import qualified Data.Text as T
 import Database.SQLite.Simple
 
@@ -21,7 +21,13 @@ allMigrations :: [Migration]
 allMigrations =
   [ Migration
       "001_initial_schema"
-      initialSchema
+      initialSchema,
+    Migration
+      "002_sync_schema"
+      syncSchema,
+    Migration
+      "003_events_schema"
+      eventsSchema
   ]
 
 runMigrations :: Connection -> [Migration] -> IO ()

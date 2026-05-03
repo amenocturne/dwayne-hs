@@ -45,7 +45,10 @@ import Writer.Writer
 class Tui a where
   tui :: SystemConfig a -> IO ()
 
-instance (Searcher a, Render a Name, Writer a, Show a, Eq a, Refileable a, SV.SystemValidator a) => Tui a where
+-- | The TUI is currently only wired up for 'Task' (event emission and
+-- mutation tracking are Task-shaped). The class is kept for the indirection
+-- it gives Main, but the instance is anchored to Task via @a ~ Task@.
+instance (a ~ Task, Searcher a, Render a Name, Writer a, Show a, Eq a, Refileable a, SV.SystemValidator a) => Tui a where
   tui sysConf = do
     configFilePath <- getConfigPath
     parsedConfig <- decodeFileEither configFilePath :: IO (Either ParseException (AppConfig a))

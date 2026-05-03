@@ -18,6 +18,8 @@ import Commands.Db
     dbStatsCommand,
   )
 import Commands.Edit (editTaskCommand)
+import Commands.ExportOrg (exportOrgCommand)
+import Commands.MigrateToEvents (migrateToEventsCommand)
 import Commands.ErrorDialog
   ( errorDialogAcceptCommand,
     errorDialogQuitCommand,
@@ -51,6 +53,7 @@ import Commands.Sort
     sortPriorityAscCommand,
     sortPriorityDescCommand,
   )
+import Commands.Sync (syncCommand)
 import Commands.Tags
   ( addBookTagCommand,
     addCoolTagCommand,
@@ -188,5 +191,10 @@ allCommands =
     dbImportCommand,
     dbExportCommand,
     dbStatsCommand,
-    dbCheckCommand
+    dbCheckCommand,
+    -- Event-sourcing commands
+    migrateToEventsCommand,
+    exportOrgCommand,
+    -- Sync
+    syncCommand
   ]

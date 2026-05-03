@@ -6,14 +6,17 @@ import Commands.CliHelpers (loadFileState)
 import Commands.Command (Command (..))
 import Commands.UrlEnrich (enrichText)
 import Control.Lens (view, (&), (.~))
+import DB.Connection (withDatabase)
 import DB.TaskStore (DatabaseStore (..), TaskStore (..))
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import Data.Time (getZonedTime)
+import Data.Time (getCurrentTime, getZonedTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import qualified Data.Vector as V
+import Events.Store (insertEvent)
+import Events.Types (genesisEvent)
 import Model.OrgMode
   ( Task (..),
     TaskFile (..),
@@ -85,14 +88,24 @@ runCapture noEnrich input = do
             _description = descRich
           }
 
+  -- Emit a genesis event into the canonical events log AND mirror the
+  -- write into the legacy tasks table (kept for fallback / org export).
+  -- The taskIndex is the next free slot in the inbox file.
+  utcNow <- getCurrentTime
   case M.lookup fp fState of
     Just (ParserSuccess tf) -> do
-      let updatedTf = tf & content .~ V.snoc (view content tf) task
+      let oldTasks = view content tf
+          idx = V.length oldTasks
+          updatedTf = tf & content .~ V.snoc oldTasks task
+      withDatabase dbFile $ \conn ->
+        insertEvent conn (genesisEvent fp idx utcNow task)
       saveTasks (DatabaseStore dbFile) (M.singleton fp (ParserSuccess updatedTf))
       TIO.putStrLn $ "Captured: " <> titleLine
     Just (ParserFailure e) ->
       TIO.putStrLn $ "Error: inbox file has parse errors: " <> T.pack e
     Nothing -> do
       let newTf = TaskFile Nothing (V.singleton task)
+      withDatabase dbFile $ \conn ->
+        insertEvent conn (genesisEvent fp 0 utcNow task)
       saveTasks (DatabaseStore dbFile) (M.singleton fp (ParserSuccess newTf))
       TIO.putStrLn $ "Captured: " <> titleLine

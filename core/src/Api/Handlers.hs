@@ -38,15 +38,18 @@ import Control.Lens (preview, set, view, (&), (.~))
 import Control.Monad.IO.Class (liftIO)
 import Core.Filters (computeFilteredSortedView)
 import qualified Core.Operations as Ops
-import Core.Types (FileState, TaskPointer (..), TaskStoreOps (..), level)
+import Core.Types (FileState, TaskPointer (..), level)
 import qualified Data.ByteString.Lazy.Char8 as BSL
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as S
 import qualified Data.Text as T
-import Data.Time (getZonedTime)
+import Data.Time (getCurrentTime, getZonedTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import qualified Data.Vector as V
+import DB.Connection (withDatabase)
+import Events.Diff (diffTaskAsEvent, fullEvent)
+import Events.Store (insertEvent)
 import Model.OrgMode (Task (..), content, orgDayTimeFormat, orgInboxKeyword, plainToRichText)
 import Parser.OrgParser (dateTimeParserReimplemented)
 import Parser.Parser (ParserResult (..), runParser)
@@ -54,7 +57,8 @@ import Searcher.OrgSearcher ()
 import Searcher.Searcher (matches)
 import Servant (Handler, err400, err404, errBody, throwError)
 import Tui.Keybindings (todoKeywordFilter)
-import Tui.Types (AppContext, config, fileStateLens, inboxFile, system, taskBy, taskStoreOps)
+import Tui.Types (AppContext, config, fileStateLens, inboxFile)
+import qualified Tui.Types as TT
 import Writer.OrgWriter ()
 
 -- | Generic view handler builder
@@ -238,6 +242,7 @@ captureHandler ::
   Handler TaskWithPointer
 captureHandler cacheVar req = do
   now <- liftIO getZonedTime
+  utcNow <- liftIO getCurrentTime
   let titleText = captureTitle req
       createdStr = T.pack $ formatTime defaultTimeLocale orgDayTimeFormat now
       (_, _, createdResult) = runParser dateTimeParserReimplemented createdStr
@@ -261,6 +266,7 @@ captureHandler cacheVar req = do
   result <- liftIO $ modifyMVar cacheVar $ \ctx -> do
     let fp = view (config . inboxFile) ctx
         fs = view fileStateLens ctx
+        dbFile = TT._database (view config ctx)
     case M.lookup fp fs of
       Nothing -> return (ctx, Left "Inbox file not found")
       Just (ParserFailure _) -> return (ctx, Left "Inbox file has parse errors")
@@ -269,10 +275,8 @@ captureHandler cacheVar req = do
             updatedTf = tf & content .~ V.snoc (view content tf) newTask
             newCtx = set fileStateLens (M.insert fp (ParserSuccess updatedTf) fs) ctx
             ptr = TaskPointer fp idx
-        case view (system . taskStoreOps) ctx of
-          Just ops ->
-            storeSave ops (M.singleton fp (ParserSuccess updatedTf))
-          Nothing -> return ()
+        withDatabase dbFile $ \conn ->
+          insertEvent conn (fullEvent fp idx utcNow newTask)
         return (newCtx, Right (TaskWithPointer newTask ptr))
   case result of
     Left err -> throwError $ err400 {errBody = BSL.pack err}
@@ -284,18 +288,23 @@ withMutation ::
   (TaskPointer -> FileState Task -> Either String (FileState Task)) ->
   Handler TaskWithPointer
 withMutation cacheVar ptr operation = do
+  utcNow <- liftIO getCurrentTime
   result <- liftIO $ modifyMVar cacheVar $ \ctx -> do
     let fs = view fileStateLens ctx
-    case operation ptr fs of
-      Left err -> return (ctx, Left err)
-      Right newFs -> do
-        let newCtx = set fileStateLens newFs ctx
-        case view (system . taskStoreOps) ctx of
-          Just ops -> storeSave ops (singleFileSlice (_file ptr) newFs)
-          Nothing -> return ()
-        case Ops.getTask ptr newFs of
-          Nothing -> return (ctx, Left "Task not found after update")
-          Just task -> return (newCtx, Right (TaskWithPointer task ptr))
+        dbFile = TT._database (view config ctx)
+    case Ops.getTask ptr fs of
+      Nothing -> return (ctx, Left ("Task not found at: " ++ show ptr))
+      Just oldTask ->
+        case operation ptr fs of
+          Left err -> return (ctx, Left err)
+          Right newFs -> do
+            let newCtx = set fileStateLens newFs ctx
+            case Ops.getTask ptr newFs of
+              Nothing -> return (ctx, Left "Task not found after update")
+              Just task -> do
+                withDatabase dbFile $ \conn ->
+                  insertEvent conn (diffTaskAsEvent (_file ptr) (_taskIndex ptr) utcNow oldTask task)
+                return (newCtx, Right (TaskWithPointer task ptr))
   case result of
     Left err -> throwError $ err400 {errBody = BSL.pack err}
     Right twp -> return twp
@@ -304,27 +313,23 @@ editTaskHandler :: MVar (AppContext Task) -> EditTaskRequest -> Handler TaskWith
 editTaskHandler cacheVar req = do
   let ptr = TaskPointer (etrFile req) (etrTaskIndex req)
       transform = requestToTransform req
+  utcNow <- liftIO getCurrentTime
   result <- liftIO $ modifyMVar cacheVar $ \ctx -> do
     let fs = view fileStateLens ctx
-    case Ops.editTask ptr transform fs of
-      Left err -> return (ctx, Left err)
-      Right (newFs, updatedTask) -> do
-        let newCtx = set fileStateLens newFs ctx
-        case view (system . taskStoreOps) ctx of
-          Just ops -> storeSave ops (singleFileSlice (etrFile req) newFs)
-          Nothing -> return ()
-        return (newCtx, Right (TaskWithPointer updatedTask ptr))
+        dbFile = TT._database (view config ctx)
+    case Ops.getTask ptr fs of
+      Nothing -> return (ctx, Left ("Task not found at: " ++ show ptr))
+      Just oldTask ->
+        case Ops.editTask ptr transform fs of
+          Left err -> return (ctx, Left err)
+          Right (newFs, updatedTask) -> do
+            let newCtx = set fileStateLens newFs ctx
+            withDatabase dbFile $ \conn ->
+              insertEvent conn (diffTaskAsEvent (etrFile req) (etrTaskIndex req) utcNow oldTask updatedTask)
+            return (newCtx, Right (TaskWithPointer updatedTask ptr))
   case result of
     Left err -> throwError $ err400 {errBody = BSL.pack err}
     Right twp -> return twp
-
--- | Project a FileState down to a single file's entry, or empty if the
--- file isn't present (which shouldn't happen for a successful mutation).
--- Used to keep DB writes scoped to the file actually modified.
-singleFileSlice :: FilePath -> FileState Task -> FileState Task
-singleFileSlice fp fs = case M.lookup fp fs of
-  Just entry -> M.singleton fp entry
-  Nothing -> M.empty
 
 changeKeywordHandler :: MVar (AppContext Task) -> ChangeKeywordRequest -> Handler TaskWithPointer
 changeKeywordHandler cacheVar req =

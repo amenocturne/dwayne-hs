@@ -54,6 +54,7 @@ spec = do
         rows <- query_ conn "SELECT name FROM migrations" :: IO [Only T.Text]
         let names = map fromOnly rows
         names `shouldContain` ["001_initial_schema"]
+        names `shouldContain` ["002_sync_schema"]
       removeFile dbPath
 
     it "does not re-apply already applied migrations" $ do
@@ -66,7 +67,49 @@ spec = do
         count `shouldBe` 1
       removeFile dbPath
 
+  describe "v2 sync schema" $ do
+    it "adds synced_at column to tasks" $ do
+      dbPath <- emptySystemTempFile "dwayne-test.db"
+      initDatabase dbPath
+      withDatabase dbPath $ \conn -> do
+        cols <- getTableColumns conn "tasks"
+        cols `shouldContain` ["synced_at"]
+      removeFile dbPath
+
+    it "creates sync_state table" $ do
+      dbPath <- emptySystemTempFile "dwayne-test.db"
+      initDatabase dbPath
+      withDatabase dbPath $ \conn -> do
+        tables <- getTableNames conn
+        tables `shouldContain` ["sync_state"]
+      removeFile dbPath
+
+    it "migrates a v1 DB cleanly: existing rows preserved, synced_at NULL" $ do
+      dbPath <- emptySystemTempFile "dwayne-test.db"
+      -- Bootstrap a v1-style DB: only run the first migration.
+      withDatabase dbPath $ \conn ->
+        runMigrations conn (take 1 allMigrations)
+      withDatabase dbPath $ \conn -> do
+        execute_ conn "INSERT INTO tasks (file_path, task_index, title) VALUES ('/v1.org', 0, 'old task')"
+        cols <- getTableColumns conn "tasks"
+        cols `shouldNotContain` ["synced_at"]
+      -- Now apply v2.
+      withDatabase dbPath $ \conn ->
+        runMigrations conn allMigrations
+      withDatabase dbPath $ \conn -> do
+        cols <- getTableColumns conn "tasks"
+        cols `shouldContain` ["synced_at"]
+        rows <- query_ conn "SELECT title, synced_at FROM tasks WHERE file_path = '/v1.org'" :: IO [(T.Text, Maybe T.Text)]
+        rows `shouldBe` [("old task", Nothing)]
+      removeFile dbPath
+
 getTableNames :: Connection -> IO [T.Text]
 getTableNames conn = do
   rows <- query_ conn "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name" :: IO [Only T.Text]
+  pure (map fromOnly rows)
+
+getTableColumns :: Connection -> T.Text -> IO [T.Text]
+getTableColumns conn tbl = do
+  -- pragma_table_info returns: cid, name, type, notnull, dflt_value, pk
+  rows <- query_ conn (Query ("SELECT name FROM pragma_table_info('" <> tbl <> "')")) :: IO [Only T.Text]
   pure (map fromOnly rows)
