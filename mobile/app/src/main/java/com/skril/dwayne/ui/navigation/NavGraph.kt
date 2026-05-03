@@ -149,7 +149,7 @@ fun DwayneNavHost(
                     repository = app.taskRepository,
                     file = file,
                     taskIndex = taskIndex,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.navigateUp() },
                     onError = showError,
                 )
             }
