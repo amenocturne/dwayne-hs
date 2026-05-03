@@ -4,8 +4,8 @@ import com.skril.dwayne.data.mock.MockData
 import com.skril.dwayne.data.model.*
 
 interface TaskRepository {
-    suspend fun getView(viewName: String, offset: Int = 0, limit: Int = 100): PaginatedResponse
-    suspend fun search(query: String, view: String? = null, offset: Int = 0, limit: Int = 100): PaginatedResponse
+    suspend fun getView(viewName: String, offset: Int = 0, limit: Int = Int.MAX_VALUE): PaginatedResponse
+    suspend fun search(query: String, view: String? = null, offset: Int = 0, limit: Int = Int.MAX_VALUE): PaginatedResponse
     suspend fun capture(title: String): TaskWithPointer
     suspend fun editTask(request: EditTaskRequest): TaskWithPointer
     suspend fun changeKeyword(pointer: TaskPointer, keyword: String): TaskWithPointer
