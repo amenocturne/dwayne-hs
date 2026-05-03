@@ -12,6 +12,7 @@ import qualified Data.Vector as V
 import qualified Model.LinearHistory as L
 import Model.OrgMode (Task, todoKeyword)
 import Tui.MutationEvents (emitMutationEventsForChange)
+import Tui.RepoView (loadFileStateFromRepo)
 import Tui.Types
 import qualified Tui.Types as TT
 import Writer.Writer
@@ -57,10 +58,22 @@ adjustCursor f = do
 -- AND emitted to the events table. This is the single seam through which
 -- every TUI keybinding-driven mutation should flow.
 --
--- The action is run as-is; afterwards we compare the prior fileState against
--- the new one. If they differ we (a) push the new state onto undo history
--- and (b) compute one event per (file, taskIndex) that changed and write
--- those events to the configured DB.
+-- Phase 2c flow:
+--   1. Run the in-memory mutation against the cached 'FileState' so the
+--      action's lens-based code keeps working unchanged.
+--   2. Diff old vs new and emit one event per (file, taskIndex) that
+--      changed. The SQL trigger projects those events into
+--      'task_current_state' atomically.
+--   3. Re-query the read model via 'loadFileStateFromRepo' and replace the
+--      LinearHistory's current snapshot. Treat 'LinearHistory' as a
+--      client-side stack of repo-derived snapshots — undo pops to the
+--      prior snapshot; the events log itself is never rewritten.
+--
+-- Re-querying after every mutation guarantees the cache reflects whatever
+-- the trigger actually produced (e.g. cross-task derivations, future read-
+-- side-only fields). If the repo isn't configured we skip the refresh and
+-- log to stderr; the in-memory cache stays in lockstep with the lens
+-- mutation, matching pre-Phase-2c behavior so we don't strand the user.
 --
 -- Event emission failures are logged to stderr but never thrown — see
 -- 'Tui.MutationEvents.emitMutationEvents'.
@@ -73,9 +86,15 @@ saveForUndo f = do
   newCtx <- get
   let newState = view fileStateLens newCtx
   when (newState /= oldState) $ do
-    modify $ over (appState . fileState) (const $ L.append newState oldHist)
     let dbPath = TT._database (view config newCtx)
     liftIO $ emitMutationEventsForChange dbPath oldState newState
+    -- Refresh from the read model so the cached FileState reflects the
+    -- trigger's output, not just the in-memory edit.
+    refreshed <- liftIO $ case view taskRepoLens newCtx of
+      Just repo -> Just <$> loadFileStateFromRepo repo
+      Nothing -> pure Nothing
+    let snapshot = maybe newState id refreshed
+    modify $ over (appState . fileState) (const $ L.append snapshot oldHist)
 
 undo :: AppContext a -> AppContext a
 undo = over (appState . fileState) L.undo

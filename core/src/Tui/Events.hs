@@ -33,6 +33,7 @@ import Searcher.OrgSearcher ()
 import Searcher.Searcher (Searcher, matches)
 import TextUtils (readFileExample)
 import Tui.MutationEvents (emitMutationEventsForChange)
+import Tui.RepoView (loadFileStateFromRepo)
 import Tui.Types
 import qualified Tui.Types as TT
 import Validation.ProjectValidation
@@ -187,6 +188,13 @@ handleRefileDialogInput key mods = do
               let newFs = view fileStateLens ctxAfter
                   dbPath = TT._database (view config ctxAfter)
               liftIO $ emitMutationEventsForChange dbPath oldFs newFs
+              -- Phase 2c: refresh the cached FileState from the read model
+              -- after the events trigger has updated task_current_state.
+              case view taskRepoLens ctxAfter of
+                Just repo -> do
+                  refreshed <- liftIO $ loadFileStateFromRepo repo
+                  modify $ set fileStateLens refreshed
+                Nothing -> pure ()
               modify $ set (appState . refileDialog) Nothing
             Nothing ->
               modify $ set (appState . refileDialog) Nothing

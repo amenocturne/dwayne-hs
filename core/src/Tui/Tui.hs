@@ -38,6 +38,7 @@ import TextUtils
 import Tui.ColorScheme
 import Tui.Events (handleEvent)
 import Tui.Render
+import Tui.RepoView (loadFileStateFromRepo, requireTaskRepo)
 import Tui.Types
 import qualified Validation.SystemValidation as SV
 import Writer.Writer
@@ -67,16 +68,11 @@ instance (a ~ Task, Searcher a, Render a Name, Writer a, Show a, Eq a, Refileabl
               "  - All required fields are present"
             ]
       Right conf -> expandConfigPaths conf
-    (fState, parsingErrors) <- case view taskStoreOps sysConf of
-      Just ops -> do
-        fs <- storeLoad ops
-        return (fs, [])
-      Nothing -> do
-        let allFiles = getAllFiles conf
-        parsedFiles <- mapM (\f -> fmap (f,) (readTasks (view fileParser sysConf) f)) allFiles
-        let fs = M.fromList (fmap (\(a, (_, c)) -> (a, c)) parsedFiles)
-        let errors = mapMaybe (\(f, (l, e)) -> fmap (f,l,) (errorToMaybe e)) parsedFiles
-        return (fs, errors)
+    -- Phase 2c: the TUI reads through the CQRS repo. Fail loudly if it
+    -- isn't wired (rather than silently falling back to a parse-from-org
+    -- path that wouldn't reflect the events log).
+    repo <- requireTaskRepo sysConf
+    fState <- loadFileStateFromRepo repo
     eventChan <- newBChan 10
     let pointers = getAllPointers fState
 
@@ -119,24 +115,15 @@ instance (a ~ Task, Searcher a, Render a Name, Writer a, Show a, Eq a, Refileabl
             }
     let buildVty = mkVty defaultConfig
     initialVty <- buildVty
-    case parsingErrors of
-      [] -> return ()
-      errs ->
-        writeBChan (view (appState . eventChannel) ctx) $
-          Error $
-            intercalate "\n" $
-              fmap (\(f, l, e) -> "Error while parsing `" ++ f ++ "`: " ++ e ++ " at " ++ show (line l) ++ ":" ++ show (column l)) errs
+    -- Phase 2c: parsing errors no longer surface here because the read
+    -- model is the source of truth (events on disk in the DB, not org
+    -- files). Any parser-level failures are caught by the migration
+    -- pathway, not at TUI boot.
 
     -- Check for system validation issues (only for Task instances)
     checkSystemValidation ctx eventChan
 
     void $ customMain initialVty buildVty (Just eventChan) app ctx
-    where
-      readTasks :: Parser a -> FilePath -> IO (Location, ParserResult a)
-      readTasks p f = do
-        c <- readFileExample f
-        let (l, _, tasks) = runParser p c
-        return (l, tasks)
 
 -- Function to check system validation for any SystemValidator instance
 checkSystemValidation :: (SV.SystemValidator a) => AppContext a -> BChan AppEvent -> IO ()

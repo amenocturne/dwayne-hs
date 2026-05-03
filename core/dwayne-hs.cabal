@@ -123,6 +123,7 @@ library
         Tui.CmdMode
         Tui.ValidationDialogs
         Tui.Render
+        Tui.RepoView
         Tui.SelectionMode
         Tui.Tui
         Tui.Types
@@ -242,4 +243,5 @@ test-suite spec
         Repo.EventStoreRepoSpec
         TextUtilsSpec
         Tui.MutationEventsSpec
+        Tui.RepoViewSpec
         Commands.CliHelpersSpec
