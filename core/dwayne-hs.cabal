@@ -219,13 +219,17 @@ test-suite spec
         temporary,
         dwayne-hs,
         sqlite-simple >= 0.4,
-        direct-sqlite >= 2.3
+        direct-sqlite >= 2.3,
+        aeson,
+        bytestring,
+        servant-server >= 0.20 && < 0.21
     build-tool-depends:
         hspec-discover:hspec-discover
     ghc-options: -Wall -threaded
     default-language: Haskell2010
     other-modules:
         SpecHelper
+        Api.HandlersSpec
         Core.NullableSpec
         Core.OperationsSpec
         DB.MigrationSpec

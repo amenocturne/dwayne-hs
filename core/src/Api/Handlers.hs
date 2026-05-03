@@ -1,11 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- | Handler implementations for view endpoints
+-- | Handler implementations for view endpoints.
+--
+-- Read handlers (views, search, projects/*) consult the CQRS read model
+-- via 'Repo.TaskRepo' (a 'Repo.EventStoreRepo' wired in at server boot).
+-- Mutation handlers still own the legacy in-memory 'FileState' write
+-- path; Phase 2b switches them over.
+--
+-- The repo is kept in 'SystemConfig._taskRepo'. Read handlers fetch it
+-- via 'taskRepoLens'; if the field is 'Nothing' (server bootstrapped
+-- without a DB-backed repo) the handler returns HTTP 500. The
+-- production 'Main.initializeAppContext' always wires a repo, so
+-- 'Nothing' indicates either a misconfigured fixture or a regression in
+-- bootstrap.
 module Api.Handlers
   ( -- * View Handler Builders
-    makeViewHandler,
-    makeKeywordViewHandler,
+    queryViewHandler,
     viewAllHandler,
+    workQueueQueryHandler,
 
     -- * Search Handler
     searchHandler,
@@ -16,7 +28,7 @@ module Api.Handlers
     getParentProjectHandler,
 
     -- * Project Tree Handler
-    buildProjectTree,
+    buildProjectTreeFromList,
 
     -- * Capture Handler
     captureHandler,
@@ -34,11 +46,10 @@ where
 
 import Api.Types (CaptureRequest (..), ChangeKeywordRequest (..), ChangePriorityRequest (..), EditTaskRequest (..), PaginatedResponse (..), ProjectTreeResponse (..), ResponseMetadata (..), TagRequest (..), TaskNode (..), TaskPointerRequest (..), TaskWithPointer (..), requestToTransform)
 import Control.Concurrent.MVar (MVar, modifyMVar)
-import Control.Lens (preview, set, view, (&), (.~))
+import Control.Lens (set, view, (&), (.~))
 import Control.Monad.IO.Class (liftIO)
-import Core.Filters (computeFilteredSortedView)
 import qualified Core.Operations as Ops
-import Core.Types (FileState, TaskPointer (..), level)
+import Core.Types (FileState, TaskPointer (..), level, taskIndex)
 import qualified Data.ByteString.Lazy.Char8 as BSL
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe)
@@ -50,57 +61,92 @@ import qualified Data.Vector as V
 import DB.Connection (withDatabase)
 import Events.Diff (diffTaskAsEvent, fullEvent)
 import Events.Store (insertEvent)
-import Model.OrgMode (Task (..), content, orgDayTimeFormat, orgInboxKeyword, plainToRichText)
+import Model.OrgMode (Task (..), content, orgDayTimeFormat, orgInboxKeyword, orgProjectKeyword, plainToRichText)
 import Parser.OrgParser (dateTimeParserReimplemented)
 import Parser.Parser (ParserResult (..), runParser)
+import qualified Repo.EventStoreRepo as Repo
+import Repo.TaskRepo (Query (..), SortField (..), View (..), emptyQuery)
+import qualified Repo.TaskRepo as TR
 import Searcher.OrgSearcher ()
-import Searcher.Searcher (matches)
-import Servant (Handler, err400, err404, errBody, throwError)
-import Tui.Keybindings (todoKeywordFilter)
-import Tui.Types (AppContext, config, fileStateLens, inboxFile)
+import Servant (Handler, err400, err404, err500, errBody, throwError)
+import Tui.Types (AppContext, config, fileStateLens, inboxFile, taskRepoLens)
 import qualified Tui.Types as TT
 import Writer.OrgWriter ()
 
--- | Generic view handler builder
--- Takes filter predicates and sorter, returns a handler function
--- Applies pagination using offset (default 0) and limit (default 100) parameters
-makeViewHandler ::
-  [Task -> Bool] ->
-  (Task -> Task -> Ordering) ->
-  (AppContext Task -> Maybe Int -> Maybe Int -> Handler (PaginatedResponse TaskWithPointer))
-makeViewHandler filters sorter = \ctx mOffset mLimit ->
-  let fs = view fileStateLens ctx
-      allResults = computeFilteredSortedView filters sorter fs
-      totalCount = V.length allResults
-      offset = fromMaybe 0 mOffset
-      limit = fromMaybe 100 mLimit
-      paginated = V.take limit $ V.drop offset allResults
-      taskList = V.toList paginated
-      taskPointers = map (uncurry TaskWithPointer) taskList
-   in return $ PaginatedResponse taskPointers (ResponseMetadata totalCount)
+-- ---------------------------------------------------------------------------
+-- Repo access
+-- ---------------------------------------------------------------------------
 
--- | Specialized handler builder for TODO keyword filtering
--- Takes a keyword to filter by (e.g., "INBOX") and optional sorter
--- Applies pagination using offset (default 0) and limit (default 100) parameters
-makeKeywordViewHandler ::
-  T.Text ->
-  Maybe (Task -> Task -> Ordering) ->
-  (AppContext Task -> Maybe Int -> Maybe Int -> Handler (PaginatedResponse TaskWithPointer))
-makeKeywordViewHandler keyword maybeSorter =
-  let filters = [todoKeywordFilter keyword]
-      sorter = case maybeSorter of
-        Nothing -> \_ _ -> EQ
-        Just s -> s
-   in makeViewHandler filters sorter
+-- | Fetch the read-model repo from the request context, or fail fast
+-- with HTTP 500 when the server was bootstrapped without one. Read
+-- handlers must not silently fall back to a stale in-memory projection.
+requireRepo :: AppContext Task -> Handler Repo.EventStoreRepo
+requireRepo ctx = case view taskRepoLens ctx of
+  Just r -> pure r
+  Nothing ->
+    throwError $
+      err500 {errBody = BSL.pack "TaskRepo not configured: server bootstrap is missing the CQRS read model wiring."}
 
--- | Handler for "view all" (no filtering)
--- Applies pagination using offset (default 0) and limit (default 100) parameters
+-- | Apply optional 'offset' / 'limit' query params on top of a base
+-- query. Defaults match the legacy handler: offset = 0, limit = 100.
+withPagination :: Maybe Int -> Maybe Int -> Query -> Query
+withPagination mOffset mLimit q =
+  q
+    { qOffset = Just (fromMaybe 0 mOffset),
+      qLimit = Just (fromMaybe 100 mLimit)
+    }
+
+-- | Run a paginated query and assemble the wire response. The total
+-- count comes from a separate 'countTasks' call so 'metadata.total'
+-- reflects the unpaginated row count, matching the legacy semantics.
+runPaginatedQuery :: Repo.EventStoreRepo -> Maybe Int -> Maybe Int -> Query -> Handler (PaginatedResponse TaskWithPointer)
+runPaginatedQuery repo mOffset mLimit baseQuery = do
+  let paged = withPagination mOffset mLimit baseQuery
+  rows <- liftIO $ TR.queryTasksWithPointers repo paged
+  total <- liftIO $ TR.countTasks repo baseQuery
+  pure $
+    PaginatedResponse
+      (map (\(t, ptr) -> TaskWithPointer t ptr) rows)
+      (ResponseMetadata total)
+
+-- | Build a view handler from a 'Query' template. Pagination is
+-- composed in at request time (so the same template can serve different
+-- offset/limit pairs).
+--
+-- Each call site in 'Commands.Views' supplies a 'Query' that captures
+-- its keyword filter and sort intent. The handler runs that query
+-- against the read model and shapes the result into 'PaginatedResponse'.
+queryViewHandler ::
+  Query ->
+  AppContext Task ->
+  Maybe Int ->
+  Maybe Int ->
+  Handler (PaginatedResponse TaskWithPointer)
+queryViewHandler baseQuery ctx mOffset mLimit = do
+  repo <- requireRepo ctx
+  runPaginatedQuery repo mOffset mLimit baseQuery
+
+-- | Handler for "view all" (no keyword filter, no sort, TRASH excluded
+-- by the repo default). Pagination defaults match the legacy handler.
 viewAllHandler :: AppContext Task -> Maybe Int -> Maybe Int -> Handler (PaginatedResponse TaskWithPointer)
-viewAllHandler = makeViewHandler [] (\_ _ -> EQ)
+viewAllHandler = queryViewHandler emptyQuery
 
--- | Search handler that searches across all tasks using the Searcher typeclass
--- Optionally filters by view (TODO keyword) before searching
--- Applies pagination using offset (default 0) and limit (default 100) parameters
+-- | Handler for the work-queue view (TODAY ∪ SOON ordered by priority,
+-- then deadline). Modeled separately from 'queryViewHandler' because
+-- the WHERE clause is a multi-keyword OR and the existing repo expresses
+-- that as 'ViewWorkQueue' rather than 'qKeyword'.
+workQueueQueryHandler ::
+  AppContext Task ->
+  Maybe Int ->
+  Maybe Int ->
+  Handler (PaginatedResponse TaskWithPointer)
+workQueueQueryHandler =
+  queryViewHandler (emptyQuery {qView = Just ViewWorkQueue, qSortBy = SortPriorityThenDeadline})
+
+-- | Search handler that scans titles + descriptions via SQL @LIKE@.
+-- Optionally restricts to a view (a TODO keyword, or "all"), preserving
+-- the legacy behavior where the @view@ query parameter narrows the
+-- candidate set before the substring filter.
 searchHandler ::
   T.Text ->
   Maybe T.Text ->
@@ -108,23 +154,16 @@ searchHandler ::
   Maybe Int ->
   Maybe Int ->
   Handler (PaginatedResponse TaskWithPointer)
-searchHandler query mView ctx mOffset mLimit = do
-  let fs = view fileStateLens ctx
-      allTasks = computeFilteredSortedView [] (\_ _ -> EQ) fs
-      viewFiltered = case mView of
-        Nothing -> allTasks
-        Just viewName -> V.filter (\(task, _) -> matchesView viewName task) allTasks
-      searchFiltered = V.filter (\(task, _) -> matches query task) viewFiltered
-      totalCount = V.length searchFiltered
-      offset = fromMaybe 0 mOffset
-      limit = fromMaybe 100 mLimit
-      paginated = V.toList $ V.take limit $ V.drop offset searchFiltered
-      taskPointers = map (\(task, ptr) -> TaskWithPointer task ptr) paginated
-  return $ PaginatedResponse taskPointers (ResponseMetadata totalCount)
+searchHandler queryText mView ctx mOffset mLimit = do
+  repo <- requireRepo ctx
+  let baseQuery = (searchQueryFor mView) {qSearchTerm = Just queryText}
+  runPaginatedQuery repo mOffset mLimit baseQuery
   where
-    matchesView :: T.Text -> Task -> Bool
-    matchesView "all" _ = True
-    matchesView viewName task = todoKeywordFilter (T.toUpper viewName) task
+    searchQueryFor :: Maybe T.Text -> Query
+    searchQueryFor Nothing = emptyQuery
+    searchQueryFor (Just v)
+      | T.toLower v == "all" = emptyQuery
+      | otherwise = emptyQuery {qKeyword = Just (T.toUpper v)}
 
 -- | Get a project by its pointer (file path and task index)
 -- Returns the project task itself as a single-item paginated response
@@ -135,13 +174,13 @@ getProjectByPointerHandler ::
   AppContext Task ->
   Handler (PaginatedResponse TaskWithPointer)
 getProjectByPointerHandler filePath taskIdx ctx = do
-  let fs = view fileStateLens ctx
-      ptr = TaskPointer filePath taskIdx
-      maybeTask = Ops.getTask ptr fs
-  case maybeTask of
+  repo <- requireRepo ctx
+  let ptr = TaskPointer filePath taskIdx
+  mTask <- liftIO $ TR.getTask repo (filePath, taskIdx)
+  case mTask of
     Nothing -> throwError err404
     Just task
-      | Ops.isProjectTask task ->
+      | _todoKeyword task == orgProjectKeyword ->
           return $ PaginatedResponse [TaskWithPointer task ptr] (ResponseMetadata 1)
       | otherwise -> throwError err404
 
@@ -156,15 +195,29 @@ getProjectTasksHandler ::
   Maybe Int ->
   Handler ProjectTreeResponse
 getProjectTasksHandler filePath taskIdx ctx _mOffset _mLimit = do
-  let fs = view fileStateLens ctx
-      ptr = TaskPointer filePath taskIdx
-      maybeProjectTask = Ops.getTask ptr fs
-  case maybeProjectTask of
+  repo <- requireRepo ctx
+  mProjectTask <- liftIO $ TR.getTask repo (filePath, taskIdx)
+  case mProjectTask of
     Nothing -> throwError err404
     Just projectTask
-      | not (Ops.isProjectTask projectTask) -> throwError err404
-      | otherwise ->
-          case buildProjectTree ptr fs of
+      | _todoKeyword projectTask /= orgProjectKeyword -> throwError err404
+      | otherwise -> do
+          -- Pull every (Task, TaskPointer) for the project's file in
+          -- index order, including TRASH children — the legacy
+          -- 'getProjectSubtasks' relied on contiguous in-file traversal,
+          -- not keyword filtering, to determine subtree membership.
+          fileRows <-
+            liftIO $
+              TR.queryTasksWithPointers
+                repo
+                ( emptyQuery
+                    { qFilePath = Just filePath,
+                      qSortBy = SortTaskIndex,
+                      qIncludeTrash = True
+                    }
+                )
+          let projectPtr = TaskPointer filePath taskIdx
+          case buildProjectTreeFromList projectPtr projectTask fileRows of
             Nothing -> throwError err404
             Just tree -> return $ ProjectTreeResponse tree
 
@@ -177,62 +230,91 @@ getParentProjectHandler ::
   AppContext Task ->
   Handler (PaginatedResponse TaskWithPointer)
 getParentProjectHandler filePath taskIdx ctx = do
-  let fs = view fileStateLens ctx
-      ptr = TaskPointer filePath taskIdx
-      maybeTask = Ops.getTask ptr fs
-  case maybeTask of
+  repo <- requireRepo ctx
+  mTask <- liftIO $ TR.getTask repo (filePath, taskIdx)
+  case mTask of
     Nothing -> throwError err404
-    Just _ ->
-      case Ops.findProjectForTask ptr fs of
+    Just task -> do
+      -- Walk the file's tasks in index order to find the closest
+      -- preceding entry whose level is strictly smaller than this task's
+      -- and whose keyword is PROJECT. Mirrors 'Ops.findProjectForTask'.
+      fileRows <-
+        liftIO $
+          TR.queryTasksWithPointers
+            repo
+            ( emptyQuery
+                { qFilePath = Just filePath,
+                  qSortBy = SortTaskIndex,
+                  qIncludeTrash = True
+                }
+            )
+      case findParentProject taskIdx (_level task) fileRows of
         Nothing -> throwError err404
-        Just projectPtr ->
-          case Ops.getTask projectPtr fs of
-            Nothing -> throwError err404
-            Just projectTask ->
-              return $ PaginatedResponse [TaskWithPointer projectTask projectPtr] (ResponseMetadata 1)
+        Just (projectTask, projectPtr) ->
+          return $ PaginatedResponse [TaskWithPointer projectTask projectPtr] (ResponseMetadata 1)
 
--- | Build a hierarchical tree structure from a project and its subtasks
--- Groups subtasks by their parent based on org-mode indentation rules:
--- - A task at level N is a child of the closest preceding task at level N-1
--- - The tree is built recursively to support arbitrary nesting depth
-buildProjectTree :: TaskPointer -> FileState Task -> Maybe TaskNode
-buildProjectTree projectPtr fs = do
-  projectTask <- Ops.getTask projectPtr fs
-  let subtaskPtrs = Ops.getProjectSubtasks projectPtr fs
-      subtaskPairs = [(task, ptr) | ptr <- subtaskPtrs, Just task <- [Ops.getTask ptr fs]]
+-- | Walk a list of (Task, TaskPointer) rows ordered by task_index for
+-- one file and return the closest preceding PROJECT row whose level is
+-- strictly smaller than 'targetLevel'. Mirrors the index-walk in
+-- 'Core.Operations.findProjectForTask'.
+findParentProject :: Int -> Int -> [(Task, TaskPointer)] -> Maybe (Task, TaskPointer)
+findParentProject targetIdx targetLevel rows =
+  let candidates =
+        [ (t, p)
+        | (t, p) <- rows,
+          view taskIndex p < targetIdx,
+          _level t < targetLevel,
+          _todoKeyword t == orgProjectKeyword
+        ]
+   in case reverse candidates of
+        (last_ : _) -> Just last_
+        [] -> Nothing
+
+-- | Build a hierarchical tree structure from a project and a list of
+-- @(Task, TaskPointer)@ rows for the same file in @task_index@ order.
+-- Subtasks are determined by org-mode indentation: a task at level N is
+-- a child of the closest preceding task at level N-1.
+--
+-- The list is expected to include the project itself (it is filtered
+-- out by index). Tree shape mirrors the legacy 'buildProjectTree' but
+-- works off a flat list returned by the repo rather than a 'FileState'.
+buildProjectTreeFromList :: TaskPointer -> Task -> [(Task, TaskPointer)] -> Maybe TaskNode
+buildProjectTreeFromList projectPtr projectTask rows =
+  let projectIdx = view taskIndex projectPtr
       projectLevel = view level projectTask
-      children = buildChildren projectLevel subtaskPairs
-  return $ TaskNode projectTask projectPtr children
+      -- All rows with task_index > projectIdx, but only the contiguous
+      -- run with level > projectLevel — once we hit a sibling/ancestor
+      -- the project has ended.
+      tail_ =
+        takeWhile (\(t, _) -> _level t > projectLevel) $
+          dropWhile (\(_, p) -> view taskIndex p <= projectIdx) rows
+      children = buildChildren projectLevel tail_
+   in Just (TaskNode projectTask projectPtr children)
   where
-    -- Build direct children for a given parent level
-    -- Takes all remaining tasks and groups them by their immediate parent
     buildChildren :: Int -> [(Task, TaskPointer)] -> [TaskNode]
     buildChildren parentLevel tasks =
-      let (directChildren, rest) = collectDirectChildren parentLevel tasks
-       in map (buildNode parentLevel rest) directChildren
+      let (directChildren, _rest) = collectDirectChildren parentLevel tasks
+       in map (buildNode tasks) directChildren
 
-    -- Collect tasks that are direct children (level = parentLevel + 1)
-    -- Returns (direct children, remaining tasks after those children and their descendants)
     collectDirectChildren :: Int -> [(Task, TaskPointer)] -> ([(Task, TaskPointer)], [(Task, TaskPointer)])
     collectDirectChildren _ [] = ([], [])
     collectDirectChildren parentLevel ((task, ptr) : rest)
       | view level task == parentLevel + 1 =
-          let (descendants, afterDescendants) = takeDescendants (parentLevel + 1) rest
-           in let (siblings, remaining) = collectDirectChildren parentLevel afterDescendants
-               in ((task, ptr) : siblings, remaining)
+          let (_descendants, afterDescendants) = takeDescendants (parentLevel + 1) rest
+              (siblings, remaining) = collectDirectChildren parentLevel afterDescendants
+           in ((task, ptr) : siblings, remaining)
       | otherwise = ([], (task, ptr) : rest)
 
-    -- Take all descendants of a task (tasks with level > parentLevel)
-    -- Stops when encountering a task at same or lower level
     takeDescendants :: Int -> [(Task, TaskPointer)] -> ([(Task, TaskPointer)], [(Task, TaskPointer)])
     takeDescendants parentLevel tasks =
       span (\(task, _) -> view level task > parentLevel) tasks
 
-    -- Build a node with its children from remaining tasks
-    buildNode :: Int -> [(Task, TaskPointer)] -> (Task, TaskPointer) -> TaskNode
-    buildNode parentLevel allRest (task, ptr) =
+    buildNode :: [(Task, TaskPointer)] -> (Task, TaskPointer) -> TaskNode
+    buildNode allTasks (task, ptr) =
       let taskLevel = view level task
-          (descendants, _) = takeDescendants taskLevel allRest
+          taskIdx_ = view taskIndex ptr
+          afterMe = dropWhile (\(_, p) -> view taskIndex p <= taskIdx_) allTasks
+          (descendants, _) = takeDescendants taskLevel afterMe
           children = buildChildren taskLevel descendants
        in TaskNode task ptr children
 

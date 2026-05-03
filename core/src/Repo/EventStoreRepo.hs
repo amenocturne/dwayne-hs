@@ -25,6 +25,7 @@ module Repo.EventStoreRepo
 where
 
 import Core.Nullable (Nullable (..))
+import Core.Types (TaskPointer (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Set as S
@@ -63,7 +64,10 @@ instance TaskRepo EventStoreRepo IO where
     withDatabase (esrDbFile repo) $ \conn -> getTaskConn conn fp idx
 
   queryTasks repo q =
-    withDatabase (esrDbFile repo) $ \conn -> queryTasksConn conn (esrInboxFile repo) q
+    map fst <$> withDatabase (esrDbFile repo) (\conn -> queryTasksWithPointersConn conn (esrInboxFile repo) q)
+
+  queryTasksWithPointers repo q =
+    withDatabase (esrDbFile repo) $ \conn -> queryTasksWithPointersConn conn (esrInboxFile repo) q
 
   countTasks repo q =
     withDatabase (esrDbFile repo) $ \conn -> countTasksConn conn (esrInboxFile repo) q
@@ -92,9 +96,11 @@ getTaskConn conn fp idx = do
     [] -> Nothing
     (r : _) -> Just (rowToTask r)
 
--- | Run a structured query against @task_current_state@.
-queryTasksConn :: Connection -> FilePath -> Query -> IO [Task]
-queryTasksConn conn inboxFp q = do
+-- | Run a structured query against @task_current_state@. Returns the
+-- task value paired with its 'TaskPointer'; callers that don't need the
+-- pointer can drop it (see the 'TaskRepo' instance).
+queryTasksWithPointersConn :: Connection -> FilePath -> Query -> IO [(Task, TaskPointer)]
+queryTasksWithPointersConn conn inboxFp q = do
   let (whereClause, params) = buildWhere inboxFp q
       orderClause = buildOrder (qSortBy q)
       limitClause = buildLimit (qLimit q) (qOffset q)
@@ -107,7 +113,7 @@ queryTasksConn conn inboxFp q = do
             <> orderClause
             <> limitClause
   rows <- query conn sql params :: IO [StateRow]
-  pure (map rowToTask rows)
+  pure (map rowToTaskWithPointer rows)
 
 -- | Count rows matching the query (ignores 'qLimit' and 'qOffset').
 countTasksConn :: Connection -> FilePath -> Query -> IO Int
@@ -177,11 +183,12 @@ buildWhere inboxFp q =
             )
           ]
         Nothing -> []
-      -- Default: exclude TRASH unless the view explicitly wants it.
-      trashClause =
-        if qView q == Just ViewTrash
-          then []
-          else [(" (todo_keyword IS NULL OR todo_keyword <> 'TRASH')", [])]
+      -- Default: exclude TRASH unless the view explicitly wants it or
+      -- the caller has opted in via 'qIncludeTrash'.
+      trashClause
+        | qView q == Just ViewTrash = []
+        | qIncludeTrash q = []
+        | otherwise = [(" (todo_keyword IS NULL OR todo_keyword <> 'TRASH')", [])]
       pieces = viewClauses ++ kwClauses ++ fpClauses ++ searchClauses ++ trashClause
    in case pieces of
         [] -> ("", [])
@@ -219,6 +226,18 @@ buildOrder SortPriority = " ORDER BY priority IS NULL, priority ASC"
 buildOrder SortDeadline = " ORDER BY deadline IS NULL, deadline ASC"
 buildOrder SortScheduled = " ORDER BY scheduled IS NULL, scheduled ASC"
 buildOrder SortLastEventAt = " ORDER BY last_event_at DESC"
+-- Tasks without a 'created' property sort to the bottom of the DESC list.
+-- The @created@ column stores the JSON-encoded OrgTime, which preserves
+-- ISO-8601-like ordering for typical capture timestamps.
+buildOrder SortCreatedDesc = " ORDER BY created IS NULL, created DESC"
+-- Mirrors 'Tui.Keybindings.sortByPriorityThenDeadline': priority ASC
+-- (NULLs last), then deadline ASC (NULLs last).
+buildOrder SortPriorityThenDeadline =
+  " ORDER BY priority IS NULL, priority ASC, deadline IS NULL, deadline ASC"
+-- Stable file-order traversal needed by the project-tree handler:
+-- tasks must come back in their original (file_path, task_index)
+-- ordering so the indentation-based parent/child grouping is correct.
+buildOrder SortTaskIndex = " ORDER BY file_path ASC, task_index ASC"
 
 buildLimit :: Maybe Int -> Maybe Int -> T.Text
 buildLimit Nothing Nothing = ""
@@ -263,24 +282,29 @@ type StateRow =
        )
 
 rowToTask :: StateRow -> Task
-rowToTask ((_fp, _idx, lvl, kw, pri, ttl, tgs) :. (sch, dl, crt, cls, props, desc, _last)) =
-  Task
-    { _level = lvl,
-      _todoKeyword = case kw of
-        Just k -> k
-        Nothing -> "",
-      _priority = case pri of
-        Nothing -> Nothing
-        Just v -> if isNull v then Nothing else Just v,
-      _title = maybe (nullValue :: RichText) decodeRichText ttl,
-      _tags = S.fromList (maybe [] decodeTags tgs),
-      _scheduled = decodeNullableTime sch,
-      _deadline = decodeNullableTime dl,
-      _createdProp = decodeNullableTime crt,
-      _closed = decodeNullableTime cls,
-      _properties = maybe [] decodeProps props,
-      _description = maybe (nullValue :: RichText) decodeRichText desc
-    }
+rowToTask = fst . rowToTaskWithPointer
+
+rowToTaskWithPointer :: StateRow -> (Task, TaskPointer)
+rowToTaskWithPointer ((fp, idx, lvl, kw, pri, ttl, tgs) :. (sch, dl, crt, cls, props, desc, _last)) =
+  let task =
+        Task
+          { _level = lvl,
+            _todoKeyword = case kw of
+              Just k -> k
+              Nothing -> "",
+            _priority = case pri of
+              Nothing -> Nothing
+              Just v -> if isNull v then Nothing else Just v,
+            _title = maybe (nullValue :: RichText) decodeRichText ttl,
+            _tags = S.fromList (maybe [] decodeTags tgs),
+            _scheduled = decodeNullableTime sch,
+            _deadline = decodeNullableTime dl,
+            _createdProp = decodeNullableTime crt,
+            _closed = decodeNullableTime cls,
+            _properties = maybe [] decodeProps props,
+            _description = maybe (nullValue :: RichText) decodeRichText desc
+          }
+   in (task, TaskPointer (T.unpack fp) idx)
 
 decodeNullableTime :: Maybe T.Text -> Maybe OrgTime
 decodeNullableTime Nothing = Nothing

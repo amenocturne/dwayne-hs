@@ -24,6 +24,7 @@ module Repo.TaskRepo
   )
 where
 
+import Core.Types (TaskPointer)
 import qualified Data.Text as T
 import Events.Types (Event)
 import Model.OrgMode (Task)
@@ -60,16 +61,30 @@ data View
 -- | Columns the repo can sort by. @SortLastEventAt@ is the analogue of
 -- "most recently touched". @SortPriority@ uses ASC by default since lower
 -- numbers mean higher priority in the existing semantics.
+--
+-- 'SortCreatedDesc' and 'SortPriorityThenDeadline' mirror the sorters
+-- used by the existing view commands ('Tui.Keybindings.sortByCreatedDesc'
+-- and 'sortByPriorityThenDeadline') so the API can express the same
+-- ordering against the materialized read model without falling back to
+-- in-memory comparison.
 data SortField
   = SortPriority
   | SortDeadline
   | SortScheduled
   | SortLastEventAt
+  | SortCreatedDesc
+  | SortPriorityThenDeadline
+  | SortTaskIndex
   | SortNoOrder
   deriving (Eq, Show)
 
 -- | A query against the read model. All fields are optional; the empty
 -- query returns every non-TRASH task in unspecified order.
+--
+-- 'qIncludeTrash' overrides the default TRASH exclusion. Set it when the
+-- caller needs to walk every task for a file regardless of soft-delete
+-- status (e.g. building a project subtree where TRASH children must
+-- still be visible to preserve hierarchy continuity).
 data Query = Query
   { qView :: Maybe View,
     qKeyword :: Maybe T.Text,
@@ -77,7 +92,8 @@ data Query = Query
     qSearchTerm :: Maybe T.Text,
     qLimit :: Maybe Int,
     qOffset :: Maybe Int,
-    qSortBy :: SortField
+    qSortBy :: SortField,
+    qIncludeTrash :: Bool
   }
   deriving (Eq, Show)
 
@@ -92,14 +108,22 @@ emptyQuery =
       qSearchTerm = Nothing,
       qLimit = Nothing,
       qOffset = Nothing,
-      qSortBy = SortNoOrder
+      qSortBy = SortNoOrder,
+      qIncludeTrash = False
     }
 
 -- | Read/write contract for tasks. Parameterised on the repo handle @r@
 -- and the effect monad @m@.
+--
+-- 'queryTasksWithPointers' is the API-shaped variant that pairs each row
+-- with its 'TaskPointer'. 'queryTasks' is the same query without
+-- pointers; consumers that already know the file/index of every result
+-- (e.g. 'getTask') don't need them. The default implementation maps the
+-- pointer-aware version, so impls can override for efficiency.
 class (Monad m) => TaskRepo r m where
   getTask :: r -> (FilePath, Int) -> m (Maybe Task)
   queryTasks :: r -> Query -> m [Task]
+  queryTasksWithPointers :: r -> Query -> m [(Task, TaskPointer)]
   countTasks :: r -> Query -> m Int
   appendEvent :: r -> Event -> m ()
   appendEvents :: r -> [Event] -> m Int
