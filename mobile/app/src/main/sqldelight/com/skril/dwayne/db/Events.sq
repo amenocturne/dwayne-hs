@@ -1,0 +1,56 @@
+CREATE TABLE events (
+  file_path     TEXT     NOT NULL,
+  task_index    INTEGER  NOT NULL,
+  occurred_at   TEXT     NOT NULL,
+  level         INTEGER,
+  todo_keyword  TEXT,
+  priority      INTEGER,
+  title         TEXT,
+  tags          TEXT,
+  scheduled     TEXT,
+  deadline      TEXT,
+  created       TEXT,
+  closed        TEXT,
+  properties    TEXT,
+  description   TEXT,
+  PRIMARY KEY (file_path, task_index, occurred_at)
+);
+
+CREATE INDEX events_task ON events(file_path, task_index, occurred_at);
+CREATE INDEX events_occurred ON events(occurred_at);
+
+selectAll:
+SELECT * FROM events ORDER BY occurred_at ASC;
+
+selectSince:
+SELECT * FROM events WHERE occurred_at > :since ORDER BY occurred_at ASC;
+
+selectForFile:
+SELECT * FROM events WHERE file_path = :filePath ORDER BY occurred_at ASC;
+
+selectAfter:
+SELECT * FROM events
+WHERE occurred_at > :lastPushedAt
+ORDER BY occurred_at ASC;
+
+maxTaskIndexForFile:
+SELECT MAX(task_index) FROM events WHERE file_path = :filePath;
+
+countAll:
+SELECT COUNT(*) FROM events;
+
+insertEvent:
+INSERT OR IGNORE INTO events (
+  file_path, task_index, occurred_at,
+  level, todo_keyword, priority, title, tags,
+  scheduled, deadline, created, closed,
+  properties, description
+) VALUES (
+  :filePath, :taskIndex, :occurredAt,
+  :level, :todoKeyword, :priority, :title, :tags,
+  :scheduled, :deadline, :created, :closed,
+  :properties, :description
+);
+
+deleteAll:
+DELETE FROM events;

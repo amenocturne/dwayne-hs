@@ -2,14 +2,17 @@ package com.skril.dwayne.ui.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwipeRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -20,14 +23,16 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.skril.dwayne.BuildConfig
-import com.skril.dwayne.data.repository.ApiTaskRepository
+import com.skril.dwayne.DwayneApp
 import com.skril.dwayne.data.repository.MockTaskRepository
 import com.skril.dwayne.data.repository.SavedQueryStore
 import com.skril.dwayne.data.repository.TaskRepository
 import com.skril.dwayne.ui.screens.capture.CaptureScreen
 import com.skril.dwayne.ui.screens.feed.TaskFeedScreen
 import com.skril.dwayne.ui.screens.search.SearchScreen
+import com.skril.dwayne.ui.screens.settings.SettingsScreen
 import com.skril.dwayne.ui.screens.swipe.SwipeProcessingScreen
+import kotlinx.coroutines.launch
 
 private data class BottomNavItem(
     val screen: Screen,
@@ -40,20 +45,40 @@ private val bottomNavItems = listOf(
     BottomNavItem(Screen.Capture, "Capture", Icons.Default.Add),
     BottomNavItem(Screen.Swipe, "Process", Icons.Default.SwipeRight),
     BottomNavItem(Screen.Search, "Search", Icons.Default.Search),
+    BottomNavItem(Screen.Settings, "Settings", Icons.Default.Settings),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DwayneNavHost() {
-    val navController = rememberNavController()
-    val repository: TaskRepository = remember {
-        if (BuildConfig.USE_MOCK_DATA) MockTaskRepository()
-        else ApiTaskRepository(BuildConfig.API_BASE_URL)
-    }
     val context = LocalContext.current
+    val app = context.applicationContext as DwayneApp
+    val settingsStore = app.settingsStore
     val savedQueryStore = remember { SavedQueryStore(context) }
+    val repository: TaskRepository = remember {
+        if (BuildConfig.USE_MOCK_DATA) MockTaskRepository() else app.taskRepository
+    }
+
+    // Recompose feeds/searches whenever projection state changes.
+    val state by app.taskRepository.state.collectAsState()
+    @Suppress("UNUSED_VARIABLE")
+    val stateRevision = state.size  // keep state read so collectAsState stays subscribed
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarScope = rememberCoroutineScope()
+    val showError: (String) -> Unit = { message ->
+        snackbarScope.launch {
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Short,
+            )
+        }
+    }
+
+    val navController = rememberNavController()
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             NavigationBar {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -83,16 +108,27 @@ fun DwayneNavHost() {
             modifier = Modifier.padding(innerPadding),
         ) {
             composable(Screen.Feed.route) {
-                TaskFeedScreen(repository = repository)
+                TaskFeedScreen(
+                    repository = repository,
+                    refreshKey = state.size,
+                    onError = showError,
+                )
             }
             composable(Screen.Capture.route) {
-                CaptureScreen(repository = repository)
+                CaptureScreen(repository = repository, onError = showError)
             }
             composable(Screen.Swipe.route) {
-                SwipeProcessingScreen(repository = repository)
+                SwipeProcessingScreen(
+                    repository = repository,
+                    refreshKey = state.size,
+                    onError = showError,
+                )
             }
             composable(Screen.Search.route) {
-                SearchScreen(repository = repository, store = savedQueryStore)
+                SearchScreen(repository = repository, store = savedQueryStore, onError = showError)
+            }
+            composable(Screen.Settings.route) {
+                SettingsScreen(store = settingsStore, defaultApiBaseUrl = BuildConfig.API_BASE_URL)
             }
         }
     }

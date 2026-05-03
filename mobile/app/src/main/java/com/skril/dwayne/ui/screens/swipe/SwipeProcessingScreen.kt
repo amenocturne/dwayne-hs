@@ -27,16 +27,25 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SwipeProcessingScreen(repository: TaskRepository) {
+fun SwipeProcessingScreen(
+    repository: TaskRepository,
+    refreshKey: Any = Unit,
+    onError: (String) -> Unit,
+) {
     var inboxTasks by remember { mutableStateOf<List<TaskWithPointer>>(emptyList()) }
     var currentIndex by remember { mutableIntStateOf(0) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
-        val response = repository.getView("inbox")
-        inboxTasks = response.data
+    LaunchedEffect(repository, refreshKey) {
+        try {
+            val response = repository.getView("inbox")
+            inboxTasks = response.data
+            currentIndex = 0
+        } catch (t: Throwable) {
+            onError("Load inbox failed: ${t.message ?: t::class.java.simpleName}")
+        }
     }
 
     val currentTask = inboxTasks.getOrNull(currentIndex)
@@ -44,10 +53,14 @@ fun SwipeProcessingScreen(repository: TaskRepository) {
     fun processSwipe(keyword: String) {
         val task = currentTask ?: return
         scope.launch {
-            repository.changeKeyword(task.pointer, keyword)
-            currentIndex++
-            offsetX = 0f
-            offsetY = 0f
+            try {
+                repository.changeKeyword(task.pointer, keyword)
+                currentIndex++
+                offsetX = 0f
+                offsetY = 0f
+            } catch (t: Throwable) {
+                onError("Change keyword failed: ${t.message ?: t::class.java.simpleName}")
+            }
         }
     }
 

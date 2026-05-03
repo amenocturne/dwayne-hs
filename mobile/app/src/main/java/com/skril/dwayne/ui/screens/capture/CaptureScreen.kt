@@ -17,7 +17,10 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CaptureScreen(repository: TaskRepository) {
+fun CaptureScreen(
+    repository: TaskRepository,
+    onError: (String) -> Unit,
+) {
     var inputText by remember { mutableStateOf("") }
     var recentCaptures by remember { mutableStateOf<List<TaskWithPointer>>(emptyList()) }
     val scope = rememberCoroutineScope()
@@ -45,9 +48,13 @@ fun CaptureScreen(repository: TaskRepository) {
                 onClick = {
                     if (inputText.isNotBlank()) {
                         scope.launch {
-                            val captured = repository.capture(inputText.trim())
-                            recentCaptures = listOf(captured) + recentCaptures
-                            inputText = ""
+                            try {
+                                val captured = repository.capture(inputText.trim())
+                                recentCaptures = listOf(captured) + recentCaptures
+                                inputText = ""
+                            } catch (t: Throwable) {
+                                onError("Capture failed: ${t.message ?: t::class.java.simpleName}")
+                            }
                         }
                     }
                 },
@@ -56,6 +63,7 @@ fun CaptureScreen(repository: TaskRepository) {
                 Icon(Icons.AutoMirrored.Default.Send, contentDescription = "Capture")
             }
         }
+
 
         if (recentCaptures.isNotEmpty()) {
             Text(

@@ -1,0 +1,13 @@
+CREATE TABLE sync_state (
+  key TEXT PRIMARY KEY NOT NULL,
+  value TEXT NOT NULL
+);
+
+get:
+SELECT value FROM sync_state WHERE key = :key;
+
+put:
+INSERT OR REPLACE INTO sync_state (key, value) VALUES (:key, :value);
+
+delete:
+DELETE FROM sync_state WHERE key = :key;

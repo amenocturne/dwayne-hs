@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.sqldelight)
 }
 
 android {
@@ -16,12 +17,13 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         debug {
-            buildConfigField("Boolean", "USE_MOCK_DATA", "true")
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080\"")
+            buildConfigField("Boolean", "USE_MOCK_DATA", "false")
+            buildConfigField("String", "API_BASE_URL", "\"https://dwayne.home.amenocturne.space\"")
         }
         release {
             buildConfigField("Boolean", "USE_MOCK_DATA", "false")
@@ -47,12 +49,25 @@ android {
         compose = true
         buildConfig = true
     }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+}
+
+sqldelight {
+    databases {
+        create("DwayneDatabase") {
+            packageName.set("com.skril.dwayne.db")
+        }
+    }
 }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.process)
     implementation(libs.androidx.activity.compose)
 
     implementation(platform(libs.androidx.compose.bom))
@@ -71,5 +86,14 @@ dependencies {
 
     implementation(libs.androidx.datastore.preferences)
 
+    implementation(libs.sqldelight.android.driver)
+    implementation(libs.sqldelight.coroutines)
+
+    implementation(libs.androidx.work.runtime.ktx)
+
     debugImplementation(libs.androidx.ui.tooling)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.sqldelight.sqlite.driver)
 }

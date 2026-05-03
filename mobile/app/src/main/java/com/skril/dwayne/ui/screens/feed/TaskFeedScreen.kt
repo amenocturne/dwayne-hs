@@ -16,7 +16,11 @@ private val viewTabs = listOf("work-queue", "inbox", "today", "soon", "todo", "w
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TaskFeedScreen(repository: TaskRepository) {
+fun TaskFeedScreen(
+    repository: TaskRepository,
+    refreshKey: Any = Unit,
+    onError: (String) -> Unit,
+) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var tasks by remember { mutableStateOf<List<TaskWithPointer>>(emptyList()) }
     var totalCount by remember { mutableIntStateOf(0) }
@@ -24,13 +28,19 @@ fun TaskFeedScreen(repository: TaskRepository) {
 
     fun loadTasks(viewName: String) {
         scope.launch {
-            val response = repository.getView(viewName)
-            tasks = response.data
-            totalCount = response.metadata.total
+            try {
+                val response = repository.getView(viewName)
+                tasks = response.data
+                totalCount = response.metadata.total
+            } catch (t: Throwable) {
+                tasks = emptyList()
+                totalCount = 0
+                onError("Load $viewName failed: ${t.message ?: t::class.java.simpleName}")
+            }
         }
     }
 
-    LaunchedEffect(selectedTab) {
+    LaunchedEffect(selectedTab, repository, refreshKey) {
         loadTasks(viewTabs[selectedTab])
     }
 

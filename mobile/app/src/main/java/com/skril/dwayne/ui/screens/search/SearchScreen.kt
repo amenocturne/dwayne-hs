@@ -39,6 +39,7 @@ private val viewFilterOptions = listOf(
 fun SearchScreen(
     repository: TaskRepository,
     store: SavedQueryStore,
+    onError: (String) -> Unit,
 ) {
     var queryText by remember { mutableStateOf("") }
     var viewFilter by remember { mutableStateOf<String?>(null) }
@@ -54,12 +55,18 @@ fun SearchScreen(
         store.queries.collect { savedQueries = it }
     }
 
-    fun runSearch() {
-        if (queryText.isBlank()) return
+    fun runSearch(text: String, filter: String?) {
+        if (text.isBlank()) return
         scope.launch {
-            val response = repository.search(queryText.trim(), viewFilter)
-            results = response.data
-            hasSearched = true
+            try {
+                val response = repository.search(text.trim(), filter)
+                results = response.data
+                hasSearched = true
+            } catch (t: Throwable) {
+                results = emptyList()
+                hasSearched = true
+                onError("Search failed: ${t.message ?: t::class.java.simpleName}")
+            }
         }
     }
 
@@ -114,7 +121,7 @@ fun SearchScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Button(
-                    onClick = { runSearch() },
+                    onClick = { runSearch(queryText, viewFilter) },
                     enabled = queryText.isNotBlank(),
                     modifier = Modifier.weight(1f),
                 ) {
@@ -149,11 +156,7 @@ fun SearchScreen(
                         onApply = {
                             queryText = saved.query
                             viewFilter = saved.viewFilter
-                            scope.launch {
-                                val response = repository.search(saved.query, saved.viewFilter)
-                                results = response.data
-                                hasSearched = true
-                            }
+                            runSearch(saved.query, saved.viewFilter)
                         },
                         onDelete = {
                             scope.launch { store.remove(saved.name) }
