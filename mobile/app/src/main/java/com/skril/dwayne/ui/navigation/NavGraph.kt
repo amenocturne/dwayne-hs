@@ -83,6 +83,10 @@ fun DwayneNavHost(
 
     val navController = rememberNavController()
 
+    val recentCapturePointers = androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf<List<com.skril.dwayne.data.model.TaskPointer>>(emptyList())
+    }
+
     androidx.compose.runtime.LaunchedEffect(initialCaptureText) {
         if (!initialCaptureText.isNullOrEmpty()) {
             navController.navigate(Screen.Capture.route) {
@@ -155,6 +159,14 @@ fun DwayneNavHost(
                     onError = showError,
                     initialText = initialCaptureText.orEmpty(),
                     onInitialTextConsumed = onCaptureConsumed,
+                    recentPointers = recentCapturePointers.value,
+                    tasksByPointer = state,
+                    onCaptured = { ptr ->
+                        recentCapturePointers.value = (listOf(ptr) + recentCapturePointers.value).take(20)
+                    },
+                    onTaskClick = { ptr ->
+                        navController.navigate(Screen.TaskDetail.route(ptr.file, ptr.taskIndex))
+                    },
                 )
             }
             composable(Screen.Swipe.route) {

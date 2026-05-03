@@ -10,7 +10,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.skril.dwayne.data.model.TaskWithPointer
+import com.skril.dwayne.data.model.Task
+import com.skril.dwayne.data.model.TaskPointer
 import com.skril.dwayne.data.repository.TaskRepository
 import com.skril.dwayne.ui.components.TaskCard
 import kotlinx.coroutines.launch
@@ -22,6 +23,10 @@ fun CaptureScreen(
     onError: (String) -> Unit,
     initialText: String = "",
     onInitialTextConsumed: () -> Unit = {},
+    recentPointers: List<TaskPointer> = emptyList(),
+    tasksByPointer: Map<TaskPointer, Task> = emptyMap(),
+    onCaptured: (TaskPointer) -> Unit = {},
+    onTaskClick: (TaskPointer) -> Unit = {},
 ) {
     var inputText by remember { mutableStateOf("") }
     LaunchedEffect(initialText) {
@@ -30,7 +35,6 @@ fun CaptureScreen(
             onInitialTextConsumed()
         }
     }
-    var recentCaptures by remember { mutableStateOf<List<TaskWithPointer>>(emptyList()) }
     val scope = rememberCoroutineScope()
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -59,7 +63,7 @@ fun CaptureScreen(
                         scope.launch {
                             try {
                                 val captured = repository.capture(inputText.trim())
-                                recentCaptures = listOf(captured) + recentCaptures
+                                onCaptured(captured.pointer)
                                 inputText = ""
                             } catch (t: Throwable) {
                                 onError("Capture failed: ${t.message ?: t::class.java.simpleName}")
@@ -73,8 +77,13 @@ fun CaptureScreen(
             }
         }
 
+        // Resolve pointers against the live projection so edits reflect instantly.
+        // Drop pointers whose task no longer exists (e.g. moved to a non-tracked file).
+        val recentTasks = recentPointers.mapNotNull { ptr ->
+            tasksByPointer[ptr]?.let { task -> ptr to task }
+        }
 
-        if (recentCaptures.isNotEmpty()) {
+        if (recentTasks.isNotEmpty()) {
             Text(
                 text = "Recently captured",
                 style = MaterialTheme.typography.titleMedium,
@@ -85,8 +94,11 @@ fun CaptureScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(recentCaptures) { twp ->
-                    TaskCard(task = twp.task)
+                items(
+                    items = recentTasks,
+                    key = { (ptr, _) -> "${ptr.file}:${ptr.taskIndex}" },
+                ) { (ptr, task) ->
+                    TaskCard(task = task, onClick = { onTaskClick(ptr) })
                 }
             }
         }
