@@ -46,4 +46,4 @@ ENV DWAYNE_CONFIG=/app/data/config.yml
 
 EXPOSE 8080
 
-CMD ["/app/dwayne", "--serve"]
+CMD ["/app/dwayne", "--sync-server"]
