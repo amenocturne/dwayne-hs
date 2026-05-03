@@ -134,6 +134,7 @@ fun DwayneNavHost() {
                     file = file,
                     taskIndex = taskIndex,
                     onBack = { navController.popBackStack() },
+                    onError = showError,
                 )
             }
             composable(Screen.Capture.route) {

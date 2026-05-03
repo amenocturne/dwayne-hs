@@ -134,6 +134,7 @@ data class EditTaskRequest(
     val tags: List<String>? = null,
     val scheduled: ClearOrSet<OrgTime>? = null,
     val deadline: ClearOrSet<OrgTime>? = null,
+    val description: String? = null,
 )
 
 /** Wrapper to distinguish "clear this field" (value=null) from "set to X" (value=X). */

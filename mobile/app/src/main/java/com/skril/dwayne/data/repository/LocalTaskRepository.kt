@@ -135,6 +135,9 @@ class LocalTaskRepository(
             tags = request.tags,
             scheduled = request.scheduled?.let { it.value ?: Nullable.ORG_TIME_CLEARED },
             deadline = request.deadline?.let { it.value ?: Nullable.ORG_TIME_CLEARED },
+            description = request.description?.let {
+                if (it.isEmpty()) Nullable.DESCRIPTION_CLEARED else listOf(TextNode.Plain(it))
+            },
         )
         applyEvent(event)
         val task = _state.value[pointer]
