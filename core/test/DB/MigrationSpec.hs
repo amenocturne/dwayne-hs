@@ -106,6 +106,72 @@ spec = do
         tables `shouldNotContain` ["task_history"]
       removeFile dbPath
 
+  describe "v4 cqrs-read-model migration backfill" $ do
+    -- An upgrade from v3 carries an already-populated events table. The
+    -- @events_to_state@ trigger only fires on future inserts, so without
+    -- a backfill task_current_state would stay empty until the user
+    -- manually ran `dwayne dbRebuildState`. Migration 004 runs the same
+    -- bulk-projection SQL as part of the migration so the upgrade is
+    -- one-shot.
+    it "backfills task_current_state for events that existed before migration 004" $ do
+      dbPath <- emptySystemTempFile "dwayne-test.db"
+      -- Set up a v3-shaped DB: only migrations 1..3.
+      withDatabase dbPath $ \conn ->
+        runMigrations conn (take 3 allMigrations)
+      -- Insert events directly into the events table — this simulates a
+      -- user who has been running v3 and now upgrades.
+      withDatabase dbPath $ \conn -> do
+        execute_
+          conn
+          "INSERT INTO events \
+          \ (file_path, task_index, occurred_at, level, todo_keyword, title) \
+          \ VALUES \
+          \ ('/inbox.org', 0, '2026-04-29T00:00:00', 1, 'INBOX', '\"buy milk\"'),\
+          \ ('/inbox.org', 1, '2026-04-29T00:00:00', 1, 'TODO', '\"write report\"'),\
+          \ ('/projects.org', 0, '2026-04-29T00:00:00', 1, 'PROJECT', '\"refactor\"')"
+        -- A delta on top of task 0: latest todo_keyword should win.
+        execute_
+          conn
+          "INSERT INTO events \
+          \ (file_path, task_index, occurred_at, todo_keyword) \
+          \ VALUES ('/inbox.org', 0, '2026-04-29T01:00:00', 'DONE')"
+        -- A partial event with no genesis coverage: must not produce a row.
+        execute_
+          conn
+          "INSERT INTO events \
+          \ (file_path, task_index, occurred_at, todo_keyword) \
+          \ VALUES ('/inbox.org', 99, '2026-04-29T00:00:00', 'TODO')"
+      -- Apply remaining migrations (004 + 005). The backfill runs as
+      -- part of 004.
+      withDatabase dbPath $ \conn ->
+        runMigrations conn allMigrations
+      -- Assert the read model now reflects the pre-existing events.
+      withDatabase dbPath $ \conn -> do
+        [Only n] <- query_ conn "SELECT COUNT(*) FROM task_current_state" :: IO [Only Int]
+        n `shouldBe` 3
+        -- Genesis-only task projects to its initial keyword.
+        [Only kw1] <-
+          query_
+            conn
+            "SELECT todo_keyword FROM task_current_state WHERE file_path = '/inbox.org' AND task_index = 1" ::
+            IO [Only T.Text]
+        kw1 `shouldBe` "TODO"
+        -- Task with delta picks up the latest non-NULL value.
+        [Only kw0] <-
+          query_
+            conn
+            "SELECT todo_keyword FROM task_current_state WHERE file_path = '/inbox.org' AND task_index = 0" ::
+            IO [Only T.Text]
+        kw0 `shouldBe` "DONE"
+        -- Genesis-less partial event must not appear.
+        rows <-
+          query_
+            conn
+            "SELECT 1 FROM task_current_state WHERE file_path = '/inbox.org' AND task_index = 99" ::
+            IO [Only Int]
+        rows `shouldBe` []
+      removeFile dbPath
+
 getTableNames :: Connection -> IO [T.Text]
 getTableNames conn = do
   rows <- query_ conn "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name" :: IO [Only T.Text]

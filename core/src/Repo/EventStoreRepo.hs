@@ -35,6 +35,7 @@ import qualified Data.Text.Encoding as TE
 import Database.SQLite.Simple hiding (Query)
 import qualified Database.SQLite.Simple as SQL
 import DB.Connection (withDatabase)
+import DB.Schema (projectStateFromEventsSql)
 import qualified Events.Store as ES
 import Events.Types (Event)
 import Model.OrgMode (OrgTime, RichText, Task (..))
@@ -137,40 +138,15 @@ countTasksConn conn inboxFp q = do
 -- | Drop and rebuild @task_current_state@ from the events log. Used by
 -- 'Commands.RebuildState' as a one-shot repair / rebuild step.
 --
--- Implementation: temporarily disable the trigger by deleting all rows,
--- then bulk-project from events directly via the same latest-non-NULL-
--- per-field SQL the trigger uses. This bypasses the per-event trigger
--- fire and runs as one statement per touched task.
+-- Implementation: clear the read model in the same transaction, then
+-- run 'projectStateFromEventsSql' to bulk-project from events. The
+-- bulk SQL bypasses the per-event trigger fire and runs as one
+-- statement across all touched tasks. The same SQL is also appended
+-- to migration 004 so an upgrade from v3 backfills in one shot.
 rebuildTaskCurrentState :: Connection -> IO ()
 rebuildTaskCurrentState conn = withTransaction conn $ do
   execute_ conn "DELETE FROM task_current_state"
-  execute_
-    conn
-    "INSERT INTO task_current_state (\
-    \  file_path, task_index, level, todo_keyword, priority, title, tags,\
-    \  scheduled, deadline, created, closed, properties, description, last_event_at\
-    \)\
-    \ SELECT\
-    \   e.file_path,\
-    \   e.task_index,\
-    \   (SELECT level FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND level IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
-    \   (SELECT todo_keyword FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND todo_keyword IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
-    \   (SELECT priority FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND priority IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
-    \   (SELECT title FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND title IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
-    \   (SELECT tags FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND tags IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
-    \   (SELECT scheduled FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND scheduled IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
-    \   (SELECT deadline FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND deadline IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
-    \   (SELECT created FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND created IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
-    \   (SELECT closed FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND closed IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
-    \   (SELECT properties FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND properties IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
-    \   (SELECT description FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND description IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
-    \   (SELECT MAX(occurred_at) FROM events WHERE file_path = e.file_path AND task_index = e.task_index)\
-    \ FROM (SELECT DISTINCT file_path, task_index FROM events) AS e\
-    \ WHERE EXISTS (\
-    \   SELECT 1 FROM events\
-    \   WHERE file_path = e.file_path AND task_index = e.task_index\
-    \     AND level IS NOT NULL AND todo_keyword IS NOT NULL AND title IS NOT NULL\
-    \ )"
+  execute_ conn projectStateFromEventsSql
 
 -- ---------------------------------------------------------------------------
 -- Query construction helpers

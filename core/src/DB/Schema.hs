@@ -6,6 +6,7 @@ module DB.Schema
     eventsSchema,
     cqrsReadModelSchema,
     dropLegacyTablesSchema,
+    projectStateFromEventsSql,
     schemaVersion,
   )
 where
@@ -177,8 +178,60 @@ cqrsReadModelSchema =
     \     properties    = excluded.properties,\
     \     description   = excluded.description,\
     \     last_event_at = excluded.last_event_at;\
-    \ END"
+    \ END",
+    -- Backfill: for installs that already have events from v3, project
+    -- them into task_current_state in the same migration. Without this
+    -- the trigger only fires on future inserts and the read model stays
+    -- empty until the user manually runs `dwayne dbRebuildState`. Same
+    -- SQL used by 'Repo.EventStoreRepo.rebuildTaskCurrentState'; see
+    -- 'projectStateFromEventsSql'.
+    projectStateFromEventsSql
   ]
+
+-- | Bulk-project all distinct (file_path, task_index) pairs from the
+-- events log into @task_current_state@. Latest-non-NULL-per-field, same
+-- semantics as the @events_to_state@ trigger, just applied as one
+-- statement across all tasks.
+--
+-- Shared between:
+--
+--   * Migration 004 ('cqrsReadModelSchema'), which appends this so an
+--     upgrade from v3 backfills the read model in one shot rather than
+--     leaving it empty for the user to repair.
+--   * 'Repo.EventStoreRepo.rebuildTaskCurrentState', which DELETEs the
+--     read model first and re-runs this for repair / drift cases.
+--
+-- Note: this uses @INSERT INTO ... SELECT ...@ without an ON CONFLICT
+-- clause. Both call sites guarantee @task_current_state@ is empty at
+-- the point of execution (migration 004 just created the table; the
+-- repo function deletes all rows in the same transaction).
+projectStateFromEventsSql :: Query
+projectStateFromEventsSql =
+  "INSERT INTO task_current_state (\
+  \  file_path, task_index, level, todo_keyword, priority, title, tags,\
+  \  scheduled, deadline, created, closed, properties, description, last_event_at\
+  \)\
+  \ SELECT\
+  \   e.file_path,\
+  \   e.task_index,\
+  \   (SELECT level FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND level IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
+  \   (SELECT todo_keyword FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND todo_keyword IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
+  \   (SELECT priority FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND priority IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
+  \   (SELECT title FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND title IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
+  \   (SELECT tags FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND tags IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
+  \   (SELECT scheduled FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND scheduled IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
+  \   (SELECT deadline FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND deadline IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
+  \   (SELECT created FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND created IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
+  \   (SELECT closed FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND closed IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
+  \   (SELECT properties FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND properties IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
+  \   (SELECT description FROM events WHERE file_path = e.file_path AND task_index = e.task_index AND description IS NOT NULL ORDER BY occurred_at DESC LIMIT 1),\
+  \   (SELECT MAX(occurred_at) FROM events WHERE file_path = e.file_path AND task_index = e.task_index)\
+  \ FROM (SELECT DISTINCT file_path, task_index FROM events) AS e\
+  \ WHERE EXISTS (\
+  \   SELECT 1 FROM events\
+  \   WHERE file_path = e.file_path AND task_index = e.task_index\
+  \     AND level IS NOT NULL AND todo_keyword IS NOT NULL AND title IS NOT NULL\
+  \ )"
 
 -- | v5: drop the legacy @tasks@ and @task_history@ tables.
 --
