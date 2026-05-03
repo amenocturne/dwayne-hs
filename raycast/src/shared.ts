@@ -2,7 +2,8 @@ import { getPreferenceValues } from "@raycast/api";
 import { execSync, exec } from "child_process";
 import { promisify } from "util";
 import { readFileSync, writeFileSync } from "fs";
-import { homedir } from "os";
+import { homedir, userInfo } from "os";
+import { basename } from "path";
 
 const execAsync = promisify(exec);
 
@@ -22,12 +23,25 @@ function getPrefs(): Preferences {
   return getPreferenceValues<Preferences>();
 }
 
+function getUser(): string {
+  if (process.env.USER) return process.env.USER;
+  try {
+    const u = userInfo().username;
+    if (u) return u;
+  } catch {
+    // fall through
+  }
+  return basename(homedir());
+}
+
 function makeDwayneEnv(): NodeJS.ProcessEnv {
   const prefs = getPrefs();
   const home = homedir();
+  const user = getUser();
   const env: NodeJS.ProcessEnv = {
     ...process.env,
-    PATH: `${home}/.local/bin:${home}/.cabal/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH}`,
+    USER: user,
+    PATH: `${home}/.local/bin:${home}/.cabal/bin:${home}/.nix-profile/bin:/etc/profiles/per-user/${user}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ""}`,
   };
   if (prefs.configPath) {
     env.DWAYNE_CONFIG = expandHome(prefs.configPath);

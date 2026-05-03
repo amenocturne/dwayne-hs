@@ -12,17 +12,27 @@ function orgToMarkdown(text: string): string {
   return text.replace(/\[\[([^\]]+)\]\[([^\]]+)\]\]/g, "[$2]($1)");
 }
 
+// Module-level singleton so re-renders / strict-mode double-mounts /
+// hot-reload all share one capture+read pipeline. Each Raycast command
+// launch is a fresh process, so this resets per invocation.
+let capturePromise: Promise<{ title: string; body: string }> | null = null;
+
 export default function Inbox(
   props: LaunchProps<{ arguments: { text: string } }>
 ) {
   const { text } = props.arguments;
 
   const { isLoading, data, error } = usePromise(async () => {
-    await runDwayneAsync(["capture", text]);
-    const entry = readLastEntry();
-    return entry
-      ? { title: entry.titleLine, body: entry.body }
-      : { title: text, body: "" };
+    if (!capturePromise) {
+      capturePromise = (async () => {
+        await runDwayneAsync(["capture", text]);
+        const entry = readLastEntry();
+        return entry
+          ? { title: entry.titleLine, body: entry.body }
+          : { title: text, body: "" };
+      })();
+    }
+    return capturePromise;
   });
 
   if (error) {
