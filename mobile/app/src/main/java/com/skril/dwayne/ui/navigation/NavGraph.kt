@@ -18,16 +18,19 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.skril.dwayne.BuildConfig
 import com.skril.dwayne.DwayneApp
 import com.skril.dwayne.data.repository.MockTaskRepository
 import com.skril.dwayne.data.repository.SavedQueryStore
 import com.skril.dwayne.data.repository.TaskRepository
 import com.skril.dwayne.ui.screens.capture.CaptureScreen
+import com.skril.dwayne.ui.screens.detail.TaskDetailScreen
 import com.skril.dwayne.ui.screens.feed.TaskFeedScreen
 import com.skril.dwayne.ui.screens.search.SearchScreen
 import com.skril.dwayne.ui.screens.settings.SettingsScreen
@@ -112,6 +115,25 @@ fun DwayneNavHost() {
                     repository = repository,
                     refreshKey = state.size,
                     onError = showError,
+                    onTaskClick = { pointer ->
+                        navController.navigate(Screen.TaskDetail.route(pointer.file, pointer.taskIndex))
+                    },
+                )
+            }
+            composable(
+                Screen.TaskDetail.route,
+                arguments = listOf(
+                    navArgument("file") { type = NavType.StringType },
+                    navArgument("taskIndex") { type = NavType.IntType },
+                ),
+            ) { entry ->
+                val file = entry.arguments?.getString("file").orEmpty()
+                val taskIndex = entry.arguments?.getInt("taskIndex") ?: 0
+                TaskDetailScreen(
+                    repository = app.taskRepository,
+                    file = file,
+                    taskIndex = taskIndex,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(Screen.Capture.route) {

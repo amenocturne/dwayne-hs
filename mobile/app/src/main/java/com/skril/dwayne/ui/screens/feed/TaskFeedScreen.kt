@@ -20,6 +20,7 @@ fun TaskFeedScreen(
     repository: TaskRepository,
     refreshKey: Any = Unit,
     onError: (String) -> Unit,
+    onTaskClick: (com.skril.dwayne.data.model.TaskPointer) -> Unit = {},
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var tasks by remember { mutableStateOf<List<TaskWithPointer>>(emptyList()) }
@@ -81,7 +82,7 @@ fun TaskFeedScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(tasks, key = { "${it.pointer.file}:${it.pointer.taskIndex}" }) { twp ->
-                    TaskCard(task = twp.task)
+                    TaskCard(task = twp.task, onClick = { onTaskClick(twp.pointer) })
                 }
             }
         }
