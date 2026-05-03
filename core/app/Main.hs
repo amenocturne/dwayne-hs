@@ -22,6 +22,7 @@ import Model.OrgMode (Task)
 import Options.Applicative (CommandFields, Mod, command, execParser, fullDesc, header, helper, info, progDesc, subparser, (<**>))
 import Parser.OrgParser (anyTaskparser, orgFileParser)
 import Paths_dwayne_hs (version)
+import Repo.EventStoreRepo (mkEventStoreRepo)
 import Refile.OrgRefileable ()
 import Render.OrgRender ()
 import Searcher.OrgSearcher ()
@@ -67,7 +68,12 @@ initializeAppContext = do
   (conf, fState) <- loadFileState
   let dbFile = _database conf
       ops = mkTaskStoreOps (DatabaseStore dbFile)
-      sysConf = (mkSystemConfig (_commands conf)) {_taskStoreOps = Just ops}
+      repo = mkEventStoreRepo dbFile (_inboxFile conf)
+      sysConf =
+        (mkSystemConfig (_commands conf))
+          { _taskStoreOps = Just ops,
+            _taskRepo = Just repo
+          }
   return $ initializeAppContextForServer sysConf conf fState
 
 startTui :: IO ()
@@ -75,7 +81,12 @@ startTui = do
   (conf, _fState) <- loadFileState
   let dbFile = _database conf
       ops = mkTaskStoreOps (DatabaseStore dbFile)
-      sysConf = (mkSystemConfig (_commands conf)) {_taskStoreOps = Just ops}
+      repo = mkEventStoreRepo dbFile (_inboxFile conf)
+      sysConf =
+        (mkSystemConfig (_commands conf))
+          { _taskStoreOps = Just ops,
+            _taskRepo = Just repo
+          }
   tui sysConf
 
 mkSystemConfig :: S.Set T.Text -> SystemConfig Task
@@ -86,5 +97,6 @@ mkSystemConfig commandsConfig =
       _keybindings = orgKeyBindings allCommands commandsConfig,
       _defaultFilters = [todoKeywordFilter "INBOX"],
       _defaultSorter = sortByCreatedDesc,
-      _taskStoreOps = Nothing
+      _taskStoreOps = Nothing,
+      _taskRepo = Nothing
     }

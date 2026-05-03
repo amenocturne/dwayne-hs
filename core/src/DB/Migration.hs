@@ -8,7 +8,7 @@ module DB.Migration
 where
 
 import Control.Monad (forM_)
-import DB.Schema (eventsSchema, initialSchema, syncSchema)
+import DB.Schema (cqrsReadModelSchema, eventsSchema, initialSchema, syncSchema)
 import qualified Data.Text as T
 import Database.SQLite.Simple
 
@@ -27,7 +27,10 @@ allMigrations =
       syncSchema,
     Migration
       "003_events_schema"
-      eventsSchema
+      eventsSchema,
+    Migration
+      "004_cqrs_read_model"
+      cqrsReadModelSchema
   ]
 
 runMigrations :: Connection -> [Migration] -> IO ()

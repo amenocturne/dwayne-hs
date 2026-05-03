@@ -30,6 +30,7 @@ import qualified Graphics.Vty.Input.Events as E
 import Model.LinearHistory
 import Model.OrgMode
 import Parser.Parser
+import Repo.EventStoreRepo (EventStoreRepo)
 import System.FilePath (takeDirectory, (</>))
 import TextUtils (expandPath, getConfigPath)
 
@@ -163,7 +164,12 @@ data SystemConfig a = SystemConfig
     _keybindings :: [KeyBinding a],
     _defaultFilters :: [a -> Bool],
     _defaultSorter :: a -> a -> Ordering,
-    _taskStoreOps :: Maybe (TaskStoreOps a)
+    _taskStoreOps :: Maybe (TaskStoreOps a),
+    -- | CQRS read-model handle. Phase 1 carries it alongside the legacy
+    -- 'fileState'; Phase 2 migrates consumers to read through it. Optional
+    -- so existing test/server bootstraps that don't open a DB still
+    -- compile.
+    _taskRepo :: Maybe EventStoreRepo
   }
 
 data AppState a = AppState
@@ -355,6 +361,12 @@ viewSorterLens = cachingViewSpecLens _vsSorter (\vs s -> vs {_vsSorter = s})
 
 fileStateLens :: Lens' (AppContext a) (FileState a)
 fileStateLens = appState . fileState . currentState
+
+-- | Optional lens to the CQRS read-model repo carried in 'SystemConfig'.
+-- 'Nothing' indicates the context was bootstrapped without a DB-backed
+-- repo (server-only fixtures or tests).
+taskRepoLens :: Lens' (AppContext a) (Maybe EventStoreRepo)
+taskRepoLens = system . taskRepo
 
 originalFileStateLens :: Lens' (AppContext a) (FileState a)
 originalFileStateLens = appState . originalFileState

@@ -20,6 +20,7 @@ import Commands.Db
 import Commands.Edit (editTaskCommand)
 import Commands.ExportOrg (exportOrgCommand)
 import Commands.MigrateToEvents (migrateToEventsCommand)
+import Commands.RebuildState (dbRebuildStateCommand)
 import Commands.ErrorDialog
   ( errorDialogAcceptCommand,
     errorDialogQuitCommand,
@@ -194,6 +195,7 @@ allCommands =
     dbCheckCommand,
     -- Event-sourcing commands
     migrateToEventsCommand,
+    dbRebuildStateCommand,
     exportOrgCommand,
     -- Sync
     syncCommand

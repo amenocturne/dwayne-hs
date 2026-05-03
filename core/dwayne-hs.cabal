@@ -63,6 +63,7 @@ library
         Commands.ExportOrg
         Commands.MigrateToEvents
         Commands.Navigation
+        Commands.RebuildState
         Commands.OpenUrl
         Commands.QuickCapture
         Commands.Priority
@@ -113,6 +114,8 @@ library
         Refile.Refileable
         Refile.Refile
         Refile.OrgRefileable
+        Repo.TaskRepo
+        Repo.EventStoreRepo
         Tui.Events
         Tui.ColorScheme
         Tui.Contexts
@@ -236,6 +239,7 @@ test-suite spec
         Parser.OrgParserSpec
         Refile.RefileableSpec
         Refile.OrgRefileableSpec
+        Repo.EventStoreRepoSpec
         TextUtilsSpec
         Tui.MutationEventsSpec
         Commands.CliHelpersSpec
