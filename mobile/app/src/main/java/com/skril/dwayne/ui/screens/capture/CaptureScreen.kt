@@ -23,9 +23,12 @@ fun CaptureScreen(
     initialText: String = "",
     onInitialTextConsumed: () -> Unit = {},
 ) {
-    var inputText by remember(initialText) { mutableStateOf(initialText) }
+    var inputText by remember { mutableStateOf("") }
     LaunchedEffect(initialText) {
-        if (initialText.isNotEmpty()) onInitialTextConsumed()
+        if (initialText.isNotEmpty()) {
+            inputText = initialText
+            onInitialTextConsumed()
+        }
     }
     var recentCaptures by remember { mutableStateOf<List<TaskWithPointer>>(emptyList()) }
     val scope = rememberCoroutineScope()
