@@ -96,6 +96,7 @@ fun TaskDetailScreen(
                     deadline = if (deadline != task.deadline) ClearOrSet(deadline) else null,
                 )
                 repository.editTask(req)
+                onBack()
             } catch (t: Throwable) {
                 onError("Edit failed: ${t.message ?: t::class.java.simpleName}")
             }
