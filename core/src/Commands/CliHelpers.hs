@@ -3,7 +3,6 @@
 module Commands.CliHelpers
   ( loadConfig,
     loadFileState,
-    loadFileStateFromOrg,
     loadFileStateFromEvents,
     formatTaskLine,
   )
@@ -17,13 +16,11 @@ import Data.Yaml.Aeson (ParseException, decodeFileEither)
 import Events.Projection (fileStateFromEvents)
 import Events.Store (selectAllEvents)
 import Model.OrgFormat (formatHeaderLine)
-import Model.OrgMode (Task (..), TaskFile)
-import Parser.OrgParser (orgFileParser)
-import Parser.Parser (ParserResult, runParser)
+import Model.OrgMode (Task (..))
 import System.Exit (die)
 import qualified System.IO as IO
-import TextUtils (getConfigPath, readFileExample)
-import Tui.Types (AppConfig (..), expandConfigPaths, getAllFiles)
+import TextUtils (getConfigPath)
+import Tui.Types (AppConfig (..), expandConfigPaths)
 
 -- | Load and expand the application config
 loadConfig :: IO (AppConfig Task)
@@ -63,23 +60,6 @@ loadFileStateFromEvents dbFile = do
           ++ ". Run 'dwayne migrateToEvents' to seed it from your org files."
       pure M.empty
     _ -> pure (fileStateFromEvents events)
-
--- | Parse the configured org files into a FileState without touching the
--- database. Used by `dwayne dbImport` to seed the DB; not called from any
--- runtime path.
-loadFileStateFromOrg :: IO (AppConfig Task, FileState Task)
-loadFileStateFromOrg = do
-  conf <- loadConfig
-  let allFiles = getAllFiles conf
-  parsedFiles <- mapM readOrgFile allFiles
-  let fState = M.fromList parsedFiles
-  return (conf, fState)
-  where
-    readOrgFile :: FilePath -> IO (FilePath, ParserResult (TaskFile Task))
-    readOrgFile f = do
-      txt <- readFileExample f
-      let (_, _, result) = runParser orgFileParser txt
-      return (f, result)
 
 -- | Format a task for CLI output using the org-mode header format
 formatTaskLine :: Task -> TaskPointer -> String

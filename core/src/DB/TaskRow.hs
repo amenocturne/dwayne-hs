@@ -1,8 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-- | Serialization helpers for task field values that flow through SQLite
+-- storage. The legacy 'DBTask' newtype (with 'ToRow'/'FromRow' instances
+-- against the dropped @tasks@ table) was removed in Phase 3; the events
+-- log carries field values via its own JSON-shaped columns and consumes
+-- the helpers in 'Events.Types'. The shared serializers stay here so
+-- Phase-3 tests and any future row-based readers continue to round-trip
+-- the same on-disk encoding.
 module DB.TaskRow
-  ( DBTask (..),
-    serializeTags,
+  ( serializeTags,
     serializeProperties,
     serializeOrgTime,
     deserializeTags,
@@ -17,70 +23,9 @@ import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Data.Time (Day, LocalTime, defaultTimeLocale, formatTime, parseTimeM)
-import Database.SQLite.Simple.FromRow (FromRow (..), field)
-import Database.SQLite.Simple.ToRow (ToRow (..))
-import Database.SQLite.Simple.Types ((:.) (..))
-import Model.OrgMode (OrgTime (..), RichText (..), Task (..), plainToRichText)
-
-newtype DBTask = DBTask {unDBTask :: Task}
-
-instance ToRow DBTask where
-  toRow (DBTask task) =
-    toRow
-      ( ( _level task,
-          _todoKeyword task,
-          _priority task,
-          serializeRichText (_title task),
-          serializeTags (_tags task)
-        )
-          :. ( fmap serializeOrgTime (_scheduled task),
-               fmap serializeOrgTime (_deadline task),
-               fmap serializeOrgTime (_createdProp task),
-               fmap serializeOrgTime (_closed task),
-               serializeProperties (_properties task),
-               serializeRichText (_description task)
-             )
-      )
-
-instance FromRow DBTask where
-  fromRow = do
-    lvl <- field
-    kw <- field
-    pri <- field
-    ttl <- field
-    tgs <- field
-    sched <- field
-    dl <- field
-    crt <- field
-    cls <- field
-    props <- field
-    desc <- field
-    pure $
-      DBTask
-        Task
-          { _level = lvl,
-            _todoKeyword = kw,
-            _priority = pri,
-            _title = deserializeRichText ttl,
-            _tags = deserializeTags tgs,
-            _scheduled = sched >>= deserializeOrgTime,
-            _deadline = dl >>= deserializeOrgTime,
-            _createdProp = crt >>= deserializeOrgTime,
-            _closed = cls >>= deserializeOrgTime,
-            _properties = deserializeProperties props,
-            _description = deserializeRichText desc
-          }
+import Model.OrgMode (OrgTime (..))
 
 -- Serialization helpers
-
-serializeRichText :: RichText -> T.Text
-serializeRichText = decodeUtf8Lazy . encode . toJSON
-
-deserializeRichText :: T.Text -> RichText
-deserializeRichText t =
-  case eitherDecode (BL.fromStrict (TE.encodeUtf8 t)) of
-    Right rt -> rt
-    Left _ -> plainToRichText t
 
 serializeTags :: S.Set T.Text -> T.Text
 serializeTags = decodeUtf8Lazy . encode . toJSON . S.toList

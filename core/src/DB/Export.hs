@@ -1,7 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
 
+-- | Read a 'FileState' projected from the events log and (optionally)
+-- mirror it back to org files on disk.
+--
+-- Before Phase 3 cleanup this module read the legacy @tasks@ table that
+-- the in-memory TUI cache used to persist into. The events log is now
+-- the canonical write model and the @tasks@ table has been dropped
+-- (migration 005). 'loadTasksFromDB' therefore folds events through the
+-- pure projection — same shape as the TUI repo path
+-- (@Repo.EventStoreRepo@), but presented as a 'FileState' so existing
+-- consumers (org export, the @DatabaseStore@ TaskStore) keep working.
 module DB.Export
   ( loadTasksFromDB,
     exportToOrgFiles,
@@ -9,42 +17,28 @@ module DB.Export
 where
 
 import Core.Types (FileState)
-import DB.Query (selectTaskQuery)
-import DB.TaskRow (DBTask (..))
-import Data.List (groupBy)
 import qualified Data.Map.Strict as M
-import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import qualified Data.Vector as V
 import Database.SQLite.Simple
-import Database.SQLite.Simple.Types ((:.) (..))
-import Model.OrgMode (Task, TaskFile (..))
+import Events.Projection (fileStateFromEvents)
+import Events.Store (selectAllEvents)
+import Model.OrgMode (Task)
 import Parser.Parser (ParserResult (..))
 import Writer.OrgWriter ()
 import Writer.Writer (Writer (..))
 
-type DBRow = (T.Text, Int) :. DBTask
-
+-- | Project the events log into a 'FileState Task'. The events log is
+-- the canonical write model (see @DB.Schema.eventsSchema@); the legacy
+-- @tasks@ table was dropped in migration 005.
 loadTasksFromDB :: Connection -> IO (FileState Task)
 loadTasksFromDB conn = do
-  rows <-
-    query_
-      conn
-      selectTaskQuery ::
-      IO [DBRow]
-  let grouped = groupBy (\a b -> filePath a == filePath b) rows
-      pairs = map toFileEntry grouped
-  pure $ M.fromList pairs
-  where
-    filePath :: DBRow -> T.Text
-    filePath ((fp, _) :. _) = fp
+  events <- selectAllEvents conn
+  pure (fileStateFromEvents events)
 
-    toFileEntry :: [DBRow] -> (FilePath, ParserResult (TaskFile Task))
-    toFileEntry [] = error "groupBy produced empty group"
-    toFileEntry rows@(((fp, _) :. _) : _) =
-      let tasks = V.fromList (map (\((_ :: T.Text, _ :: Int) :. dt) -> unDBTask dt) rows)
-       in (T.unpack fp, ParserSuccess (TaskFile Nothing tasks))
-
+-- | Re-render every file in the projected 'FileState' as org-mode text.
+-- ParserFailure entries (files that failed to parse on import, which
+-- shouldn't appear in an event-sourced FileState anyway) are silently
+-- skipped.
 exportToOrgFiles :: Connection -> IO ()
 exportToOrgFiles conn = do
   fs <- loadTasksFromDB conn

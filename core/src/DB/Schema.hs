@@ -5,6 +5,7 @@ module DB.Schema
     syncSchema,
     eventsSchema,
     cqrsReadModelSchema,
+    dropLegacyTablesSchema,
     schemaVersion,
   )
 where
@@ -12,7 +13,7 @@ where
 import Database.SQLite.Simple (Query)
 
 schemaVersion :: Int
-schemaVersion = 4
+schemaVersion = 5
 
 initialSchema :: [Query]
 initialSchema =
@@ -70,11 +71,10 @@ syncSchema =
 -- means "this event did not touch this field"; a non-NULL value sets it
 -- (sentinel values denote "cleared", see Core.Nullable).
 --
--- The legacy `tasks` table is intentionally left in place. It is not used
--- by runtime read/write paths going forward, but staying behind lets us
--- ship the schema migration without coordinating a data migration in the
--- same release. A separate command, `dwayne migrateToEvents`, populates
--- the events table from the existing tasks data.
+-- v3 left the legacy @tasks@ / @task_history@ tables behind so the schema
+-- migration could ship without a coordinated data migration. v5 (see
+-- 'dropLegacyTablesSchema') removes them — by then 'migrateToEvents' has
+-- run on every live install and the events log is the only writer/reader.
 eventsSchema :: [Query]
 eventsSchema =
   [ "CREATE TABLE IF NOT EXISTS events (\
@@ -178,4 +178,17 @@ cqrsReadModelSchema =
     \     description   = excluded.description,\
     \     last_event_at = excluded.last_event_at;\
     \ END"
+  ]
+
+-- | v5: drop the legacy @tasks@ and @task_history@ tables.
+--
+-- The @events@ table has been the canonical write log and
+-- @task_current_state@ the canonical read model since v4. Migration 005
+-- removes the dead tables; @DROP TABLE IF EXISTS@ keeps the migration
+-- idempotent for installs where the prior state had already been
+-- cleaned out by hand.
+dropLegacyTablesSchema :: [Query]
+dropLegacyTablesSchema =
+  [ "DROP TABLE IF EXISTS task_history",
+    "DROP TABLE IF EXISTS tasks"
   ]

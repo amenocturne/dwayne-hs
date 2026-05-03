@@ -13,7 +13,6 @@ import Commands.Command (Command (..))
 import Commands.Db
   ( dbCheckCommand,
     dbExportCommand,
-    dbImportCommand,
     dbInitCommand,
     dbStatsCommand,
   )
@@ -189,7 +188,6 @@ allCommands =
     captureCommand,
     -- Database commands
     dbInitCommand,
-    dbImportCommand,
     dbExportCommand,
     dbStatsCommand,
     dbCheckCommand,

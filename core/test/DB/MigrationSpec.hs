@@ -1,5 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-- | Migration tests. After Phase 3 cleanup the legacy @tasks@ /
+-- @task_history@ tables are dropped by migration 005, so the post-init
+-- table inventory only contains the events log, the read model, the
+-- migration registry, and the sync bookkeeping table.
 module DB.MigrationSpec (spec) where
 
 import DB.Connection (initDatabase, withDatabase)
@@ -13,7 +17,7 @@ import Test.Hspec
 spec :: Spec
 spec = do
   describe "initDatabase" $ do
-    it "creates a DB file with expected tables" $ do
+    it "creates a DB file with the post-cleanup table set" $ do
       dbPath <- emptySystemTempFile "dwayne-test.db"
       initDatabase dbPath
       conn <- open dbPath
@@ -21,8 +25,11 @@ spec = do
       close conn
       removeFile dbPath
       tables `shouldContain` ["migrations"]
-      tables `shouldContain` ["tasks"]
-      tables `shouldContain` ["task_history"]
+      tables `shouldContain` ["events"]
+      tables `shouldContain` ["task_current_state"]
+      tables `shouldContain` ["sync_state"]
+      tables `shouldNotContain` ["tasks"]
+      tables `shouldNotContain` ["task_history"]
 
     it "enables WAL mode" $ do
       dbPath <- emptySystemTempFile "dwayne-test.db"
@@ -47,7 +54,7 @@ spec = do
         runMigrations conn allMigrations
       removeFile dbPath
 
-    it "records applied migrations" $ do
+    it "records every applied migration" $ do
       dbPath <- emptySystemTempFile "dwayne-test.db"
       initDatabase dbPath
       withDatabase dbPath $ \conn -> do
@@ -55,6 +62,9 @@ spec = do
         let names = map fromOnly rows
         names `shouldContain` ["001_initial_schema"]
         names `shouldContain` ["002_sync_schema"]
+        names `shouldContain` ["003_events_schema"]
+        names `shouldContain` ["004_cqrs_read_model"]
+        names `shouldContain` ["005_drop_legacy_tasks"]
       removeFile dbPath
 
     it "does not re-apply already applied migrations" $ do
@@ -67,49 +77,36 @@ spec = do
         count `shouldBe` 1
       removeFile dbPath
 
-  describe "v2 sync schema" $ do
-    it "adds synced_at column to tasks" $ do
+  describe "v5 drop-legacy-tables migration" $ do
+    it "drops tasks and task_history if they were created by an earlier migration" $ do
       dbPath <- emptySystemTempFile "dwayne-test.db"
-      initDatabase dbPath
+      -- Bootstrap with migrations 1..4: this leaves the legacy tables in place.
       withDatabase dbPath $ \conn -> do
-        cols <- getTableColumns conn "tasks"
-        cols `shouldContain` ["synced_at"]
-      removeFile dbPath
-
-    it "creates sync_state table" $ do
-      dbPath <- emptySystemTempFile "dwayne-test.db"
-      initDatabase dbPath
-      withDatabase dbPath $ \conn -> do
+        runMigrations conn (take 4 allMigrations)
         tables <- getTableNames conn
-        tables `shouldContain` ["sync_state"]
+        tables `shouldContain` ["tasks"]
+        tables `shouldContain` ["task_history"]
+      -- Now apply the rest, which should drop them.
+      withDatabase dbPath $ \conn -> do
+        runMigrations conn allMigrations
+        tables <- getTableNames conn
+        tables `shouldNotContain` ["tasks"]
+        tables `shouldNotContain` ["task_history"]
       removeFile dbPath
 
-    it "migrates a v1 DB cleanly: existing rows preserved, synced_at NULL" $ do
+    it "is a no-op on installs that never had the legacy tables" $ do
       dbPath <- emptySystemTempFile "dwayne-test.db"
-      -- Bootstrap a v1-style DB: only run the first migration.
-      withDatabase dbPath $ \conn ->
-        runMigrations conn (take 1 allMigrations)
-      withDatabase dbPath $ \conn -> do
-        execute_ conn "INSERT INTO tasks (file_path, task_index, title) VALUES ('/v1.org', 0, 'old task')"
-        cols <- getTableColumns conn "tasks"
-        cols `shouldNotContain` ["synced_at"]
-      -- Now apply v2.
+      initDatabase dbPath
+      -- Re-running keeps the post-cleanup table set stable.
       withDatabase dbPath $ \conn ->
         runMigrations conn allMigrations
       withDatabase dbPath $ \conn -> do
-        cols <- getTableColumns conn "tasks"
-        cols `shouldContain` ["synced_at"]
-        rows <- query_ conn "SELECT title, synced_at FROM tasks WHERE file_path = '/v1.org'" :: IO [(T.Text, Maybe T.Text)]
-        rows `shouldBe` [("old task", Nothing)]
+        tables <- getTableNames conn
+        tables `shouldNotContain` ["tasks"]
+        tables `shouldNotContain` ["task_history"]
       removeFile dbPath
 
 getTableNames :: Connection -> IO [T.Text]
 getTableNames conn = do
   rows <- query_ conn "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name" :: IO [Only T.Text]
-  pure (map fromOnly rows)
-
-getTableColumns :: Connection -> T.Text -> IO [T.Text]
-getTableColumns conn tbl = do
-  -- pragma_table_info returns: cid, name, type, notnull, dflt_value, pk
-  rows <- query_ conn (Query ("SELECT name FROM pragma_table_info('" <> tbl <> "')")) :: IO [Only T.Text]
   pure (map fromOnly rows)

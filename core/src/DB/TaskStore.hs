@@ -1,5 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-- | Pluggable backend for the legacy 'TaskStore' interface used by the
+-- TUI's reload and save paths.
+--
+-- After Phase 3 cleanup the events log is the canonical write model and
+-- @task_current_state@ the canonical read model. The 'DatabaseStore'
+-- variant therefore /reads/ tasks via 'loadTasksFromDB' (a thin shim
+-- around the events projection) and /writes/ by mirroring each affected
+-- file out to its org file. Mutations themselves are append-only events,
+-- emitted directly by the TUI mutation hooks (see
+-- 'Tui.MutationEvents.emitMutationEvents'); this seam exists only to
+-- keep the file-system mirror in sync with the in-memory FileState that
+-- Brick still renders from.
 module DB.TaskStore
   ( TaskStore (..),
     OrgFileStore (..),
@@ -12,7 +24,6 @@ import Control.Exception (IOException, try)
 import Core.Types (FileState, TaskStoreOps (..))
 import DB.Connection (withDatabase)
 import DB.Export (loadTasksFromDB)
-import DB.Import (saveFileState)
 import qualified Data.Map.Strict as M
 import qualified Data.Text.IO as TIO
 import Model.OrgMode (Task, TaskFile)
@@ -53,7 +64,10 @@ instance TaskStore OrgFileStore where
       writeOne (_, ParserFailure _) =
         pure ()
 
--- | SQLite backend: uses import/export functions
+-- | SQLite backend wired against the events log + read model. Loads via
+-- 'loadTasksFromDB' (events projection) and persists by mirroring the
+-- given subset of the FileState to org files. The DB itself is not
+-- touched here — events have already been emitted by the time we save.
 data DatabaseStore = DatabaseStore
   { dbPath :: FilePath
   }
@@ -63,13 +77,12 @@ instance TaskStore DatabaseStore where
     withDatabase (dbPath store) $ \conn ->
       loadTasksFromDB conn
 
-  -- DB is the source of truth: write to SQLite first, then mirror the same
-  -- entries out to org files as a best-effort secondary action. Org export
-  -- failures are logged but do not surface as errors to the caller.
-  saveTasks store fs = do
-    withDatabase (dbPath store) $ \conn -> do
-      _ <- saveFileState conn fs
-      pure ()
+  -- The events log is the canonical write target. The TUI's mutation
+  -- hooks emit events directly, so this method's only job is to keep
+  -- the on-disk org files in step with the in-memory FileState. We
+  -- log but don't surface IO failures: a partial mirror failure should
+  -- not make the user think their event-sourced edits were lost.
+  saveTasks _ fs =
     mapM_ writeOrgFile (M.toList fs)
     where
       writeOrgFile (fp, ParserSuccess taskFile) = do

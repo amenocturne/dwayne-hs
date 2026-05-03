@@ -1,19 +1,28 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-- | CLI commands that operate on the dwayne database.
+--
+-- After Phase 3 cleanup the events log is the canonical write model and
+-- @task_current_state@ the canonical read model. The legacy @tasks@
+-- table was dropped in migration 005, so commands that used to read or
+-- write it now go through the events projection or
+-- @task_current_state@.
+--
+-- Org-file ingestion lives in 'Commands.MigrateToEvents' (which emits
+-- one genesis event per task); the old @dbImport@ wrapper around
+-- @importFileState@ has been removed.
 module Commands.Db
   ( dbInitCommand,
-    dbImportCommand,
     dbExportCommand,
     dbStatsCommand,
     dbCheckCommand,
   )
 where
 
-import Commands.CliHelpers (loadConfig, loadFileStateFromOrg)
+import Commands.CliHelpers (loadConfig)
 import Commands.Command (Command (..))
 import DB.Connection (initDatabase, withDatabase)
 import DB.Export (exportToOrgFiles, loadTasksFromDB)
-import DB.Import (importFileState)
 import qualified Data.Map.Strict as M
 import Database.SQLite.Simple (Only (..), query_)
 import Model.OrgMode (Task, TaskFile (..))
@@ -48,29 +57,12 @@ dbInitCommand =
       cmdApi = Nothing
     }
 
-dbImportCommand :: Command Task
-dbImportCommand =
-  Command
-    { cmdName = "Database Import",
-      cmdAlias = "dbImport",
-      cmdDescription = "Import org files into the database",
-      cmdTui = Nothing,
-      cmdCli = Just $ pure $ do
-        (conf, fState) <- loadFileStateFromOrg
-        let dbFile = _database conf
-        initDatabase dbFile
-        count <- withDatabase dbFile $ \conn ->
-          importFileState conn fState
-        putStrLn $ "Imported " ++ show count ++ " tasks from " ++ show (M.size fState) ++ " files",
-      cmdApi = Nothing
-    }
-
 dbExportCommand :: Command Task
 dbExportCommand =
   Command
     { cmdName = "Database Export",
       cmdAlias = "dbExport",
-      cmdDescription = "Export database tasks to org files",
+      cmdDescription = "Project events into per-file org documents on disk",
       cmdTui = Nothing,
       cmdCli = Just $ pure $ do
         conf <- loadConfig
@@ -98,11 +90,13 @@ dbStatsCommand =
         conf <- loadConfig
         let dbFile = _database conf
         withDatabase dbFile $ \conn -> do
-          [Only taskCount] <- query_ conn "SELECT COUNT(*) FROM tasks" :: IO [Only Int]
-          [Only fileCount] <- query_ conn "SELECT COUNT(DISTINCT file_path) FROM tasks" :: IO [Only Int]
+          [Only taskCount] <- query_ conn "SELECT COUNT(*) FROM task_current_state" :: IO [Only Int]
+          [Only fileCount] <- query_ conn "SELECT COUNT(DISTINCT file_path) FROM task_current_state" :: IO [Only Int]
+          [Only eventCount] <- query_ conn "SELECT COUNT(*) FROM events" :: IO [Only Int]
           putStrLn $ "Database: " ++ dbFile
           putStrLn $ "Tasks:    " ++ show taskCount
-          putStrLn $ "Files:    " ++ show fileCount,
+          putStrLn $ "Files:    " ++ show fileCount
+          putStrLn $ "Events:   " ++ show eventCount,
       cmdApi = Nothing
     }
 
@@ -124,7 +118,7 @@ dbCheckCommand =
             _ -> do
               putStrLn "Integrity check: FAILED"
               mapM_ (\(Only msg) -> putStrLn $ "  " ++ msg) results
-          [Only dbCount] <- query_ conn "SELECT COUNT(*) FROM tasks" :: IO [Only Int]
+          [Only dbCount] <- query_ conn "SELECT COUNT(*) FROM task_current_state" :: IO [Only Int]
           parsedFiles <- mapM readOrgFile allFiles
           let orgCount = sum $ map (countTasks . snd) parsedFiles
           putStrLn $ "DB tasks:   " ++ show dbCount

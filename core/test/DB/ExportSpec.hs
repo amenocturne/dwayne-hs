@@ -1,17 +1,24 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-- | Tests for the helpers exposed by 'DB.Export'.
+--
+-- After Phase 3 cleanup 'loadTasksFromDB' projects from the events log
+-- (the canonical write model) rather than reading the dropped @tasks@
+-- table. The deserialization helpers in 'DB.TaskRow' are still used to
+-- decode JSON-shaped fields stored in @events.tags@/@properties@/etc.,
+-- so they keep their own coverage here.
 module DB.ExportSpec (spec) where
 
 import DB.Connection (initDatabase, withDatabase)
 import DB.Export (loadTasksFromDB)
-import DB.Import (importFileState)
 import DB.TaskRow (deserializeOrgTime, deserializeProperties, deserializeTags)
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
-import qualified Data.Text as T
-import Data.Time (LocalTime (..), TimeOfDay (..), fromGregorian)
+import Data.Time (LocalTime (..), TimeOfDay (..), UTCTime (..), fromGregorian, secondsToDiffTime)
 import qualified Data.Vector as V
-import Model.OrgMode (OrgTime (..), RichText (..), Task (..), TaskFile (..), TextNode (..), plainToRichText, richTextToPlain)
+import Events.Store (insertEvents)
+import Events.Types (genesisEvent)
+import Model.OrgMode (OrgTime (..), RichText (..), Task (..), TaskFile (..), TextNode (..), richTextToPlain)
 import Parser.Parser (ParserResult (..))
 import System.Directory (removeFile)
 import System.IO.Temp (emptySystemTempFile)
@@ -49,6 +56,9 @@ minimalTask =
       _description = RichText []
     }
 
+t0 :: UTCTime
+t0 = UTCTime (fromGregorian 2026 5 1) (secondsToDiffTime 0)
+
 spec :: Spec
 spec = do
   describe "deserialization helpers" $ do
@@ -79,7 +89,7 @@ spec = do
       deserializeOrgTime "not a date" `shouldBe` Nothing
 
   describe "loadTasksFromDB" $ do
-    it "returns empty FileState for empty DB" $ do
+    it "returns empty FileState for an empty events log" $ do
       dbPath <- emptySystemTempFile "dwayne-export-test.db"
       initDatabase dbPath
       withDatabase dbPath $ \conn -> do
@@ -87,14 +97,11 @@ spec = do
         M.size fs `shouldBe` 0
       removeFile dbPath
 
-    it "roundtrips a single task" $ do
+    it "projects a single genesis event into a one-task FileState" $ do
       dbPath <- emptySystemTempFile "dwayne-export-test.db"
       initDatabase dbPath
       withDatabase dbPath $ \conn -> do
-        let inputFs =
-              M.fromList
-                [("/inbox.org", ParserSuccess (TaskFile Nothing (V.fromList [sampleTask])))]
-        _ <- importFileState conn inputFs
+        _ <- insertEvents conn [genesisEvent "/inbox.org" 0 t0 sampleTask]
         fs <- loadTasksFromDB conn
         M.size fs `shouldBe` 1
         case M.lookup "/inbox.org" fs of
@@ -115,43 +122,17 @@ spec = do
           _ -> expectationFailure "Expected ParserSuccess for /inbox.org"
       removeFile dbPath
 
-    it "roundtrips a minimal task" $ do
-      dbPath <- emptySystemTempFile "dwayne-export-test.db"
-      initDatabase dbPath
-      withDatabase dbPath $ \conn -> do
-        let inputFs =
-              M.fromList
-                [("/minimal.org", ParserSuccess (TaskFile Nothing (V.fromList [minimalTask])))]
-        _ <- importFileState conn inputFs
-        fs <- loadTasksFromDB conn
-        case M.lookup "/minimal.org" fs of
-          Just (ParserSuccess (TaskFile _ tasks)) -> do
-            V.length tasks `shouldBe` 1
-            let t = V.head tasks
-            _level t `shouldBe` 2
-            _todoKeyword t `shouldBe` "DONE"
-            _priority t `shouldBe` Nothing
-            richTextToPlain (_title t) `shouldBe` "Simple task"
-            _tags t `shouldBe` S.empty
-            _scheduled t `shouldBe` Nothing
-            _deadline t `shouldBe` Nothing
-            _createdProp t `shouldBe` Nothing
-            _closed t `shouldBe` Nothing
-            _properties t `shouldBe` []
-            richTextToPlain (_description t) `shouldBe` ""
-          _ -> expectationFailure "Expected ParserSuccess for /minimal.org"
-      removeFile dbPath
-
     it "groups tasks by file_path" $ do
       dbPath <- emptySystemTempFile "dwayne-export-test.db"
       initDatabase dbPath
       withDatabase dbPath $ \conn -> do
-        let inputFs =
-              M.fromList
-                [ ("/inbox.org", ParserSuccess (TaskFile Nothing (V.fromList [sampleTask, minimalTask]))),
-                  ("/projects.org", ParserSuccess (TaskFile Nothing (V.fromList [minimalTask])))
-                ]
-        _ <- importFileState conn inputFs
+        _ <-
+          insertEvents
+            conn
+            [ genesisEvent "/inbox.org" 0 t0 sampleTask,
+              genesisEvent "/inbox.org" 1 t0 minimalTask,
+              genesisEvent "/projects.org" 0 t0 minimalTask
+            ]
         fs <- loadTasksFromDB conn
         M.size fs `shouldBe` 2
         case M.lookup "/inbox.org" fs of
@@ -162,14 +143,16 @@ spec = do
           _ -> expectationFailure "Expected 1 task for /projects.org"
       removeFile dbPath
 
-    it "preserves task order within a file" $ do
+    it "preserves task order within a file (by task_index)" $ do
       dbPath <- emptySystemTempFile "dwayne-export-test.db"
       initDatabase dbPath
       withDatabase dbPath $ \conn -> do
-        let inputFs =
-              M.fromList
-                [("/inbox.org", ParserSuccess (TaskFile Nothing (V.fromList [sampleTask, minimalTask])))]
-        _ <- importFileState conn inputFs
+        _ <-
+          insertEvents
+            conn
+            [ genesisEvent "/inbox.org" 0 t0 sampleTask,
+              genesisEvent "/inbox.org" 1 t0 minimalTask
+            ]
         fs <- loadTasksFromDB conn
         case M.lookup "/inbox.org" fs of
           Just (ParserSuccess (TaskFile _ tasks)) -> do

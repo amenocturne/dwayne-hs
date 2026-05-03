@@ -5,9 +5,9 @@ module Commands.Capture (captureCommand) where
 import Commands.CliHelpers (loadFileState)
 import Commands.Command (Command (..))
 import Commands.UrlEnrich (enrichText)
+import Control.Exception (IOException, try)
 import Control.Lens (view, (&), (.~))
 import DB.Connection (withDatabase)
-import DB.TaskStore (DatabaseStore (..), TaskStore (..))
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Text as T
@@ -25,6 +25,9 @@ import Model.OrgMode
     orgInboxKeyword,
     plainToRichText,
   )
+import System.IO (hPutStrLn, stderr)
+import Writer.OrgWriter ()
+import Writer.Writer (Writer (..))
 import Options.Applicative (argument, help, long, metavar, str, switch)
 import Parser.OrgParser (dateTimeParserReimplemented)
 import Parser.Parser (ParserResult (..), runParser)
@@ -88,9 +91,11 @@ runCapture noEnrich input = do
             _description = descRich
           }
 
-  -- Emit a genesis event into the canonical events log AND mirror the
-  -- write into the legacy tasks table (kept for fallback / org export).
-  -- The taskIndex is the next free slot in the inbox file.
+  -- Emit a genesis event — the canonical write to the events log. The
+  -- @events_to_state@ trigger will project it into @task_current_state@
+  -- automatically; downstream views read from there. The org file is
+  -- mirrored as a best-effort secondary side effect so external tools
+  -- (grep, editor) see the new task without a separate @dwayne dbExport@.
   utcNow <- getCurrentTime
   case M.lookup fp fState of
     Just (ParserSuccess tf) -> do
@@ -99,7 +104,7 @@ runCapture noEnrich input = do
           updatedTf = tf & content .~ V.snoc oldTasks task
       withDatabase dbFile $ \conn ->
         insertEvent conn (genesisEvent fp idx utcNow task)
-      saveTasks (DatabaseStore dbFile) (M.singleton fp (ParserSuccess updatedTf))
+      mirrorOrgFile fp updatedTf
       TIO.putStrLn $ "Captured: " <> titleLine
     Just (ParserFailure e) ->
       TIO.putStrLn $ "Error: inbox file has parse errors: " <> T.pack e
@@ -107,5 +112,14 @@ runCapture noEnrich input = do
       let newTf = TaskFile Nothing (V.singleton task)
       withDatabase dbFile $ \conn ->
         insertEvent conn (genesisEvent fp 0 utcNow task)
-      saveTasks (DatabaseStore dbFile) (M.singleton fp (ParserSuccess newTf))
+      mirrorOrgFile fp newTf
       TIO.putStrLn $ "Captured: " <> titleLine
+  where
+    mirrorOrgFile :: FilePath -> TaskFile Task -> IO ()
+    mirrorOrgFile path tf = do
+      r <- try (TIO.writeFile path (write tf)) :: IO (Either IOException ())
+      case r of
+        Right () -> pure ()
+        Left e ->
+          hPutStrLn stderr $
+            "warning: capture failed to mirror to org file " ++ path ++ ": " ++ show e

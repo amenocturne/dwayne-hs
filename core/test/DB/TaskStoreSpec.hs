@@ -1,19 +1,30 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-- | Tests for the 'TaskStore' instances exposed by 'DB.TaskStore'.
+--
+-- After Phase 3 cleanup the events log is the canonical write model.
+-- 'DatabaseStore.saveTasks' no longer writes to the dropped @tasks@
+-- table; it just mirrors the FileState to org files. Loads still go
+-- through 'loadTasksFromDB', which projects the events log into a
+-- 'FileState'. The DB roundtrip therefore exercises the events log,
+-- not a row-shaped table — see 'Repo.EventStoreRepoSpec' for the
+-- full event-driven coverage.
 module DB.TaskStoreSpec (spec) where
 
-import DB.Connection (initDatabase)
+import Data.Time (UTCTime (..), fromGregorian, secondsToDiffTime)
+import DB.Connection (initDatabase, withDatabase)
 import DB.TaskStore (DatabaseStore (..), OrgFileStore (..), TaskStore (..))
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import Data.Time (LocalTime (..), TimeOfDay (..), fromGregorian)
 import qualified Data.Vector as V
-import Model.OrgMode (OrgTime (..), RichText (..), Task (..), TaskFile (..), TextNode (..), richTextToPlain)
+import Events.Store (insertEvents)
+import Events.Types (genesisEvent)
+import Model.OrgMode (RichText (..), Task (..), TaskFile (..), TextNode (..), richTextToPlain)
 import Parser.OrgParser (orgFileParser)
 import Parser.Parser (ParserResult (..))
-import System.Directory (removeFile)
+import System.Directory (doesFileExist, removeFile)
 import System.IO.Temp (emptySystemTempFile, withSystemTempDirectory)
 import Test.Hspec
 
@@ -25,11 +36,11 @@ sampleTask =
       _priority = Just 1,
       _title = RichText [PlainText "Buy groceries"],
       _tags = S.fromList ["errands", "shopping"],
-      _scheduled = Just (OrgTime (Left (fromGregorian 2026 3 6)) Nothing Nothing),
-      _deadline = Just (OrgTime (Right (LocalTime (fromGregorian 2026 3 10) (TimeOfDay 14 30 0))) Nothing Nothing),
-      _createdProp = Just (OrgTime (Left (fromGregorian 2026 3 1)) Nothing Nothing),
+      _scheduled = Nothing,
+      _deadline = Nothing,
+      _createdProp = Nothing,
       _closed = Nothing,
-      _properties = [("EFFORT", "30min"), ("CATEGORY", "personal")],
+      _properties = [],
       _description = RichText [PlainText "Get milk and eggs"]
     }
 
@@ -49,60 +60,53 @@ minimalTask =
       _description = RichText []
     }
 
+t0 :: UTCTime
+t0 = UTCTime (fromGregorian 2026 5 1) (secondsToDiffTime 0)
+
 spec :: Spec
 spec = do
   describe "DatabaseStore" $ do
-    it "roundtrips a FileState through SQLite" $ do
+    it "loadTasks projects events into a FileState" $ do
       dbPath <- emptySystemTempFile "dwayne-taskstore-test.db"
       initDatabase dbPath
+      withDatabase dbPath $ \conn -> do
+        _ <-
+          insertEvents
+            conn
+            [ genesisEvent "/inbox.org" 0 t0 sampleTask,
+              genesisEvent "/inbox.org" 1 t0 minimalTask,
+              genesisEvent "/projects.org" 0 t0 minimalTask
+            ]
+        pure ()
       let store = DatabaseStore dbPath
-          inputFs =
-            M.fromList
-              [ ("/inbox.org", ParserSuccess (TaskFile (Just "inbox") (V.fromList [sampleTask, minimalTask]))),
-                ("/projects.org", ParserSuccess (TaskFile (Just "projects") (V.fromList [minimalTask])))
-              ]
-      saveTasks store inputFs
       fs <- loadTasks store
       M.size fs `shouldBe` 2
-
       case M.lookup "/inbox.org" fs of
         Just (ParserSuccess (TaskFile _ tasks)) -> do
           V.length tasks `shouldBe` 2
-          let t = V.head tasks
-          _level t `shouldBe` 1
-          _todoKeyword t `shouldBe` "TODO"
-          _priority t `shouldBe` Just 1
-          richTextToPlain (_title t) `shouldBe` "Buy groceries"
-          _tags t `shouldBe` S.fromList ["errands", "shopping"]
+          _todoKeyword (V.head tasks) `shouldBe` "TODO"
+          richTextToPlain (_title (V.head tasks)) `shouldBe` "Buy groceries"
         _ -> expectationFailure "Expected ParserSuccess for /inbox.org"
-
       case M.lookup "/projects.org" fs of
         Just (ParserSuccess (TaskFile _ tasks)) ->
           V.length tasks `shouldBe` 1
         _ -> expectationFailure "Expected ParserSuccess for /projects.org"
-
       removeFile dbPath
 
-    it "save overwrites previous data" $ do
-      dbPath <- emptySystemTempFile "dwayne-taskstore-test.db"
-      initDatabase dbPath
-      let store = DatabaseStore dbPath
-          fs1 =
-            M.fromList
-              [("/inbox.org", ParserSuccess (TaskFile Nothing (V.fromList [sampleTask, minimalTask])))]
-          fs2 =
-            M.fromList
-              [("/inbox.org", ParserSuccess (TaskFile Nothing (V.fromList [minimalTask])))]
-      saveTasks store fs1
-      saveTasks store fs2
-      fs <- loadTasks store
-
-      case M.lookup "/inbox.org" fs of
-        Just (ParserSuccess (TaskFile _ tasks)) ->
-          V.length tasks `shouldBe` 1
-        _ -> expectationFailure "Expected ParserSuccess for /inbox.org"
-
-      removeFile dbPath
+    it "saveTasks mirrors the FileState to org files (DB writes go via events)" $ do
+      withSystemTempDirectory "dwayne-taskstore-test" $ \tmpDir -> do
+        let dbPath = tmpDir ++ "/dwayne.db"
+            file1 = tmpDir ++ "/inbox.org"
+        initDatabase dbPath
+        let store = DatabaseStore dbPath
+            fs =
+              M.fromList
+                [(file1, ParserSuccess (TaskFile Nothing (V.fromList [minimalTask])))]
+        saveTasks store fs
+        exists <- doesFileExist file1
+        exists `shouldBe` True
+        contents <- TIO.readFile file1
+        T.isInfixOf "Simple task" contents `shouldBe` True
 
   describe "OrgFileStore" $ do
     it "loads tasks from org files" $ do
@@ -140,12 +144,9 @@ spec = do
 
         let store = OrgFileStore [fileA, fileB] orgFileParser
 
-        -- Load, then save with swapped content would be wrong,
-        -- but saving back unchanged should preserve file identity.
         fs <- loadTasks store
         saveTasks store fs
 
-        -- Reload and verify each file still has its own task
         fs' <- loadTasks store
         case M.lookup fileA fs' of
           Just (ParserSuccess (TaskFile _ tasks)) -> do
@@ -170,13 +171,11 @@ spec = do
 
         let store = OrgFileStore [fileA, fileB] orgFileParser
 
-        -- Save only fileA with modified content
         let modifiedFs =
               M.fromList
                 [(fileA, ParserSuccess (TaskFile Nothing (V.fromList [minimalTask])))]
         saveTasks store modifiedFs
 
-        -- fileA should have the new task
         fs <- loadTasks store
         case M.lookup fileA fs of
           Just (ParserSuccess (TaskFile _ tasks)) -> do
@@ -184,7 +183,6 @@ spec = do
             richTextToPlain (_title (V.head tasks)) `shouldBe` "Simple task"
           _ -> expectationFailure "Expected ParserSuccess for fileA"
 
-        -- fileB should be untouched
         case M.lookup fileB fs of
           Just (ParserSuccess (TaskFile _ tasks)) -> do
             V.length tasks `shouldBe` 1
@@ -205,7 +203,6 @@ spec = do
             richTextToPlain (_title (V.head tasks)) `shouldBe` "Original task"
           _ -> expectationFailure "Expected ParserSuccess on first load"
 
-        -- Replace with a new task and save
         let newFs =
               M.fromList
                 [(file1, ParserSuccess (TaskFile Nothing (V.fromList [minimalTask])))]
