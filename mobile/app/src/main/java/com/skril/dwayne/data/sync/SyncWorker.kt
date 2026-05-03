@@ -10,6 +10,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.skril.dwayne.BuildConfig
 import com.skril.dwayne.data.events.Database
 import com.skril.dwayne.data.events.EventStore
 import com.skril.dwayne.data.repository.SettingsStore
@@ -37,7 +38,7 @@ class SyncWorker(
 
     override suspend fun doWork(): Result {
         val context = applicationContext
-        val settings = SettingsStore(context, defaultApiBaseUrl = "")
+        val settings = SettingsStore(context, defaultApiBaseUrl = BuildConfig.API_BASE_URL)
         val api = settings.apiSettings.first()
         val inboxFile = settings.inboxFilePath.first()
         val pullWindow = settings.pullWindowHours.first()
