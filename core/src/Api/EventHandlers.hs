@@ -19,18 +19,17 @@ module Api.EventHandlers
 where
 
 import qualified Control.Concurrent.MVar as MVar
-import Control.Lens (set, view)
+import Control.Lens (view)
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
 import qualified Data.Text as T
 import Data.Time (UTCTime, getCurrentTime)
 import DB.Connection (withDatabase)
-import Events.Projection (fileStateFromEvents)
 import Events.Store (insertEvents, selectAllEvents, selectEventsSince)
 import Events.Types (Event, isoFormat, parseIso)
 import Model.OrgMode (Task)
 import Servant (Handler)
-import Tui.Types (AppContext, config, fileStateLens)
+import Tui.Types (AppContext, config)
 import qualified Tui.Types as TT
 
 data EventsResponse = EventsResponse
@@ -99,12 +98,9 @@ postEventsHandler ::
   PostEventsRequest ->
   Handler PostEventsResponse
 postEventsHandler cacheVar req = do
-  liftIO $ MVar.modifyMVar cacheVar $ \ctx -> do
-    let dbFile = TT._database (view config ctx)
-    (n, allEvents) <- withDatabase dbFile $ \conn -> do
-      n <- insertEvents conn (perEvents req)
-      events <- selectAllEvents conn
-      pure (n, events)
-    let newCtx = set fileStateLens (fileStateFromEvents allEvents) ctx
+  ctx <- liftIO $ MVar.readMVar cacheVar
+  let dbFile = TT._database (view config ctx)
+  liftIO $ withDatabase dbFile $ \conn -> do
+    n <- insertEvents conn (perEvents req)
     now <- nowUTC
-    pure (newCtx, PostEventsResponse n (isoFormat now))
+    pure $ PostEventsResponse n (isoFormat now)
