@@ -22,6 +22,7 @@ module Repo.EventStoreRepo
     mkEventStoreRepo,
     nextTaskIndex,
     rebuildTaskCurrentState,
+    loadAllTasks,
   )
 where
 
@@ -147,6 +148,24 @@ rebuildTaskCurrentState :: Connection -> IO ()
 rebuildTaskCurrentState conn = withTransaction conn $ do
   execute_ conn "DELETE FROM task_current_state"
   execute_ conn projectStateFromEventsSql
+
+-- | Load every materialized task in a single round-trip. Used by the TUI
+-- bootstrap to avoid the N+1 'getTask'-per-pointer pattern, which on
+-- macOS can take 5+ seconds for ~13k rows because each call opens its
+-- own SQLite connection.
+loadAllTasks :: EventStoreRepo -> IO [(Task, TaskPointer)]
+loadAllTasks repo =
+  withDatabase (esrDbFile repo) $ \conn -> do
+    rows <-
+      query_
+        conn
+        ( SQL.Query $
+            "SELECT "
+              <> renderQuery stateColumns
+              <> " FROM task_current_state ORDER BY file_path, task_index"
+        ) ::
+        IO [StateRow]
+    pure (map rowToTaskWithPointer rows)
 
 -- ---------------------------------------------------------------------------
 -- Query construction helpers
