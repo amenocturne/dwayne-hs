@@ -8,7 +8,7 @@
 
 module Main (main) where
 
-import Api.Server (runServer)
+import Api.Server (runServer, runSyncServer, runWebServer)
 import Commands.CliHelpers (loadFileState)
 import Commands.Command (Command (..))
 import Commands.Registry (allCommands)
@@ -37,9 +37,20 @@ main = do
   args <- getArgs
   case args of
     [] -> startTui
-    ["--serve"] -> startWebServer
+    ["--serve"] -> startServer ServeCombined
+    ["--web"] -> startServer ServeWeb
+    ["--sync-server"] -> startServer ServeSync
     ["--version"] -> putStrLn $ "dwayne " ++ showVersion version
     _ -> runCli
+
+-- | Which slice of the API surface to mount when running as a server.
+data ServeMode
+  = -- | Web UI + capture + mutations + static assets only.
+    ServeWeb
+  | -- | Event push + pull only — sync hub for other clients.
+    ServeSync
+  | -- | Both, on a single port (back-compat for local @--serve@).
+    ServeCombined
 
 -- | Run CLI subcommands dispatched from the command registry
 runCli :: IO ()
@@ -57,11 +68,17 @@ mkSubcommand cmd = do
       desc = T.unpack (cmdDescription cmd)
   return $ command name' (info cliParser (progDesc desc))
 
-startWebServer :: IO ()
-startWebServer = do
-  putStrLn "Starting server on http://localhost:8080"
+-- | Bootstrap an 'AppContext' and run the appropriate server entry
+-- point. The combined mode keeps the legacy @--serve@ behavior; the
+-- two single-purpose modes mount only the routes their environment
+-- needs (UI vs sync transport).
+startServer :: ServeMode -> IO ()
+startServer mode = do
   ctx <- initializeAppContext
-  runServer 8080 ctx
+  case mode of
+    ServeWeb -> runWebServer 8080 ctx
+    ServeSync -> runSyncServer 8080 ctx
+    ServeCombined -> runServer 8080 ctx
 
 initializeAppContext :: IO (AppContext Task)
 initializeAppContext = do

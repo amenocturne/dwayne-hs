@@ -220,7 +220,10 @@ test-suite spec
         direct-sqlite >= 2.3,
         aeson,
         bytestring,
-        servant-server >= 0.20 && < 0.21
+        servant-server >= 0.20 && < 0.21,
+        wai >= 3.2,
+        wai-extra >= 3.1,
+        http-types >= 0.12
     build-tool-depends:
         hspec-discover:hspec-discover
     ghc-options: -Wall -threaded
@@ -228,6 +231,7 @@ test-suite spec
     other-modules:
         SpecHelper
         Api.HandlersSpec
+        Api.ServerSpec
         Core.NullableSpec
         Core.OperationsSpec
         DB.MigrationSpec

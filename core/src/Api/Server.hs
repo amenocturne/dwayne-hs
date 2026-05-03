@@ -2,9 +2,31 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
 
--- | HTTP server for the REST API and static file serving
+-- | HTTP server for the REST API and static file serving.
+--
+-- The route surface is split into two independent Servant API trees:
+--
+--   * 'WebAPI' — UI-facing reads (views, search, projects), capture
+--     mutations, and the static front-end. This is what the web UI and
+--     Raycast extension talk to.
+--   * 'SyncAPI' — '/api/events' (push + pull) only. This is the
+--     transport for cross-device sync; it carries no UI logic.
+--
+-- A combined deployment ('runCombinedServer' / 'app') mounts both — the
+-- legacy default for local dev so a single @dwayne --serve@ keeps the
+-- web UI working alongside @dwayne sync@. Production deployments can
+-- run @dwayne --web@ and @dwayne --sync-server@ as separate processes
+-- and only expose the routes each environment actually needs.
 module Api.Server
   ( runServer,
+    runWebServer,
+    runSyncServer,
+    -- Internals exposed for tests
+    ServerState,
+    webApp,
+    syncApp,
+    combinedApp,
+    initServerState,
   )
 where
 
@@ -106,8 +128,23 @@ type EventsAPI =
   "events" :> QueryParam "since" T.Text :> Get '[JSON] EH.EventsResponse
     :<|> "events" :> ReqBody '[JSON] EH.PostEventsRequest :> Post '[JSON] EH.PostEventsResponse
 
--- | Combined API: /api/* for REST endpoints, /* for static files
-type API = "api" :> (ViewsAPI :<|> SearchAPI :<|> ProjectsAPI :<|> CaptureAPI :<|> MutationAPI :<|> EventsAPI) :<|> Raw
+-- | UI / read-side surface plus capture, exposed at @\/api\/*@ alongside
+-- the static web bundle at @\/*@. No sync routes; deploy this when the
+-- only client is the web UI / Raycast extension.
+type WebAPI =
+  "api" :> (ViewsAPI :<|> SearchAPI :<|> ProjectsAPI :<|> CaptureAPI :<|> MutationAPI)
+    :<|> Raw
+
+-- | Sync transport surface — push + pull of events. Deploy this when
+-- the host is just a sync hub for other clients (Android / TUI).
+type SyncAPI = "api" :> EventsAPI
+
+-- | Combined surface for local dev convenience: WebAPI plus sync.
+-- Static file serving stays attached to the web side so a single
+-- @dwayne --serve@ still drives the UI.
+type CombinedAPI =
+  "api" :> (ViewsAPI :<|> SearchAPI :<|> ProjectsAPI :<|> CaptureAPI :<|> MutationAPI :<|> EventsAPI)
+    :<|> Raw
 
 -- | Server state containing cached context and WebSocket registry
 data ServerState = ServerState
@@ -180,9 +217,24 @@ eventsServer serverState =
   EH.getEventsHandler (stateCache serverState)
     :<|> EH.postEventsHandler (stateCache serverState)
 
--- | Main API server combining views and static file serving
-apiServer :: ServerState -> Server API
-apiServer serverState =
+-- | Web-only server: UI reads + capture + mutations + static UI assets.
+webServer :: ServerState -> Server WebAPI
+webServer serverState =
+  ( viewsServer serverState
+      :<|> searchServer serverState
+      :<|> projectsServer serverState
+      :<|> captureServer serverState
+      :<|> mutationServer serverState
+  )
+    :<|> serveDirectoryWebApp "web/dist"
+
+-- | Sync-only server: just the events push/pull endpoints.
+syncServer :: ServerState -> Server SyncAPI
+syncServer = eventsServer
+
+-- | Combined server: every web route plus the events sync surface.
+combinedServer :: ServerState -> Server CombinedAPI
+combinedServer serverState =
   ( viewsServer serverState
       :<|> searchServer serverState
       :<|> projectsServer serverState
@@ -190,46 +242,74 @@ apiServer serverState =
       :<|> mutationServer serverState
       :<|> eventsServer serverState
   )
-    :<|> serveDirectoryWebApp "web/dist" -- Assumes run from project root
+    :<|> serveDirectoryWebApp "web/dist"
 
--- | Convert the API server to a WAI Application with CORS support
-app :: ServerState -> Application
-app serverState = corsMiddleware $ serve (Proxy :: Proxy API) (apiServer serverState)
-  where
-    corsMiddleware =
-      cors $
-        const $
-          Just
-            simpleCorsResourcePolicy
-              { corsRequestHeaders = ["Content-Type"],
-                corsMethods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-              }
+-- | CORS policy shared by every variant.
+corsMiddleware :: Application -> Application
+corsMiddleware =
+  cors $
+    const $
+      Just
+        simpleCorsResourcePolicy
+          { corsRequestHeaders = ["Content-Type"],
+            corsMethods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+          }
 
--- | Run the web server on the specified port
--- Serves REST API at /api/* and static files from web/dist/ at /*
--- Watches org files and warns on external edits (DB is canonical, so
--- those edits will not propagate until the user runs `dwayne dbImport`).
-runServer :: Int -> AppContext Task -> IO ()
-runServer port initialCtx = do
-  -- Create server state with cached context
+-- | WAI Application for the web-only surface.
+webApp :: ServerState -> Application
+webApp st = corsMiddleware $ serve (Proxy :: Proxy WebAPI) (webServer st)
+
+-- | WAI Application for the sync-only surface.
+syncApp :: ServerState -> Application
+syncApp st = corsMiddleware $ serve (Proxy :: Proxy SyncAPI) (syncServer st)
+
+-- | WAI Application combining web + sync (back-compat for @--serve@).
+combinedApp :: ServerState -> Application
+combinedApp st = corsMiddleware $ serve (Proxy :: Proxy CombinedAPI) (combinedServer st)
+
+-- | Build a 'ServerState' once for any of the run* entry points.
+-- Watches org files and warns on external edits — DB is canonical, so
+-- those edits will not propagate until the operator runs an explicit
+-- @dwayne dbExport@ / @dwayne migrateToEvents@ depending on intent.
+initServerState :: AppContext Task -> IO ServerState
+initServerState initialCtx = do
   cacheVar <- newMVar initialCtx
   registry <- WS.newClientRegistry
-
-  -- Watch org files for external edits. DB is canonical now, so we don't
-  -- reload from disk — we just warn the operator that the change won't
-  -- propagate without an explicit dbImport.
   let files = getAllFiles (view config initialCtx)
   watcher <- FW.startWatcher files $
-    putStrLn "warning: external org edit detected. DB is canonical; run `dwayne dbImport` to sync if intended."
+    putStrLn "warning: external org edit detected. DB is canonical; run 'dwayne migrateToEvents' or 'dwayne dbExport' as appropriate."
+  pure $ ServerState cacheVar registry (Just watcher)
 
-  let serverState = ServerState cacheVar registry (Just watcher)
-
-  -- Create WAI application with WebSocket support
+-- | Run the combined web + sync server (default for local dev).
+-- Serves REST API at /api/* and static files from web/dist/ at /*.
+runServer :: Int -> AppContext Task -> IO ()
+runServer port initialCtx = do
+  st <- initServerState initialCtx
   let wsApp =
         WaiWS.websocketsOr
           WebSockets.defaultConnectionOptions
-          (WS.wsApp registry)
-          (app serverState)
-
-  putStrLn $ "Starting server on http://localhost:" ++ show port
+          (WS.wsApp (stateRegistry st))
+          (combinedApp st)
+  putStrLn $ "Starting combined server on http://localhost:" ++ show port
   run port wsApp
+
+-- | Run the UI-only server. No /api/events route — sync clients pointed
+-- at this process will get HTTP 404.
+runWebServer :: Int -> AppContext Task -> IO ()
+runWebServer port initialCtx = do
+  st <- initServerState initialCtx
+  let wsApp =
+        WaiWS.websocketsOr
+          WebSockets.defaultConnectionOptions
+          (WS.wsApp (stateRegistry st))
+          (webApp st)
+  putStrLn $ "Starting web server on http://localhost:" ++ show port
+  run port wsApp
+
+-- | Run the sync-only server. UI/Raycast clients pointed at this
+-- process will get HTTP 404 for /api/views and friends.
+runSyncServer :: Int -> AppContext Task -> IO ()
+runSyncServer port initialCtx = do
+  st <- initServerState initialCtx
+  putStrLn $ "Starting sync server on http://localhost:" ++ show port
+  run port (syncApp st)
