@@ -29,7 +29,7 @@ import java.util.Locale
 import java.util.TimeZone
 
 private val keywordChoices = listOf(
-    "INBOX", "TODAY", "SOON", "TODO", "PROJECT", "RELEVANT",
+    "INBOX", "DEFER", "TODAY", "SOON", "TODO", "PROJECT", "RELEVANT",
     "SOMEDAY", "WAITING", "NOTES", "LIST", "DONE", "TRASH",
 )
 

@@ -2,6 +2,7 @@
 
 module Commands.Views
   ( viewAllCommand,
+    viewDeferCommand,
     viewInboxCommand,
     viewTodayCommand,
     viewTodoCommand,
@@ -29,6 +30,7 @@ import qualified Data.Text as T
 import qualified Data.Vector as V
 import Model.OrgMode
   ( Task,
+    orgDeferKeyword,
     orgDoneKeyword,
     orgInboxKeyword,
     orgListKeyword,
@@ -137,6 +139,11 @@ viewAllCommand =
 viewInboxCommand :: Command Task
 viewInboxCommand =
   viewCommand orgInboxKeyword " ai" "viewInbox" "views/inbox" (Just KB.sortByCreatedDesc) TR.SortCreatedDesc
+
+-- | View DEFER tasks
+viewDeferCommand :: Command Task
+viewDeferCommand =
+  viewCommand orgDeferKeyword " af" "viewDefer" "views/defer" (Just KB.sortByCreatedDesc) TR.SortCreatedDesc
 
 -- | View TODAY tasks
 viewTodayCommand :: Command Task

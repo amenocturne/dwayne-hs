@@ -2,6 +2,7 @@
 
 module Commands.TodoKeyword
   ( inboxCommand,
+    deferCommand,
     relevantCommand,
     somedayCommand,
     notesCommand,
@@ -20,6 +21,7 @@ import Commands.Command (Command (..), TuiBinding (..))
 import qualified Data.Text as T
 import Model.OrgMode
   ( Task,
+    orgDeferKeyword,
     orgDoneKeyword,
     orgInboxKeyword,
     orgListKeyword,
@@ -70,6 +72,9 @@ todoKeywordCommand keyword keySeq alias =
 -- | Predefined commands for each TODO keyword
 inboxCommand :: Command Task
 inboxCommand = todoKeywordCommand orgInboxKeyword "ti" "keywordInbox"
+
+deferCommand :: Command Task
+deferCommand = todoKeywordCommand orgDeferKeyword "tf" "keywordDefer"
 
 relevantCommand :: Command Task
 relevantCommand = todoKeywordCommand orgRelevantKeyword "tr" "keywordRelevant"

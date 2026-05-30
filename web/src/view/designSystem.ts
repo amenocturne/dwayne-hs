@@ -182,6 +182,7 @@ export const cssClasses = {
 export const todoKeywordColors = {
   TODO: "#f9e2af",      // Yellow
   INBOX: "#bac2de",     // Subtext1
+  DEFER: "#94e2d5",     // Teal
   TODAY: "#fab387",     // Peach
   SOON: "#cba6f7",      // Mauve
   WAITING: "#b4befe",   // Lavender

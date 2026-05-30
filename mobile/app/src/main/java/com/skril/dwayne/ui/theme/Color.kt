@@ -18,6 +18,7 @@ val PriorityB = Color(0xFFFFA726)
 val PriorityC = Color(0xFF66BB6A)
 
 val KeywordInbox = Color(0xFFFFAB40)
+val KeywordDefer = Color(0xFF80CBC4)
 val KeywordToday = Color(0xFFEF5350)
 val KeywordSoon = Color(0xFFFFA726)
 val KeywordTodo = Color(0xFF42A5F5)
@@ -28,6 +29,7 @@ val KeywordTrash = Color(0xFF757575)
 
 fun keywordColor(keyword: String): Color = when (keyword) {
     "INBOX" -> KeywordInbox
+    "DEFER" -> KeywordDefer
     "TODAY" -> KeywordToday
     "SOON" -> KeywordSoon
     "TODO" -> KeywordTodo

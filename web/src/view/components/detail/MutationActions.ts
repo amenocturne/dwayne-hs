@@ -9,7 +9,7 @@ export interface MutationCallbacks {
   readonly onChangeKeyword: (file: FilePath, taskIndex: TaskIndex, keyword: string) => void;
 }
 
-const KEYWORD_OPTIONS = ["INBOX", "TODAY", "TODO", "SOON", "SOMEDAY", "WAITING", "PROJECT", "LIST", "DONE", "TRASH"] as const;
+const KEYWORD_OPTIONS = ["INBOX", "DEFER", "TODAY", "TODO", "SOON", "SOMEDAY", "WAITING", "PROJECT", "LIST", "DONE", "TRASH"] as const;
 
 function renderKeywordButton(
   keyword: string,

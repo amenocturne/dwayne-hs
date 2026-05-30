@@ -70,7 +70,7 @@ private val palette: List<Pair<String, Color>> = listOf(
 )
 
 private val keywordChoices = listOf(
-    "INBOX", "TODAY", "SOON", "TODO", "PROJECT", "RELEVANT",
+    "INBOX", "DEFER", "TODAY", "SOON", "TODO", "RELEVANT",
     "SOMEDAY", "WAITING", "NOTES", "LIST", "DONE", "TRASH",
 )
 

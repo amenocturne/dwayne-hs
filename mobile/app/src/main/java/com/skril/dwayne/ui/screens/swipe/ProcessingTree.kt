@@ -2,8 +2,8 @@ package com.skril.dwayne.ui.screens.swipe
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import com.skril.dwayne.ui.theme.KeywordDefer
 import com.skril.dwayne.ui.theme.KeywordDone
-import com.skril.dwayne.ui.theme.KeywordProject
 import com.skril.dwayne.ui.theme.KeywordSoon
 import com.skril.dwayne.ui.theme.KeywordToday
 import com.skril.dwayne.ui.theme.KeywordTodo
@@ -79,9 +79,25 @@ val DefaultProcessingTree: Branch = Branch(
         Terminal("TRASH", KeywordTrash, Modification.SetKeyword("TRASH")),
         Terminal("WAITING", KeywordWaiting, Modification.SetKeyword("WAITING")),
         Terminal("SOMEDAY", KeywordWaiting, Modification.SetKeyword("SOMEDAY")),
-        Terminal("PROJECT", KeywordProject, Modification.SetKeyword("PROJECT")),
+        Terminal("DEFER", KeywordDefer, Modification.SetKeyword("DEFER")),
     ),
 )
+
+fun migrateProcessingTree(tree: Branch): Branch =
+    tree.copy(children = tree.children.map(::migrateProcessingNode))
+
+private fun migrateProcessingNode(node: TreeNode?): TreeNode? = when (node) {
+    null -> null
+    is Branch -> migrateProcessingTree(node)
+    is Terminal -> {
+        val setKeyword = node.modification as? Modification.SetKeyword
+        if (setKeyword?.keyword == "PROJECT") {
+            Terminal("DEFER", KeywordDefer, Modification.SetKeyword("DEFER"))
+        } else {
+            node
+        }
+    }
+}
 
 // --- Persistence: intermediate JSON-shaped types ----------------------------
 

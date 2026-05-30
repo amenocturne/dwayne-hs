@@ -7,6 +7,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.skril.dwayne.ui.screens.swipe.Branch
 import com.skril.dwayne.ui.screens.swipe.BranchJson
 import com.skril.dwayne.ui.screens.swipe.DefaultProcessingTree
+import com.skril.dwayne.ui.screens.swipe.migrateProcessingTree
 import com.skril.dwayne.ui.screens.swipe.toJson
 import com.skril.dwayne.ui.screens.swipe.toRuntime
 import kotlinx.coroutines.flow.Flow
@@ -24,7 +25,7 @@ class TreeStore(context: Context) {
         val raw = prefs[TREE_KEY] ?: return@map DefaultProcessingTree
         runCatching {
             val node = json.decodeFromString(BranchJson.serializer(), raw)
-            node.toRuntime() as Branch
+            migrateProcessingTree(node.toRuntime() as Branch)
         }.getOrDefault(DefaultProcessingTree)
     }
 

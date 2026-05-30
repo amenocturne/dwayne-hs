@@ -31,7 +31,7 @@ export interface DetailPanelCallbacks {
 const PANEL_WIDTH = "420px";
 const PANEL_PADDING = "24px";
 const ALL_KEYWORDS = [
-  "INBOX", "TODAY", "TODO", "SOON", "SOMEDAY",
+  "INBOX", "DEFER", "TODAY", "TODO", "SOON", "SOMEDAY",
   "WAITING", "PROJECT", "LIST", "DONE", "TRASH",
 ] as const;
 

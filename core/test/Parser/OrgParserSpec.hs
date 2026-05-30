@@ -50,6 +50,11 @@ spec = do
       result `shouldBe` ParserSuccess "INBOX"
       remainder `shouldBe` " Task"
       loc `shouldBe` Location 1 5 -- Position after "INBOX"
+    it "parses DEFER keyword" $ do
+      let (loc, remainder, result) = runParser todoKeyWordParser "DEFER Task"
+      result `shouldBe` ParserSuccess "DEFER"
+      remainder `shouldBe` " Task"
+      loc `shouldBe` Location 1 5 -- Position after "DEFER"
   describe "priorityParser" $ do
     it "parses priority A correctly" $ do
       let (loc, remainder, result) = runParser priorityParser "[#A]"

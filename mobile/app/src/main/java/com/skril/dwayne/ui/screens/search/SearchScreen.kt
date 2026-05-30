@@ -25,6 +25,7 @@ private val viewFilterOptions = listOf(
     null to "All",
     "work-queue" to "work-queue",
     "inbox" to "inbox",
+    "defer" to "defer",
     "today" to "today",
     "soon" to "soon",
     "todo" to "todo",

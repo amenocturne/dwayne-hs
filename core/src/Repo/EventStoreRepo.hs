@@ -208,6 +208,7 @@ viewWhere :: FilePath -> Maybe View -> [(T.Text, [SQLData])]
 viewWhere _ Nothing = []
 viewWhere _ (Just ViewAll) = []
 viewWhere inboxFp (Just ViewInbox) = [(" file_path = ?", [SQLText (T.pack inboxFp)])]
+viewWhere _ (Just ViewDefer) = kwOnly "DEFER"
 viewWhere _ (Just ViewToday) = kwOnly "TODAY"
 viewWhere _ (Just ViewSoon) = kwOnly "SOON"
 viewWhere _ (Just ViewTodo) = kwOnly "TODO"

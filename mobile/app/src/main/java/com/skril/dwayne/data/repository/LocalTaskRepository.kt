@@ -76,6 +76,7 @@ class LocalTaskRepository(
 
     private fun applyView(viewName: String, all: List<TaskWithPointer>): List<TaskWithPointer> = when (viewName) {
         "inbox" -> all.filter { it.task.todoKeyword == "INBOX" }
+        "defer" -> all.filter { it.task.todoKeyword == "DEFER" }
         "today" -> all.filter { it.task.todoKeyword == "TODAY" }.sortedBy { it.task.priority ?: Int.MAX_VALUE }
         "soon" -> all.filter { it.task.todoKeyword == "SOON" }.sortedBy { it.task.priority ?: Int.MAX_VALUE }
         "todo" -> all.filter { it.task.todoKeyword == "TODO" }.sortedBy { it.task.priority ?: Int.MAX_VALUE }

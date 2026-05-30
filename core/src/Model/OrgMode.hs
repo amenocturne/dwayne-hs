@@ -237,6 +237,9 @@ orgRelevantKeyword = "RELEVANT"
 orgSomedayKeyword :: T.Text
 orgSomedayKeyword = "SOMEDAY"
 
+orgDeferKeyword :: T.Text
+orgDeferKeyword = "DEFER"
+
 orgNotesKeyword :: T.Text
 orgNotesKeyword = "NOTES"
 
@@ -271,6 +274,7 @@ orgTodoKeyWords =
     orgTodoKeyword,
     orgSoonKeyword,
     orgSomedayKeyword,
+    orgDeferKeyword,
     orgNotesKeyword,
     orgListKeyword,
     orgWaitingKeyword,

@@ -6,6 +6,7 @@ import { VIEW_ORDER } from "../../types/domain.js";
 export const VIEW_LABELS: Readonly<Record<ViewName, string>> = {
   all: "All",
   inbox: "Inbox",
+  defer: "Defer",
   relevant: "Relevant",
   someday: "Someday",
   notes: "Notes",

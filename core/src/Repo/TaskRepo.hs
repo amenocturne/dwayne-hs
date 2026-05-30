@@ -33,7 +33,7 @@ import Model.OrgMode (Task)
 -- 'Repo.EventStoreRepo'. View semantics mirror 'Commands.Views':
 --
 --   * 'ViewInbox' — file_path = inbox file
---   * 'ViewToday' / 'ViewSoon' / 'ViewTodo' / 'ViewDone' / 'ViewSomeday' /
+--   * 'ViewDefer' / 'ViewToday' / 'ViewSoon' / 'ViewTodo' / 'ViewDone' / 'ViewSomeday' /
 --     'ViewWaiting' / 'ViewProject' / 'ViewRelevant' — todo_keyword match
 --   * 'ViewNotes' / 'ViewList' — todo_keyword = NOTES / LIST
 --   * 'ViewWorkQueue' — todo_keyword IN (TODAY, SOON)
@@ -44,6 +44,7 @@ import Model.OrgMode (Task)
 data View
   = ViewAll
   | ViewInbox
+  | ViewDefer
   | ViewToday
   | ViewSoon
   | ViewTodo

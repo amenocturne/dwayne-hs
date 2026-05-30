@@ -65,7 +65,8 @@ import Commands.Tags
     deleteSoftwareTagCommand,
   )
 import Commands.TodoKeyword
-  ( doneCommand,
+  ( deferCommand,
+    doneCommand,
     inboxCommand,
     listCommand,
     projectCommand,
@@ -83,6 +84,7 @@ import Commands.ValidationDialog
   )
 import Commands.Views
   ( viewAllCommand,
+    viewDeferCommand,
     viewDoneCommand,
     viewInboxCommand,
     viewListCommand,
@@ -112,6 +114,7 @@ allCommands =
     refreshViewCommand,
     -- TODO Keyword commands
     inboxCommand,
+    deferCommand,
     todayCommand,
     soonCommand,
     somedayCommand,
@@ -136,6 +139,7 @@ allCommands =
     -- View commands
     viewAllCommand,
     viewInboxCommand,
+    viewDeferCommand,
     viewTodayCommand,
     viewTodoCommand,
     viewSoonCommand,

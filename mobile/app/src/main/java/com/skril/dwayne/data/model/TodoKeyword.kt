@@ -2,6 +2,7 @@ package com.skril.dwayne.data.model
 
 enum class TodoKeyword(val label: String) {
     INBOX("INBOX"),
+    DEFER("DEFER"),
     TODAY("TODAY"),
     SOON("SOON"),
     TODO("TODO"),

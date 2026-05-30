@@ -80,6 +80,7 @@ export interface TaskNode {
 export type ViewName =
   | "all"
   | "inbox"
+  | "defer"
   | "relevant"
   | "someday"
   | "notes"
@@ -99,6 +100,7 @@ export type ViewName =
 export const VIEW_ORDER: ReadonlyArray<ViewName> = [
   "all",
   "inbox",
+  "defer",
   "relevant",
   "todo",
   "today",

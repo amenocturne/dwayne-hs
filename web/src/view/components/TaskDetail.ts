@@ -37,7 +37,7 @@ export interface TaskDetailCallbacks {
 // --- Constants ---
 
 const ALL_KEYWORDS = [
-  "INBOX", "TODAY", "TODO", "SOON", "SOMEDAY",
+  "INBOX", "DEFER", "TODAY", "TODO", "SOON", "SOMEDAY",
   "WAITING", "PROJECT", "LIST", "DONE", "TRASH",
 ] as const;
 

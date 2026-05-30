@@ -27,7 +27,7 @@ import com.skril.dwayne.ui.components.TaskCard
 import com.skril.dwayne.ui.theme.keywordColor
 import kotlinx.coroutines.launch
 
-private val viewTabs = listOf("work-queue", "inbox", "today", "soon", "todo", "waiting", "someday", "list", "done")
+private val viewTabs = listOf("work-queue", "inbox", "defer", "today", "soon", "todo", "waiting", "someday", "list", "done")
 
 private const val TodoViewName = "todo"
 
