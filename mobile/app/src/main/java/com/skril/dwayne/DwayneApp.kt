@@ -8,6 +8,7 @@ import com.skril.dwayne.data.events.Database
 import com.skril.dwayne.data.events.EventStore
 import com.skril.dwayne.data.repository.LocalTaskRepository
 import com.skril.dwayne.data.repository.SettingsStore
+import com.skril.dwayne.data.repository.TreeStore
 import com.skril.dwayne.data.sync.SyncWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -39,10 +40,13 @@ class DwayneApp : Application() {
         private set
     lateinit var taskRepository: LocalTaskRepository
         private set
+    lateinit var treeStore: TreeStore
+        private set
 
     override fun onCreate() {
         super.onCreate()
         settingsStore = SettingsStore(this, BuildConfig.API_BASE_URL)
+        treeStore = TreeStore(this)
         val db = Database.get(this)
         eventStore = EventStore(db)
         taskRepository = LocalTaskRepository(

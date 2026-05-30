@@ -56,11 +56,11 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             buildConfigField("Boolean", "USE_MOCK_DATA", "false")
-            buildConfigField("String", "API_BASE_URL", "\"https://dwayne.home.amenocturne.space\"")
+            buildConfigField("String", "API_BASE_URL", "\"\"")
         }
         release {
             buildConfigField("Boolean", "USE_MOCK_DATA", "false")
-            buildConfigField("String", "API_BASE_URL", "\"https://dwayne.home.amenocturne.space\"")
+            buildConfigField("String", "API_BASE_URL", "\"\"")
             if (releaseSigningConfigured) {
                 signingConfig = signingConfigs.getByName("release")
             }

@@ -10,12 +10,117 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.skril.dwayne.data.model.OrgTime
 import com.skril.dwayne.data.model.Task
 import com.skril.dwayne.data.model.TextNode
 import com.skril.dwayne.ui.theme.keywordColor
 import com.skril.dwayne.ui.theme.priorityColor
+
+// Atomic parts: each renders one slice of a Task. Compose freely.
+
+@Composable
+fun TaskCardHeader(
+    task: Task,
+    style: TextStyle = MaterialTheme.typography.labelSmall,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = task.todoKeyword,
+            style = style,
+            color = keywordColor(task.todoKeyword),
+        )
+        task.priority?.let { p ->
+            Text(
+                text = priorityLabel(p),
+                style = style,
+                color = priorityColor(p),
+            )
+        }
+    }
+}
+
+@Composable
+fun TaskCardTitle(
+    task: Task,
+    style: TextStyle = MaterialTheme.typography.bodyLarge,
+    maxLines: Int = Int.MAX_VALUE,
+) {
+    Text(
+        text = task.title.toPlainString(),
+        style = style,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+@Composable
+fun TaskCardTags(
+    task: Task,
+    style: TextStyle = MaterialTheme.typography.labelSmall,
+) {
+    if (task.tags.isEmpty()) return
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        task.tags.forEach { tag ->
+            Text(
+                text = ":$tag:",
+                style = style,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+fun TaskCardDescription(
+    task: Task,
+    style: TextStyle = MaterialTheme.typography.bodyMedium,
+    maxLines: Int = Int.MAX_VALUE,
+) {
+    val descText = task.description.toPlainString()
+    if (descText.isBlank()) return
+    Text(
+        text = descText,
+        style = style,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+@Composable
+fun TaskCardScheduledLine(
+    task: Task,
+    style: TextStyle = MaterialTheme.typography.labelSmall,
+) {
+    val s = task.scheduled ?: return
+    Text(
+        text = "SCHEDULED: ${formatOrgTime(s)}",
+        style = style,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+fun TaskCardDeadlineLine(
+    task: Task,
+    style: TextStyle = MaterialTheme.typography.labelSmall,
+) {
+    val d = task.deadline ?: return
+    Text(
+        text = "DEADLINE: ${formatOrgTime(d)}",
+        style = style,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+// Compact list-style card. Composes the atomic parts.
 
 @Composable
 fun TaskCard(
@@ -31,87 +136,44 @@ fun TaskCard(
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .padding(16.dp),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = task.todoKeyword,
-                style = MaterialTheme.typography.labelSmall,
-                color = keywordColor(task.todoKeyword),
-            )
-            task.priority?.let { p ->
-                Text(
-                    text = when (p) {
-                        1 -> "#A"
-                        2 -> "#B"
-                        3 -> "#C"
-                        else -> "#$p"
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = priorityColor(p),
-                )
-            }
-        }
-
+        TaskCardHeader(task)
         Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-            text = task.title.toPlainString(),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-
+        TaskCardTitle(task, maxLines = 2)
         if (task.tags.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                task.tags.forEach { tag ->
-                    Text(
-                        text = ":$tag:",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            TaskCardTags(task)
         }
-
-        val descText = task.description.toPlainString()
-        if (descText.isNotBlank()) {
+        if (task.description.toPlainString().isNotBlank()) {
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = descText,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            TaskCardDescription(task, maxLines = 1)
         }
-
-        task.scheduled?.let {
+        if (task.scheduled != null) {
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "SCHEDULED: ${it.date}${it.time?.let { t -> " $t" } ?: ""}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            TaskCardScheduledLine(task)
         }
-
-        task.deadline?.let {
+        if (task.deadline != null) {
             Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "DEADLINE: ${it.date}${it.time?.let { t -> " $t" } ?: ""}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            TaskCardDeadlineLine(task)
         }
     }
 }
+
+private fun priorityLabel(p: Int): String = when (p) {
+    1 -> "#A"; 2 -> "#B"; 3 -> "#C"; else -> "#$p"
+}
+
+private fun formatOrgTime(t: OrgTime): String =
+    if (t.time != null) "${t.date} ${t.time}" else t.date
 
 fun List<TextNode>.toPlainString(): String = joinToString("") { node ->
     when (node) {
         is TextNode.Plain -> node.text
         is TextNode.Link -> node.title ?: node.url
     }
+}
+
+fun firstLinkUrl(task: Task): String? {
+    fun firstIn(nodes: List<TextNode>): String? =
+        nodes.firstNotNullOfOrNull { it as? TextNode.Link }?.url
+    return firstIn(task.title) ?: firstIn(task.description)
 }

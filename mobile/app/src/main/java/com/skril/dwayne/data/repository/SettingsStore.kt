@@ -97,8 +97,8 @@ class SettingsStore(context: Context, private val defaultApiBaseUrl: String) {
     }
 
     companion object {
-        const val DEFAULT_USERNAME = "dwayne"
-        const val DEFAULT_INBOX_FILE = "/Users/skril/Vault/Org/Phone.org"
+        const val DEFAULT_USERNAME = ""
+        const val DEFAULT_INBOX_FILE = "Inbox.org"
         // Note: WorkManager enforces a 15-minute floor for periodic work.
         // Setting this lower has no effect on the periodic schedule. The
         // foreground-trigger / "Force sync now" path is unaffected.

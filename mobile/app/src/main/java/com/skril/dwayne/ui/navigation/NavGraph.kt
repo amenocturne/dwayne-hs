@@ -34,7 +34,9 @@ import com.skril.dwayne.ui.screens.detail.TaskDetailScreen
 import com.skril.dwayne.ui.screens.feed.TaskFeedScreen
 import com.skril.dwayne.ui.screens.search.SearchScreen
 import com.skril.dwayne.ui.screens.settings.SettingsScreen
+import com.skril.dwayne.ui.screens.swipe.DefaultProcessingTree
 import com.skril.dwayne.ui.screens.swipe.SwipeProcessingScreen
+import com.skril.dwayne.ui.screens.treebuilder.TreeBuilderScreen
 import kotlinx.coroutines.launch
 
 private data class BottomNavItem(
@@ -67,6 +69,7 @@ fun DwayneNavHost(
 
     // Recompose feeds/searches whenever projection state changes.
     val state by app.taskRepository.state.collectAsState()
+    val processingTree by app.treeStore.tree.collectAsState(initial = DefaultProcessingTree)
     @Suppress("UNUSED_VARIABLE")
     val stateRevision = state.size  // keep state read so collectAsState stays subscribed
 
@@ -171,9 +174,20 @@ fun DwayneNavHost(
             }
             composable(Screen.Swipe.route) {
                 SwipeProcessingScreen(
-                    repository = repository,
-                    refreshKey = state.size,
+                    repository = app.taskRepository,
+                    tasksByPointer = state,
                     onError = showError,
+                    onTaskClick = { ptr ->
+                        navController.navigate(Screen.TaskDetail.route(ptr.file, ptr.taskIndex))
+                    },
+                    onEditTree = { navController.navigate(Screen.TreeBuilder.route) },
+                    tree = processingTree,
+                )
+            }
+            composable(Screen.TreeBuilder.route) {
+                TreeBuilderScreen(
+                    store = app.treeStore,
+                    onBack = { navController.navigateUp() },
                 )
             }
             composable(Screen.Search.route) {
