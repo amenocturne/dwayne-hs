@@ -4,6 +4,11 @@
 /.idea
 /build
 /app/build
+/dist
+/keystores
+/keystore.properties
+*.jks
+*.keystore
 /captures
 .externalNativeBuild
 .cxx

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,6 +7,25 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.sqldelight)
 }
+
+val releaseSigningProperties = Properties().apply {
+    val propertiesFile = rootProject.file("keystore.properties")
+    if (propertiesFile.isFile) {
+        propertiesFile.inputStream().use(::load)
+    }
+}
+
+fun releaseSigningValue(propertyName: String, environmentName: String): String? =
+    providers.environmentVariable(environmentName).orNull
+        ?: releaseSigningProperties.getProperty(propertyName)
+
+val releaseStoreFile = releaseSigningValue("storeFile", "DWAYNE_RELEASE_STORE_FILE")
+val releaseStorePassword = releaseSigningValue("storePassword", "DWAYNE_RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = releaseSigningValue("keyAlias", "DWAYNE_RELEASE_KEY_ALIAS")
+val releaseKeyPassword = releaseSigningValue("keyPassword", "DWAYNE_RELEASE_KEY_PASSWORD")
+val releaseSigningConfigured =
+    listOf(releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword)
+        .all { !it.isNullOrBlank() }
 
 android {
     namespace = "com.skril.dwayne"
@@ -20,14 +41,29 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            if (releaseSigningConfigured) {
+                storeFile = rootProject.file(releaseStoreFile!!)
+                storePassword = releaseStorePassword!!
+                keyAlias = releaseKeyAlias!!
+                keyPassword = releaseKeyPassword!!
+            }
+        }
+    }
+
     buildTypes {
         debug {
+            applicationIdSuffix = ".debug"
             buildConfigField("Boolean", "USE_MOCK_DATA", "false")
             buildConfigField("String", "API_BASE_URL", "\"https://dwayne.home.amenocturne.space\"")
         }
         release {
             buildConfigField("Boolean", "USE_MOCK_DATA", "false")
             buildConfigField("String", "API_BASE_URL", "\"https://dwayne.home.amenocturne.space\"")
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -96,4 +132,23 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.sqldelight.sqlite.driver)
+}
+
+tasks.register("validateReleaseSigning") {
+    doLast {
+        if (!releaseSigningConfigured) {
+            throw GradleException(
+                "Release signing is not configured. Run `just mobile-release-key`, " +
+                    "or set DWAYNE_RELEASE_STORE_FILE, " +
+                    "DWAYNE_RELEASE_STORE_PASSWORD, DWAYNE_RELEASE_KEY_ALIAS, and " +
+                    "DWAYNE_RELEASE_KEY_PASSWORD."
+            )
+        }
+    }
+}
+
+tasks.matching {
+    it.name in setOf("preReleaseBuild", "assembleRelease", "bundleRelease", "installRelease")
+}.configureEach {
+    dependsOn("validateReleaseSigning")
 }

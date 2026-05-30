@@ -17,6 +17,9 @@ just haskell-format         # ormolu formatting
 just haskell-run            # run TUI (needs DWAYNE_CONFIG)
 just haskell-serve          # run API server
 just web-dev / web-build    # frontend dev/build
+just mobile-build           # build debug Android APK for adb/dev
+just mobile-release-key     # generate ignored release keystore
+just mobile-release         # build + verify signed release APK
 just raycast-install        # install + register raycast extension
 just raycast-dev            # raycast hot-reload dev
 ```
@@ -50,4 +53,3 @@ When tagging: `git tag -a vX.Y.Z -m "description"` and bump the cabal `version:`
 - `Task` — defined in `Model/OrgMode.hs`
 - `AppContext` — TUI state container in `Tui/Types.hs`
 - `FileState` — `Map FilePath (ParserResult (TaskFile Task))` in `Core/Types.hs`
-

@@ -18,6 +18,7 @@ Welcome to the Dwayne documentation! Dwayne is a powerful TUI (Terminal User Int
 
 ### Advanced Topics
 - [Org Mode Format](./org-mode-format.md) - Understanding the underlying data format
+- [Mobile Release](./mobile-release.md) - Build a signed APK for sideload install
 - [Selection & Bulk Operations](./bulk-operations.md) - Working with multiple tasks at once
 - [External Editor Integration](./external-editor.md) - Using your favorite editor with Dwayne
 

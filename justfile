@@ -52,7 +52,36 @@ web-install:
 # Mobile dev
 
 mobile-build:
-  cd mobile; ANDROID_HOME=/opt/homebrew/share/android-commandlinetools ./gradlew assembleDebug
+  cd mobile; ANDROID_HOME="${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}" ./gradlew assembleDebug
+
+mobile-release-key:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [[ -e mobile/keystores/dwayne-release.jks || -e mobile/keystore.properties ]]; then
+    echo "Release key/config already exists. Keep it, or remove mobile/keystores/dwayne-release.jks and mobile/keystore.properties before regenerating."
+    exit 1
+  fi
+  password="$(uuidgen | tr -d '-')"
+  mkdir -p mobile/keystores
+  keytool -genkeypair -v -keystore mobile/keystores/dwayne-release.jks -storepass "$password" -keypass "$password" -alias dwayne-release -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=Dwayne, OU=Personal, O=Personal, L=Nowhere, ST=None, C=XX" -noprompt
+  printf 'storeFile=keystores/dwayne-release.jks\nstorePassword=%s\nkeyAlias=dwayne-release\nkeyPassword=%s\n' "$password" "$password" > mobile/keystore.properties
+  echo "Created mobile/keystores/dwayne-release.jks and mobile/keystore.properties. Back them up; they are required for app updates."
+
+mobile-release:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  android_home="${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}"
+  ANDROID_HOME="$android_home" mobile/gradlew --project-dir mobile :app:assembleRelease
+
+  version="$(awk -F'"' '/versionName =/ { print $2; exit }' mobile/app/build.gradle.kts)"
+  apk="mobile/dist/dwayne-$version.apk"
+  signer="$(find "$android_home/build-tools" -type f -name apksigner | sort | tail -n 1)"
+  test -n "$signer"
+
+  mkdir -p mobile/dist
+  cp mobile/app/build/outputs/apk/release/app-release.apk "$apk"
+  "$signer" verify --verbose "$apk"
+  printf 'Release APK: %s\n' "$apk"
 
 mobile-clean:
   cd mobile; ./gradlew clean
