@@ -33,6 +33,7 @@ const val ChildrenSlots = 8
 
 sealed class Modification {
     data class SetKeyword(val keyword: String) : Modification()
+    data class SetKeywordAndTags(val keyword: String, val tags: List<String>) : Modification()
 }
 
 sealed class TreeNode {
@@ -68,11 +69,13 @@ private fun List<TreeNode?>.padNullsTo(size: Int): List<TreeNode?> =
 fun emptyBranch(label: String, color: Color): Branch =
     Branch(label = label, color = color, children = List(ChildrenSlots) { null })
 
+private val MusicColor = Color(0xFF2DD4BF)
+
 val DefaultProcessingTree: Branch = Branch(
     label = "root",
     color = Color.Unspecified,
     children = listOf(
-        Terminal("TODAY", KeywordToday, Modification.SetKeyword("TODAY")),
+        Terminal("MUSIC", MusicColor, Modification.SetKeywordAndTags("LIST", listOf("music", "download"))),
         Terminal("SOON", KeywordSoon, Modification.SetKeyword("SOON")),
         Terminal("TODO", KeywordTodo, Modification.SetKeyword("TODO")),
         Terminal("DONE", KeywordDone, Modification.SetKeyword("DONE")),
@@ -91,10 +94,12 @@ private fun migrateProcessingNode(node: TreeNode?): TreeNode? = when (node) {
     is Branch -> migrateProcessingTree(node)
     is Terminal -> {
         val setKeyword = node.modification as? Modification.SetKeyword
-        if (setKeyword?.keyword == "PROJECT") {
-            Terminal("DEFER", KeywordDefer, Modification.SetKeyword("DEFER"))
-        } else {
-            node
+        when {
+            setKeyword?.keyword == "PROJECT" ->
+                Terminal("DEFER", KeywordDefer, Modification.SetKeyword("DEFER"))
+            setKeyword?.keyword == "TODAY" && node.label == "TODAY" ->
+                Terminal("MUSIC", MusicColor, Modification.SetKeywordAndTags("LIST", listOf("music", "download")))
+            else -> node
         }
     }
 }
@@ -128,6 +133,10 @@ sealed class ModificationJson {
     @Serializable
     @SerialName("set-keyword")
     data class SetKeyword(val keyword: String) : ModificationJson()
+
+    @Serializable
+    @SerialName("set-keyword-and-tags")
+    data class SetKeywordAndTags(val keyword: String, val tags: List<String>) : ModificationJson()
 }
 
 fun TreeNode.toJson(): TreeNodeJson = when (this) {
@@ -137,6 +146,7 @@ fun TreeNode.toJson(): TreeNodeJson = when (this) {
 
 private fun Modification.toJson(): ModificationJson = when (this) {
     is Modification.SetKeyword -> ModificationJson.SetKeyword(keyword)
+    is Modification.SetKeywordAndTags -> ModificationJson.SetKeywordAndTags(keyword, tags)
 }
 
 fun TreeNodeJson.toRuntime(): TreeNode = when (this) {
@@ -152,4 +162,5 @@ fun TreeNodeJson.toRuntime(): TreeNode = when (this) {
 
 private fun ModificationJson.toRuntime(): Modification = when (this) {
     is ModificationJson.SetKeyword -> Modification.SetKeyword(keyword)
+    is ModificationJson.SetKeywordAndTags -> Modification.SetKeywordAndTags(keyword, tags)
 }

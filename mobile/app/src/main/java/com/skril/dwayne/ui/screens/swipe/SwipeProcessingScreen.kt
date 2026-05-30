@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.skril.dwayne.data.model.EditTaskRequest
 import com.skril.dwayne.data.model.Task
 import com.skril.dwayne.data.model.TaskPointer
 import com.skril.dwayne.data.repository.LocalTaskRepository
@@ -96,7 +97,7 @@ fun SwipeProcessingScreen(
         val child = currentNode.childAt(dir) ?: return
         when (child) {
             is Terminal -> {
-                val ptr = current?.first ?: return
+                val (ptr, task) = current ?: return
                 consumed = consumed + ptr
                 pathStack = emptyList()
                 val mod = child.modification
@@ -105,6 +106,15 @@ fun SwipeProcessingScreen(
                         when (mod) {
                             is Modification.SetKeyword ->
                                 repository.changeKeyword(ptr, mod.keyword)
+                            is Modification.SetKeywordAndTags ->
+                                repository.editTask(
+                                    EditTaskRequest(
+                                        file = ptr.file,
+                                        taskIndex = ptr.taskIndex,
+                                        keyword = mod.keyword,
+                                        tags = task.tags.withAddedTags(mod.tags),
+                                    )
+                                )
                         }
                     } catch (t: Throwable) {
                         consumed = consumed - ptr
@@ -342,6 +352,9 @@ private fun dominantDirection(
     cornerAngleDeg: Double,
 ): Dir? =
     directionOf(offsetX, offsetY, requireThreshold = false, cornerAngleDeg = cornerAngleDeg)
+
+private fun List<String>.withAddedTags(tagsToAdd: List<String>): List<String> =
+    (this + tagsToAdd).distinct()
 
 @Composable
 private fun BoxScope.EdgeMarker(dir: Dir, text: String, color: Color, active: Boolean) {

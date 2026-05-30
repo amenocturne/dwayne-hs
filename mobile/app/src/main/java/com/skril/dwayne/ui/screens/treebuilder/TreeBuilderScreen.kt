@@ -293,6 +293,8 @@ private fun SlotRow(
                     text = when (node) {
                         is Terminal -> when (val m = node.modification) {
                             is Modification.SetKeyword -> "→ ${m.keyword}"
+                            is Modification.SetKeywordAndTags ->
+                                "→ ${m.keyword} + ${m.tags.joinToString("") { ":$it:" }}"
                         }
                         is Branch -> "${node.children.count { it != null }} sub-slots"
                     },
@@ -343,8 +345,19 @@ private fun EditNodeDialog(
     }
     var keyword by remember(initial) {
         mutableStateOf(
-            (initial as? Terminal)?.let { (it.modification as? Modification.SetKeyword)?.keyword }
-                ?: "TODO",
+            (initial as? Terminal)?.let {
+                when (val m = it.modification) {
+                    is Modification.SetKeyword -> m.keyword
+                    is Modification.SetKeywordAndTags -> m.keyword
+                }
+            } ?: "TODO",
+        )
+    }
+    var tagsText by remember(initial) {
+        mutableStateOf(
+            (initial as? Terminal)?.let {
+                (it.modification as? Modification.SetKeywordAndTags)?.tags?.joinToString(", ")
+            } ?: "",
         )
     }
 
@@ -400,6 +413,14 @@ private fun EditNodeDialog(
                             }
                         }
                     }
+                    OutlinedTextField(
+                        value = tagsText,
+                        onValueChange = { tagsText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Tags") },
+                        placeholder = { Text("music, download") },
+                        singleLine = true,
+                    )
                 }
 
                 OutlinedTextField(
@@ -455,7 +476,16 @@ private fun EditNodeDialog(
                             else -> emptyBranch(finalLabel, color)
                         }
                     } else {
-                        Terminal(finalLabel, color, Modification.SetKeyword(keyword))
+                        val tags = tagsText.split(",")
+                            .map { it.trim().trim(':') }
+                            .filter { it.isNotBlank() }
+                            .distinct()
+                        val modification = if (tags.isEmpty()) {
+                            Modification.SetKeyword(keyword)
+                        } else {
+                            Modification.SetKeywordAndTags(keyword, tags)
+                        }
+                        Terminal(finalLabel, color, modification)
                     }
                     onConfirm(node)
                 },
