@@ -1,5 +1,7 @@
 package com.skril.dwayne.ui.screens.detail
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -10,11 +12,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.skril.dwayne.data.model.*
@@ -74,6 +78,7 @@ fun TaskDetailScreen(
     var descText by remember(task.description) { mutableStateOf(task.description.toPlainString()) }
     var scheduled by remember(task.scheduled) { mutableStateOf(task.scheduled) }
     var deadline by remember(task.deadline) { mutableStateOf(task.deadline) }
+    val links = remember(task.title, task.description) { taskLinks(task) }
 
     val dirty = keyword != task.todoKeyword ||
         titleText != task.title.toPlainString() ||
@@ -82,6 +87,15 @@ fun TaskDetailScreen(
         deadline != task.deadline
 
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    fun openLink(url: String) {
+        try {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (t: Throwable) {
+            onError("Open link failed: ${t.message ?: t::class.java.simpleName}")
+        }
+    }
 
     fun save() {
         scope.launch {
@@ -168,6 +182,10 @@ fun TaskDetailScreen(
                 }
             }
 
+            if (links.isNotEmpty()) {
+                LinkSection(links = links, onOpen = ::openLink)
+            }
+
             OutlinedTextField(
                 value = descText,
                 onValueChange = { descText = it },
@@ -203,6 +221,51 @@ fun TaskDetailScreen(
         }
     }
 }
+
+@Composable
+private fun LinkSection(
+    links: List<TextNode.Link>,
+    onOpen: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "Links",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        links.forEach { link ->
+            OutlinedButton(
+                onClick = { onOpen(link.url) },
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+            ) {
+                Icon(Icons.Default.OpenInNew, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = link.title ?: link.url,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                    )
+                    if (link.title != null) {
+                        Text(
+                            text = link.url,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun taskLinks(task: Task): List<TextNode.Link> =
+    (task.title + task.description).filterIsInstance<TextNode.Link>()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
