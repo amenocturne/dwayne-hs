@@ -22,6 +22,7 @@ raycast/dist
 .DS_Store
 .opencode/
 AGENTS.md
+!/AGENTS.md
 tmp/
 raycast/raycast-env.d.ts
 .claude/tasks/
