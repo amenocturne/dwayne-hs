@@ -5,11 +5,14 @@ import com.skril.dwayne.data.events.EventProjection
 import com.skril.dwayne.data.events.EventStore
 import com.skril.dwayne.data.events.Nullable
 import com.skril.dwayne.data.model.*
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -28,6 +31,7 @@ import java.util.TimeZone
 class LocalTaskRepository(
     private val store: EventStore,
     private val inboxFileProvider: () -> String,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : TaskRepository {
 
     private val mutex = Mutex()
@@ -98,52 +102,56 @@ class LocalTaskRepository(
 
     // -- Mutations -----------------------------------------------------------
 
-    override suspend fun capture(title: String): TaskWithPointer = mutex.withLock {
-        val file = inboxFileProvider()
-        require(file.isNotBlank()) {
-            "Inbox file is not configured. Set it under Settings → Inbox file."
+    override suspend fun capture(title: String): TaskWithPointer = withContext(ioDispatcher) {
+        mutex.withLock {
+            val file = inboxFileProvider()
+            require(file.isNotBlank()) {
+                "Inbox file is not configured. Set it under Settings → Inbox file."
+            }
+            val nextIndex = (store.maxTaskIndexForFile(file) ?: -1) + 1
+            val now = isoNow()
+            val task = Task(
+                level = 1,
+                todoKeyword = "INBOX",
+                priority = null,
+                title = EventProjection.plainTitle(title.trim()),
+                tags = emptyList(),
+                scheduled = null,
+                deadline = null,
+                createdProp = OrgTime(date = today()),
+                closed = null,
+                properties = emptyList(),
+                description = emptyList(),
+            )
+            val event = EventProjection.genesisEvent(file, nextIndex, now, task)
+            applyEvent(event)
+            TaskWithPointer(task = task, pointer = TaskPointer(file, nextIndex))
         }
-        val nextIndex = (store.maxTaskIndexForFile(file) ?: -1) + 1
-        val now = isoNow()
-        val task = Task(
-            level = 1,
-            todoKeyword = "INBOX",
-            priority = null,
-            title = EventProjection.plainTitle(title.trim()),
-            tags = emptyList(),
-            scheduled = null,
-            deadline = null,
-            createdProp = OrgTime(date = today()),
-            closed = null,
-            properties = emptyList(),
-            description = emptyList(),
-        )
-        val event = EventProjection.genesisEvent(file, nextIndex, now, task)
-        applyEvent(event)
-        TaskWithPointer(task = task, pointer = TaskPointer(file, nextIndex))
     }
 
-    override suspend fun editTask(request: EditTaskRequest): TaskWithPointer = mutex.withLock {
-        val pointer = TaskPointer(request.file, request.taskIndex)
-        val now = isoNow()
-        val event = Event(
-            filePath = request.file,
-            taskIndex = request.taskIndex,
-            occurredAt = now,
-            todoKeyword = request.keyword,
-            priority = request.priority?.let { it.value ?: Nullable.PRIORITY_CLEARED },
-            title = request.title?.let { listOf(TextNode.Plain(it)) },
-            tags = request.tags,
-            scheduled = request.scheduled?.let { it.value ?: Nullable.ORG_TIME_CLEARED },
-            deadline = request.deadline?.let { it.value ?: Nullable.ORG_TIME_CLEARED },
-            description = request.description?.let {
-                if (it.isEmpty()) Nullable.DESCRIPTION_CLEARED else listOf(TextNode.Plain(it))
-            },
-        )
-        applyEvent(event)
-        val task = _state.value[pointer]
-            ?: error("Task not found after edit: $pointer")
-        TaskWithPointer(task = task, pointer = pointer)
+    override suspend fun editTask(request: EditTaskRequest): TaskWithPointer = withContext(ioDispatcher) {
+        mutex.withLock {
+            val pointer = TaskPointer(request.file, request.taskIndex)
+            val now = isoNow()
+            val event = Event(
+                filePath = request.file,
+                taskIndex = request.taskIndex,
+                occurredAt = now,
+                todoKeyword = request.keyword,
+                priority = request.priority?.let { it.value ?: Nullable.PRIORITY_CLEARED },
+                title = request.title?.let { listOf(TextNode.Plain(it)) },
+                tags = request.tags,
+                scheduled = request.scheduled?.let { it.value ?: Nullable.ORG_TIME_CLEARED },
+                deadline = request.deadline?.let { it.value ?: Nullable.ORG_TIME_CLEARED },
+                description = request.description?.let {
+                    if (it.isEmpty()) Nullable.DESCRIPTION_CLEARED else listOf(TextNode.Plain(it))
+                },
+            )
+            applyEvent(event)
+            val task = _state.value[pointer]
+                ?: error("Task not found after edit: $pointer")
+            TaskWithPointer(task = task, pointer = pointer)
+        }
     }
 
     override suspend fun changeKeyword(pointer: TaskPointer, keyword: String): TaskWithPointer =
@@ -152,30 +160,34 @@ class LocalTaskRepository(
     override suspend fun changePriority(pointer: TaskPointer, priority: Int?): TaskWithPointer =
         editTask(EditTaskRequest(file = pointer.file, taskIndex = pointer.taskIndex, priority = ClearOrSet(priority)))
 
-    override suspend fun addTag(pointer: TaskPointer, tag: String): TaskWithPointer = mutex.withLock {
-        val current = _state.value[pointer] ?: error("Task not found: $pointer")
-        val newTags = if (tag in current.tags) current.tags else current.tags + tag
-        val event = Event(
-            filePath = pointer.file,
-            taskIndex = pointer.taskIndex,
-            occurredAt = isoNow(),
-            tags = newTags,
-        )
-        applyEvent(event)
-        TaskWithPointer(task = _state.value[pointer]!!, pointer = pointer)
+    override suspend fun addTag(pointer: TaskPointer, tag: String): TaskWithPointer = withContext(ioDispatcher) {
+        mutex.withLock {
+            val current = _state.value[pointer] ?: error("Task not found: $pointer")
+            val newTags = if (tag in current.tags) current.tags else current.tags + tag
+            val event = Event(
+                filePath = pointer.file,
+                taskIndex = pointer.taskIndex,
+                occurredAt = isoNow(),
+                tags = newTags,
+            )
+            applyEvent(event)
+            TaskWithPointer(task = _state.value[pointer]!!, pointer = pointer)
+        }
     }
 
-    override suspend fun removeTag(pointer: TaskPointer, tag: String): TaskWithPointer = mutex.withLock {
-        val current = _state.value[pointer] ?: error("Task not found: $pointer")
-        val newTags = current.tags - tag
-        val event = Event(
-            filePath = pointer.file,
-            taskIndex = pointer.taskIndex,
-            occurredAt = isoNow(),
-            tags = if (newTags.isEmpty()) Nullable.TAGS_CLEARED else newTags,
-        )
-        applyEvent(event)
-        TaskWithPointer(task = _state.value[pointer]!!, pointer = pointer)
+    override suspend fun removeTag(pointer: TaskPointer, tag: String): TaskWithPointer = withContext(ioDispatcher) {
+        mutex.withLock {
+            val current = _state.value[pointer] ?: error("Task not found: $pointer")
+            val newTags = current.tags - tag
+            val event = Event(
+                filePath = pointer.file,
+                taskIndex = pointer.taskIndex,
+                occurredAt = isoNow(),
+                tags = if (newTags.isEmpty()) Nullable.TAGS_CLEARED else newTags,
+            )
+            applyEvent(event)
+            TaskWithPointer(task = _state.value[pointer]!!, pointer = pointer)
+        }
     }
 
     override suspend fun deleteTask(pointer: TaskPointer): TaskWithPointer =

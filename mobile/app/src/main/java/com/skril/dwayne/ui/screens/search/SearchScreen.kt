@@ -41,6 +41,7 @@ fun SearchScreen(
     repository: TaskRepository,
     store: SavedQueryStore,
     onError: (String) -> Unit,
+    onTaskClick: (com.skril.dwayne.data.model.TaskPointer) -> Unit = {},
 ) {
     var queryText by remember { mutableStateOf("") }
     var viewFilter by remember { mutableStateOf<String?>(null) }
@@ -189,7 +190,7 @@ fun SearchScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(results, key = { "${it.pointer.file}:${it.pointer.taskIndex}" }) { twp ->
-                        TaskCard(task = twp.task)
+                        TaskCard(task = twp.task, onClick = { onTaskClick(twp.pointer) })
                     }
                 }
             }

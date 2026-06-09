@@ -46,8 +46,8 @@ private data class BottomNavItem(
 )
 
 private val bottomNavItems = listOf(
-    BottomNavItem(Screen.Feed, "Feed", Icons.AutoMirrored.Default.List),
     BottomNavItem(Screen.Capture, "Capture", Icons.Default.Add),
+    BottomNavItem(Screen.Feed, "Feed", Icons.AutoMirrored.Default.List),
     BottomNavItem(Screen.Swipe, "Process", Icons.Default.SwipeRight),
     BottomNavItem(Screen.Search, "Search", Icons.Default.Search),
     BottomNavItem(Screen.Settings, "Settings", Icons.Default.Settings),
@@ -126,7 +126,7 @@ fun DwayneNavHost(
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Feed.route,
+            startDestination = Screen.Capture.route,
             modifier = Modifier.padding(innerPadding),
         ) {
             composable(Screen.Feed.route) {
@@ -191,7 +191,14 @@ fun DwayneNavHost(
                 )
             }
             composable(Screen.Search.route) {
-                SearchScreen(repository = repository, store = savedQueryStore, onError = showError)
+                SearchScreen(
+                    repository = repository,
+                    store = savedQueryStore,
+                    onError = showError,
+                    onTaskClick = { ptr ->
+                        navController.navigate(Screen.TaskDetail.route(ptr.file, ptr.taskIndex))
+                    },
+                )
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(store = settingsStore, defaultApiBaseUrl = BuildConfig.API_BASE_URL)
