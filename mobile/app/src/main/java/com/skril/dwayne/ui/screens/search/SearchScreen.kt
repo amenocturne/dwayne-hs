@@ -18,6 +18,7 @@ import com.skril.dwayne.data.repository.SavedQuery
 import com.skril.dwayne.data.repository.SavedQueryStore
 import com.skril.dwayne.data.repository.TaskRepository
 import com.skril.dwayne.ui.components.TaskCard
+import com.skril.dwayne.ui.components.TaskCardInteraction
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
@@ -190,7 +191,10 @@ fun SearchScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(results, key = { "${it.pointer.file}:${it.pointer.taskIndex}" }) { twp ->
-                        TaskCard(task = twp.task, onClick = { onTaskClick(twp.pointer) })
+                        TaskCard(
+                            task = twp.task,
+                            interaction = TaskCardInteraction.OpenDetail(twp.pointer, onTaskClick),
+                        )
                     }
                 }
             }

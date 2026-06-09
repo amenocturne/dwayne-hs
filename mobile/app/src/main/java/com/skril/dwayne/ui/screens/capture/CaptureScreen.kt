@@ -14,6 +14,7 @@ import com.skril.dwayne.data.model.Task
 import com.skril.dwayne.data.model.TaskPointer
 import com.skril.dwayne.data.repository.TaskRepository
 import com.skril.dwayne.ui.components.TaskCard
+import com.skril.dwayne.ui.components.TaskCardInteraction
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -98,7 +99,10 @@ fun CaptureScreen(
                     items = recentTasks,
                     key = { (ptr, _) -> "${ptr.file}:${ptr.taskIndex}" },
                 ) { (ptr, task) ->
-                    TaskCard(task = task, onClick = { onTaskClick(ptr) })
+                    TaskCard(
+                        task = task,
+                        interaction = TaskCardInteraction.OpenDetail(ptr, onTaskClick),
+                    )
                 }
             }
         }

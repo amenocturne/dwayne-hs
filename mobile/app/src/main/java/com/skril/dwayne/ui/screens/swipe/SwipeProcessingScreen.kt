@@ -5,7 +5,6 @@ import android.net.Uri
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,7 +39,9 @@ import com.skril.dwayne.data.repository.LocalTaskRepository
 import com.skril.dwayne.ui.components.TaskCardDescription
 import com.skril.dwayne.ui.components.TaskCardTags
 import com.skril.dwayne.ui.components.TaskCardTitle
+import com.skril.dwayne.ui.components.TaskCardInteraction
 import com.skril.dwayne.ui.components.firstLinkUrl
+import com.skril.dwayne.ui.components.taskCardInteraction
 import com.skril.dwayne.ui.components.toPlainString
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -252,7 +253,7 @@ fun SwipeProcessingScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .clickable { onTaskClick(current.first) }
+                        .taskCardInteraction(TaskCardInteraction.OpenDetail(current.first, onTaskClick))
                         .padding(24.dp),
                     verticalArrangement = Arrangement.Center,
                 ) {

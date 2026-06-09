@@ -1,7 +1,6 @@
 package com.skril.dwayne.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -126,14 +125,14 @@ fun TaskCardDeadlineLine(
 fun TaskCard(
     task: Task,
     modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
+    interaction: TaskCardInteraction = TaskCardInteraction.PreviewOnly,
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
+            .taskCardInteraction(interaction)
             .padding(16.dp),
     ) {
         TaskCardHeader(task)

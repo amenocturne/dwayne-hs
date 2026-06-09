@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.skril.dwayne.data.model.TaskWithPointer
 import com.skril.dwayne.data.repository.TaskRepository
 import com.skril.dwayne.ui.components.TaskCard
+import com.skril.dwayne.ui.components.TaskCardInteraction
 import com.skril.dwayne.ui.theme.keywordColor
 import kotlinx.coroutines.launch
 
@@ -145,12 +146,15 @@ fun TaskFeedScreen(
                 ) {
                     items(tasks, key = { "${it.pointer.file}:${it.pointer.taskIndex}" }) { twp ->
                         if (swipeActions == null) {
-                            TaskCard(task = twp.task, onClick = { onTaskClick(twp.pointer) })
+                            TaskCard(
+                                task = twp.task,
+                                interaction = TaskCardInteraction.OpenDetail(twp.pointer, onTaskClick),
+                            )
                         } else {
                             SwipeableTaskCard(
                                 taskWithPointer = twp,
                                 actions = swipeActions,
-                                onClick = { onTaskClick(twp.pointer) },
+                                interaction = TaskCardInteraction.OpenDetail(twp.pointer, onTaskClick),
                                 onAction = { action -> changeTaskKeyword(twp, action.keyword) },
                             )
                         }
@@ -165,7 +169,7 @@ fun TaskFeedScreen(
 private fun SwipeableTaskCard(
     taskWithPointer: TaskWithPointer,
     actions: FeedSwipeActions,
-    onClick: () -> Unit,
+    interaction: TaskCardInteraction,
     onAction: (FeedSwipeAction) -> Unit,
 ) {
     val density = LocalDensity.current
@@ -200,7 +204,7 @@ private fun SwipeableTaskCard(
         )
         TaskCard(
             task = taskWithPointer.task,
-            onClick = onClick,
+            interaction = interaction,
             modifier = Modifier
                 .graphicsLayer {
                     translationX = displayOffset
