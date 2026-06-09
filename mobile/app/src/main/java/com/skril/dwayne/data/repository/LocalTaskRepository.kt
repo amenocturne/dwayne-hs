@@ -5,6 +5,8 @@ import com.skril.dwayne.data.events.EventProjection
 import com.skril.dwayne.data.events.EventStore
 import com.skril.dwayne.data.events.Nullable
 import com.skril.dwayne.data.model.*
+import com.skril.dwayne.data.query.applyTaskView
+import com.skril.dwayne.data.query.filterTaskSearch
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,21 +57,13 @@ class LocalTaskRepository(
 
     override suspend fun getView(viewName: String, offset: Int, limit: Int): PaginatedResponse {
         val all = currentList()
-        val filtered = applyView(viewName, all)
+        val filtered = applyTaskView(viewName, all)
         return paginate(filtered, offset, limit)
     }
 
     override suspend fun search(query: String, view: String?, offset: Int, limit: Int): PaginatedResponse {
-        val base = if (view != null) applyView(view, currentList()) else currentList()
-        val q = query.trim().lowercase()
-        val filtered = if (q.isEmpty()) base else base.filter { twp ->
-            val titleText = twp.task.title.filterIsInstance<TextNode.Plain>().joinToString("") { it.text }
-            val descText = twp.task.description.filterIsInstance<TextNode.Plain>().joinToString("") { it.text }
-            titleText.lowercase().contains(q)
-                || descText.lowercase().contains(q)
-                || twp.task.tags.any { it.lowercase().contains(q) }
-                || twp.task.todoKeyword.lowercase().contains(q)
-        }
+        val base = if (view != null) applyTaskView(view, currentList()) else currentList()
+        val filtered = filterTaskSearch(base, query)
         return paginate(filtered, offset, limit)
     }
 
@@ -77,22 +71,6 @@ class LocalTaskRepository(
         _state.value.entries
             .map { (ptr, task) -> TaskWithPointer(task, ptr) }
             .sortedWith(compareBy({ it.pointer.file }, { it.pointer.taskIndex }))
-
-    private fun applyView(viewName: String, all: List<TaskWithPointer>): List<TaskWithPointer> = when (viewName) {
-        "inbox" -> all.filter { it.task.todoKeyword == "INBOX" }
-        "defer" -> all.filter { it.task.todoKeyword == "DEFER" }
-        "today" -> all.filter { it.task.todoKeyword == "TODAY" }.sortedBy { it.task.priority ?: Int.MAX_VALUE }
-        "soon" -> all.filter { it.task.todoKeyword == "SOON" }.sortedBy { it.task.priority ?: Int.MAX_VALUE }
-        "todo" -> all.filter { it.task.todoKeyword == "TODO" }.sortedBy { it.task.priority ?: Int.MAX_VALUE }
-        "waiting" -> all.filter { it.task.todoKeyword == "WAITING" }
-        "someday" -> all.filter { it.task.todoKeyword == "SOMEDAY" }
-        "list" -> all.filter { it.task.todoKeyword == "LIST" }
-        "work-queue" -> all.filter { it.task.todoKeyword in listOf("TODAY", "SOON") }
-            .sortedBy { it.task.priority ?: Int.MAX_VALUE }
-        "done" -> all.filter { it.task.todoKeyword == "DONE" }
-        "trash" -> all.filter { it.task.todoKeyword == "TRASH" }
-        else -> all
-    }
 
     private fun paginate(items: List<TaskWithPointer>, offset: Int, limit: Int): PaginatedResponse {
         val total = items.size

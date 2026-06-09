@@ -2,6 +2,8 @@ package com.skril.dwayne.data.repository
 
 import com.skril.dwayne.data.mock.MockData
 import com.skril.dwayne.data.model.*
+import com.skril.dwayne.data.query.applyTaskView
+import com.skril.dwayne.data.query.filterTaskSearch
 
 interface TaskRepository {
     suspend fun getView(viewName: String, offset: Int = 0, limit: Int = Int.MAX_VALUE): PaginatedResponse
@@ -20,19 +22,7 @@ class MockTaskRepository : TaskRepository {
     private val tasks = MockData.allTasks.toMutableList()
 
     override suspend fun getView(viewName: String, offset: Int, limit: Int): PaginatedResponse {
-        val filtered = when (viewName) {
-            "inbox" -> tasks.filter { it.task.todoKeyword == "INBOX" }
-            "today" -> tasks.filter { it.task.todoKeyword == "TODAY" }.sortedBy { it.task.priority ?: Int.MAX_VALUE }
-            "soon" -> tasks.filter { it.task.todoKeyword == "SOON" }.sortedBy { it.task.priority ?: Int.MAX_VALUE }
-            "todo" -> tasks.filter { it.task.todoKeyword == "TODO" }.sortedBy { it.task.priority ?: Int.MAX_VALUE }
-            "waiting" -> tasks.filter { it.task.todoKeyword == "WAITING" }
-            "someday" -> tasks.filter { it.task.todoKeyword == "SOMEDAY" }
-            "list" -> tasks.filter { it.task.todoKeyword == "LIST" }
-            "work-queue" -> tasks.filter { it.task.todoKeyword in listOf("TODAY", "SOON") }.sortedBy { it.task.priority ?: Int.MAX_VALUE }
-            "done" -> tasks.filter { it.task.todoKeyword == "DONE" }
-            "trash" -> tasks.filter { it.task.todoKeyword == "TRASH" }
-            else -> tasks
-        }
+        val filtered = applyTaskView(viewName, tasks)
         return MockData.paginatedResponse(filtered, offset, limit)
     }
 
@@ -42,12 +32,7 @@ class MockTaskRepository : TaskRepository {
         } else {
             tasks
         }
-        val q = query.lowercase()
-        val results = base.filter { twp ->
-            val titleText = twp.task.title.filterIsInstance<TextNode.Plain>().joinToString("") { it.text }
-            val descText = twp.task.description.filterIsInstance<TextNode.Plain>().joinToString("") { it.text }
-            titleText.lowercase().contains(q) || descText.lowercase().contains(q) || twp.task.tags.any { it.lowercase().contains(q) }
-        }
+        val results = filterTaskSearch(base, query)
         return MockData.paginatedResponse(results, offset, limit)
     }
 

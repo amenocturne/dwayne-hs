@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.skril.dwayne.data.model.TaskWithPointer
+import com.skril.dwayne.data.query.MobileSearchViewFilters
 import com.skril.dwayne.data.repository.SavedQuery
 import com.skril.dwayne.data.repository.SavedQueryStore
 import com.skril.dwayne.data.repository.TaskRepository
@@ -21,20 +22,6 @@ import com.skril.dwayne.ui.components.TaskCard
 import com.skril.dwayne.ui.components.TaskCardInteraction
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
-
-private val viewFilterOptions = listOf(
-    null to "All",
-    "work-queue" to "work-queue",
-    "inbox" to "inbox",
-    "defer" to "defer",
-    "today" to "today",
-    "soon" to "soon",
-    "todo" to "todo",
-    "waiting" to "waiting",
-    "someday" to "someday",
-    "list" to "list",
-    "done" to "done",
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,11 +92,11 @@ fun SearchScreen(
                     expanded = viewMenuOpen,
                     onDismissRequest = { viewMenuOpen = false },
                 ) {
-                    viewFilterOptions.forEach { (value, label) ->
+                    MobileSearchViewFilters.forEach { option ->
                         DropdownMenuItem(
-                            text = { Text(label) },
+                            text = { Text(option.label) },
                             onClick = {
-                                viewFilter = value
+                                viewFilter = option.viewName
                                 viewMenuOpen = false
                             },
                         )

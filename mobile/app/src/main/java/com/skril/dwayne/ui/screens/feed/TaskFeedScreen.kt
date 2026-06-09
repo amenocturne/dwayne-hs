@@ -22,13 +22,12 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.skril.dwayne.data.model.TaskWithPointer
+import com.skril.dwayne.data.query.MobileFeedViews
 import com.skril.dwayne.data.repository.TaskRepository
 import com.skril.dwayne.ui.components.TaskCard
 import com.skril.dwayne.ui.components.TaskCardInteraction
 import com.skril.dwayne.ui.theme.keywordColor
 import kotlinx.coroutines.launch
-
-private val viewTabs = listOf("work-queue", "inbox", "defer", "today", "soon", "todo", "waiting", "someday", "list", "done")
 
 private const val TodoViewName = "todo"
 
@@ -73,7 +72,7 @@ fun TaskFeedScreen(
     }
 
     fun changeTaskKeyword(twp: TaskWithPointer, keyword: String) {
-        val viewName = viewTabs[selectedTab]
+        val viewName = MobileFeedViews[selectedTab].viewName
         val previousKeyword = twp.task.todoKeyword
         scope.launch {
             try {
@@ -96,7 +95,7 @@ fun TaskFeedScreen(
     }
 
     LaunchedEffect(selectedTab, repository, refreshKey) {
-        loadTasks(viewTabs[selectedTab])
+        loadTasks(MobileFeedViews[selectedTab].viewName)
     }
 
     Scaffold(
@@ -115,11 +114,11 @@ fun TaskFeedScreen(
                 selectedTabIndex = selectedTab,
                 edgePadding = 16.dp,
             ) {
-                viewTabs.forEachIndexed { index, tab ->
+                MobileFeedViews.forEachIndexed { index, view ->
                     Tab(
                         selected = selectedTab == index,
                         onClick = { selectedTab = index },
-                        text = { Text(tab.uppercase()) },
+                        text = { Text(view.label.uppercase()) },
                     )
                 }
             }
@@ -137,7 +136,7 @@ fun TaskFeedScreen(
                     )
                 }
             } else {
-                val swipeActions = swipeActionsForView(viewTabs[selectedTab])
+                val swipeActions = swipeActionsForView(MobileFeedViews[selectedTab].viewName)
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),

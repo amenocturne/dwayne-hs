@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.skril.dwayne.data.model.Task
 import com.skril.dwayne.data.model.TaskPointer
+import com.skril.dwayne.data.query.matchesProcessingFilter
 import com.skril.dwayne.data.repository.LocalTaskRepository
 import com.skril.dwayne.ui.components.TaskCardDescription
 import com.skril.dwayne.ui.components.TaskCardTags
@@ -73,7 +74,7 @@ fun SwipeProcessingScreen(
     val filteredTasks: List<Pair<TaskPointer, Task>> =
         remember(tasksByPointer, filterText, consumed) {
             tasksByPointer.asSequence()
-                .filter { (ptr, task) -> ptr !in consumed && matchesFilter(task, filterText) }
+                .filter { (ptr, task) -> ptr !in consumed && matchesProcessingFilter(task, filterText) }
                 .map { (ptr, task) -> ptr to task }
                 .sortedBy { (ptr, _) -> "${ptr.file}:${ptr.taskIndex}" }
                 .toList()
@@ -480,26 +481,5 @@ private fun BoxScope.RightEdgeMarker(text: String, color: Color, active: Boolean
                 .wrapContentSize(unbounded = true)
                 .rotate(90f),
         )
-    }
-}
-
-private fun matchesFilter(task: Task, filter: String): Boolean {
-    val terms = filter.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
-    if (terms.isEmpty()) return true
-    return terms.all { term ->
-        when {
-            term.startsWith("keyword:", ignoreCase = true) -> {
-                val v = term.substringAfter(":")
-                task.todoKeyword.equals(v, ignoreCase = true)
-            }
-            term.startsWith("tag:", ignoreCase = true) -> {
-                val v = term.substringAfter(":")
-                task.tags.any { it.equals(v, ignoreCase = true) }
-            }
-            else -> {
-                val text = task.title.toPlainString() + " " + task.description.toPlainString()
-                text.contains(term, ignoreCase = true)
-            }
-        }
     }
 }

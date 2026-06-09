@@ -12,6 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.skril.dwayne.data.model.Task
 import com.skril.dwayne.data.model.TaskPointer
+import com.skril.dwayne.data.model.TaskWithPointer
+import com.skril.dwayne.data.query.resolveRecentPhoneCaptures
 import com.skril.dwayne.data.repository.TaskRepository
 import com.skril.dwayne.ui.components.TaskCard
 import com.skril.dwayne.ui.components.TaskCardInteraction
@@ -78,11 +80,7 @@ fun CaptureScreen(
             }
         }
 
-        // Resolve pointers against the live projection so edits reflect instantly.
-        // Drop pointers whose task no longer exists (e.g. moved to a non-tracked file).
-        val recentTasks = recentPointers.mapNotNull { ptr ->
-            tasksByPointer[ptr]?.let { task -> ptr to task }
-        }
+        val recentTasks = resolveRecentPhoneCaptures(recentPointers, tasksByPointer)
 
         if (recentTasks.isNotEmpty()) {
             Text(
@@ -97,11 +95,11 @@ fun CaptureScreen(
             ) {
                 items(
                     items = recentTasks,
-                    key = { (ptr, _) -> "${ptr.file}:${ptr.taskIndex}" },
-                ) { (ptr, task) ->
+                    key = { "${it.pointer.file}:${it.pointer.taskIndex}" },
+                ) { taskWithPointer: TaskWithPointer ->
                     TaskCard(
-                        task = task,
-                        interaction = TaskCardInteraction.OpenDetail(ptr, onTaskClick),
+                        task = taskWithPointer.task,
+                        interaction = TaskCardInteraction.OpenDetail(taskWithPointer.pointer, onTaskClick),
                     )
                 }
             }
