@@ -34,7 +34,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import com.skril.dwayne.data.model.EditTaskRequest
 import com.skril.dwayne.data.model.Task
 import com.skril.dwayne.data.model.TaskPointer
 import com.skril.dwayne.data.repository.LocalTaskRepository
@@ -90,40 +89,26 @@ fun SwipeProcessingScreen(
     fun handleSwipe(dir: Dir) {
         offsetX = 0f
         offsetY = 0f
-        if (dir == backDir) {
-            pathStack = pathStack.dropLast(1)
-            return
-        }
-        val child = currentNode.childAt(dir) ?: return
-        when (child) {
-            is Terminal -> {
+        when (val resolution = resolveProcessingSwipe(currentNode, backDir, dir)) {
+            ProcessingSwipeResolution.Ignore -> return
+            ProcessingSwipeResolution.NavigateBack -> {
+                pathStack = pathStack.dropLast(1)
+            }
+            is ProcessingSwipeResolution.EnterBranch -> {
+                pathStack = pathStack + (currentNode to dir)
+            }
+            is ProcessingSwipeResolution.ApplyTerminal -> {
                 val (ptr, task) = current ?: return
                 consumed = consumed + ptr
                 pathStack = emptyList()
-                val mod = child.modification
                 scope.launch {
                     try {
-                        when (mod) {
-                            is Modification.SetKeyword ->
-                                repository.changeKeyword(ptr, mod.keyword)
-                            is Modification.SetKeywordAndTags ->
-                                repository.editTask(
-                                    EditTaskRequest(
-                                        file = ptr.file,
-                                        taskIndex = ptr.taskIndex,
-                                        keyword = mod.keyword,
-                                        tags = task.tags.withAddedTags(mod.tags),
-                                    )
-                                )
-                        }
+                        applyProcessingModification(repository, ptr, task, resolution.terminal.modification)
                     } catch (t: Throwable) {
                         consumed = consumed - ptr
                         onError("Apply failed: ${t.message ?: t::class.java.simpleName}")
                     }
                 }
-            }
-            is Branch -> {
-                pathStack = pathStack + (currentNode to dir)
             }
         }
     }
@@ -352,9 +337,6 @@ private fun dominantDirection(
     cornerAngleDeg: Double,
 ): Dir? =
     directionOf(offsetX, offsetY, requireThreshold = false, cornerAngleDeg = cornerAngleDeg)
-
-private fun List<String>.withAddedTags(tagsToAdd: List<String>): List<String> =
-    (this + tagsToAdd).distinct()
 
 @Composable
 private fun BoxScope.EdgeMarker(dir: Dir, text: String, color: Color, active: Boolean) {
