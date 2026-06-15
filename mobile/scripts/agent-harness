@@ -67,11 +67,10 @@ share_text() {
     echo "share requires text" >&2
     exit 1
   fi
-  "$ADB" shell am start \
-    -n "$PACKAGE/$ACTIVITY" \
-    -a android.intent.action.SEND \
-    -t text/plain \
-    -e android.intent.extra.TEXT "$text"
+  local escaped_text
+  escaped_text="$(printf '%q' "$text")"
+  "$ADB" shell \
+    "am start -n '$PACKAGE/$ACTIVITY' -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT $escaped_text"
 }
 
 screenshot() {
@@ -84,7 +83,8 @@ screenshot() {
 
 hierarchy() {
   require_adb
-  "$ADB" shell uiautomator dump /dev/tty
+  "$ADB" shell uiautomator dump /sdcard/window.xml >/dev/null
+  "$ADB" shell cat /sdcard/window.xml
 }
 
 case "${1:-}" in

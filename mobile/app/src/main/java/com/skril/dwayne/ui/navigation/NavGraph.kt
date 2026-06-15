@@ -58,6 +58,7 @@ private val bottomNavItems = listOf(
 @Composable
 fun DwayneNavHost(
     initialCaptureText: String? = null,
+    initialCaptureTextRevision: Int = 0,
     openCaptureRequest: Int = 0,
     onCaptureConsumed: () -> Unit = {},
 ) {
@@ -88,11 +89,18 @@ fun DwayneNavHost(
 
     val navController = rememberNavController()
 
-    androidx.compose.runtime.LaunchedEffect(initialCaptureText) {
+    androidx.compose.runtime.LaunchedEffect(initialCaptureTextRevision) {
         if (!initialCaptureText.isNullOrEmpty()) {
-            navController.navigate(Screen.Capture.route) {
-                launchSingleTop = true
-                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            Log.d(
+                TAG,
+                "Share text navigating to Capture revision=$initialCaptureTextRevision " +
+                    "textLength=${initialCaptureText.length}",
+            )
+            if (navController.currentDestination?.route != Screen.Capture.route) {
+                navController.navigate(Screen.Capture.route) {
+                    launchSingleTop = true
+                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                }
             }
         }
     }
@@ -169,6 +177,7 @@ fun DwayneNavHost(
                     repository = repository,
                     onError = showError,
                     initialText = initialCaptureText.orEmpty(),
+                    initialTextRevision = initialCaptureTextRevision,
                     onInitialTextConsumed = onCaptureConsumed,
                     recentRefreshKey = state,
                     onTaskClick = { ptr ->

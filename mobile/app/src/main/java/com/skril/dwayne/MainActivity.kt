@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,10 +21,11 @@ import com.skril.dwayne.notifications.AmbientCaptureNotification
 import com.skril.dwayne.share.ShareIntentText
 import com.skril.dwayne.ui.navigation.DwayneNavHost
 import com.skril.dwayne.ui.theme.DwayneTheme
+import kotlinx.coroutines.flow.MutableSharedFlow
 
 class MainActivity : ComponentActivity() {
 
-    private var pendingShareUpdate: ((String?) -> Unit)? = null
+    private val shareTextEvents = MutableSharedFlow<String>(extraBufferCapacity = 1)
     private var pendingOpenCaptureUpdate: (() -> Unit)? = null
 
     private val notificationPermissionLauncher = registerForActivityResult(
@@ -46,11 +48,18 @@ class MainActivity : ComponentActivity() {
         setContent {
             DwayneTheme {
                 var shareText by remember { mutableStateOf(initialShareText) }
+                var shareTextRevision by remember { mutableIntStateOf(if (initialShareText != null) 1 else 0) }
                 var openCaptureRequest by remember { mutableIntStateOf(if (initialOpenCapture) 1 else 0) }
-                pendingShareUpdate = { shareText = it }
+                LaunchedEffect(Unit) {
+                    shareTextEvents.collect { text ->
+                        shareText = text
+                        shareTextRevision += 1
+                    }
+                }
                 pendingOpenCaptureUpdate = { openCaptureRequest += 1 }
                 DwayneNavHost(
                     initialCaptureText = shareText,
+                    initialCaptureTextRevision = shareTextRevision,
                     openCaptureRequest = openCaptureRequest,
                     onCaptureConsumed = { shareText = null },
                 )
@@ -63,8 +72,8 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         val shareText = extractShareText(intent, source = "warm-start")
         if (shareText != null) {
-            pendingShareUpdate?.invoke(shareText)
-            Log.d(TAG, "Share intent routed to capture source=warm-start")
+            val emitted = shareTextEvents.tryEmit(shareText)
+            Log.d(TAG, "Share intent routed to capture source=warm-start emitted=$emitted")
         }
         if (handleCaptureNotificationTap(intent, source = "warm-start")) {
             pendingOpenCaptureUpdate?.invoke()

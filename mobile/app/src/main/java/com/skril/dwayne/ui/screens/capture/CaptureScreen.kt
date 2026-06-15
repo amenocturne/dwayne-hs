@@ -27,6 +27,7 @@ fun CaptureScreen(
     repository: TaskRepository,
     onError: (String) -> Unit,
     initialText: String = "",
+    initialTextRevision: Int = 0,
     onInitialTextConsumed: () -> Unit = {},
     recentRefreshKey: Any? = Unit,
     onTaskClick: (TaskPointer) -> Unit = {},
@@ -51,8 +52,12 @@ fun CaptureScreen(
         keyboardController?.show()
     }
 
-    LaunchedEffect(initialText) {
+    LaunchedEffect(initialTextRevision) {
         if (initialText.isNotEmpty()) {
+            Log.d(
+                TAG,
+                "Applying initial capture text revision=$initialTextRevision textLength=${initialText.length}",
+            )
             inputText = initialText
             onInitialTextConsumed()
             withFrameNanos { }

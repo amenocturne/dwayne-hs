@@ -17,7 +17,11 @@ export C_INCLUDE_PATH := `set +u; f="/etc/profiles/per-user/$USER/etc/profile.d/
 
 haskell-install:
   cd core; cabal build
+  mkdir -p ~/.local/bin
   cp "$(cd core && cabal list-bin dwayne)" ~/.local/bin/dwayne
+  chmod 755 ~/.local/bin/dwayne
+  xattr -cr ~/.local/bin/dwayne || true
+  /usr/bin/codesign --force --sign - ~/.local/bin/dwayne
 
 haskell-run:
   cd core; DWAYNE_CONFIG=./resources/config.yml cabal run
