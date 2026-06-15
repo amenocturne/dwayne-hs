@@ -6,13 +6,20 @@ FROM haskell:9.6 AS haskell-builder
 WORKDIR /build
 
 COPY LICENSE LICENSE
-COPY core/ core/
+COPY core/cabal.project core/dwayne-hs.cabal core/
 
 WORKDIR /build/core
 RUN --mount=type=cache,target=/root/.cabal,sharing=locked \
     --mount=type=cache,target=/build/core/dist-newstyle,sharing=locked \
     cabal update \
-    && cabal build exe:dwayne \
+    && cabal build --only-dependencies lib:dwayne-hs exe:dwayne
+
+COPY core/ core/
+
+WORKDIR /build/core
+RUN --mount=type=cache,target=/root/.cabal,sharing=locked \
+    --mount=type=cache,target=/build/core/dist-newstyle,sharing=locked \
+    cabal build exe:dwayne \
     && cp "$(cabal list-bin exe:dwayne)" /build/dwayne
 
 # Stage 2: Build web frontend
