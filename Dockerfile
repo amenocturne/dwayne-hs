@@ -10,7 +10,6 @@ COPY core/cabal.project core/dwayne-hs.cabal core/
 
 WORKDIR /build/core
 RUN --mount=type=cache,target=/root/.cabal,sharing=locked \
-    --mount=type=cache,target=/build/core/dist-newstyle,sharing=locked \
     cabal update \
     && cabal build --only-dependencies lib:dwayne-hs exe:dwayne
 
