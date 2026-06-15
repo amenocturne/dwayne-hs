@@ -99,6 +99,7 @@ fun TaskFeedScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0.dp),
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { scaffoldPadding ->
         Column(
