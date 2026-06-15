@@ -17,6 +17,8 @@
 module Api.ServerSpec (spec) where
 
 import qualified Api.Server as Server
+import Api.Types (HealthResponse (..))
+import qualified Data.Aeson as Aeson
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Text as T
@@ -109,16 +111,26 @@ withSeededDb action = do
 -- in-process; no Warp socket is opened.
 statusOf :: Wai.Application -> HT.Method -> [T.Text] -> IO Int
 statusOf app method pathSegs = do
+  resp <- responseOf app method pathSegs
+  pure (HT.statusCode (WaiTest.simpleStatus resp))
+
+responseOf :: Wai.Application -> HT.Method -> [T.Text] -> IO WaiTest.SResponse
+responseOf app method pathSegs = do
   let req =
         WaiTest.setPath
           (WaiTest.defaultRequest {Wai.requestMethod = method})
           ("/" <> TE.encodeUtf8 (T.intercalate "/" pathSegs))
   WaiTest.runSession
-    ( do
-        resp <- WaiTest.request req
-        pure (HT.statusCode (WaiTest.simpleStatus resp))
-    )
+    (WaiTest.request req)
     app
+
+healthOf :: Wai.Application -> IO HealthResponse
+healthOf app = do
+  resp <- responseOf app HT.methodGet ["api", "health"]
+  HT.statusCode (WaiTest.simpleStatus resp) `shouldBe` 200
+  case Aeson.eitherDecode (WaiTest.simpleBody resp) of
+    Left err -> expectationFailure err >> pure (HealthResponse "" "" "" 0)
+    Right health -> pure health
 
 spec :: Spec
 spec = do
@@ -129,6 +141,16 @@ spec = do
         st <- Server.initServerState ctx
         code <- statusOf (Server.webApp st) HT.methodGet ["api", "views", "today"]
         code `shouldBe` 200
+
+    it "webApp serves /api/health with web mode and task count" $
+      withSeededDb $ \db -> do
+        let ctx = mkCtx db
+        st <- Server.initServerState ctx
+        health <- healthOf (Server.webApp st)
+        hrStatus health `shouldBe` "ok"
+        hrVersion health `shouldSatisfy` (not . T.null)
+        hrMode health `shouldBe` "web"
+        hrTasks health `shouldBe` 1
 
     it "webApp returns 404 for /api/events (sync routes excluded)" $
       withSeededDb $ \db -> do
@@ -143,6 +165,16 @@ spec = do
         st <- Server.initServerState ctx
         code <- statusOf (Server.syncApp st) HT.methodGet ["api", "events"]
         code `shouldBe` 200
+
+    it "syncApp serves /api/health with sync mode and task count" $
+      withSeededDb $ \db -> do
+        let ctx = mkCtx db
+        st <- Server.initServerState ctx
+        health <- healthOf (Server.syncApp st)
+        hrStatus health `shouldBe` "ok"
+        hrVersion health `shouldSatisfy` (not . T.null)
+        hrMode health `shouldBe` "sync"
+        hrTasks health `shouldBe` 1
 
     it "syncApp returns 404 for /api/views/today (web routes excluded)" $
       withSeededDb $ \db -> do
@@ -159,3 +191,13 @@ spec = do
         eventsCode <- statusOf (Server.combinedApp st) HT.methodGet ["api", "events"]
         viewCode `shouldBe` 200
         eventsCode `shouldBe` 200
+
+    it "combinedApp serves /api/health with combined mode and task count" $
+      withSeededDb $ \db -> do
+        let ctx = mkCtx db
+        st <- Server.initServerState ctx
+        health <- healthOf (Server.combinedApp st)
+        hrStatus health `shouldBe` "ok"
+        hrVersion health `shouldSatisfy` (not . T.null)
+        hrMode health `shouldBe` "combined"
+        hrTasks health `shouldBe` 1

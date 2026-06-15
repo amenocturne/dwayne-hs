@@ -12,6 +12,7 @@ import Api.Server (runServer, runSyncServer, runWebServer)
 import Commands.CliHelpers (loadFileState)
 import Commands.Command (Command (..))
 import Commands.Registry (allCommands)
+import Commands.Status (runStatusCommand)
 import Control.Monad (join)
 import DB.TaskStore (DatabaseStore (..), mkTaskStoreOps)
 import Data.Maybe (mapMaybe)
@@ -41,6 +42,7 @@ main = do
     ["--web"] -> startServer ServeWeb
     ["--sync-server"] -> startServer ServeSync
     ["--version"] -> putStrLn $ "dwayne " ++ showVersion version
+    ("status" : statusArgs) -> runStatusCommand statusArgs
     _ -> runCli
 
 -- | Which slice of the API surface to mount when running as a server.

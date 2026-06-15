@@ -32,7 +32,7 @@ where
 
 import qualified Api.EventHandlers as EH
 import qualified Api.Handlers
-import Api.Types (ApiBinding (..), ApiMethod (..), CaptureRequest, ChangeKeywordRequest, ChangePriorityRequest, EditTaskRequest, PaginatedResponse (..), ProjectTreeResponse, ResponseMetadata (..), TagRequest, TaskPointerRequest, TaskWithPointer)
+import Api.Types (ApiBinding (..), ApiMethod (..), CaptureRequest, ChangeKeywordRequest, ChangePriorityRequest, EditTaskRequest, HealthResponse (..), PaginatedResponse (..), ProjectTreeResponse, ResponseMetadata (..), TagRequest, TaskPointerRequest, TaskWithPointer)
 import qualified Api.WebSocket as WS
 import Commands.Command (Command (..), getEnabledCommands)
 import Commands.Registry (allCommands)
@@ -40,6 +40,9 @@ import Control.Concurrent.MVar
 import Control.Lens (view)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Text as T
+import Data.Version (showVersion)
+import Database.SQLite.Simple (Only (..), query_)
+import DB.Connection (withDatabase)
 import qualified FileWatcher as FW
 import Model.OrgMode (Task)
 import Network.Wai.Handler.Warp (run)
@@ -68,7 +71,11 @@ import Servant
     type (:<|>) (..),
     type (:>),
   )
+import Paths_dwayne_hs (version)
 import Tui.Types (AppContext, commands, config, getAllFiles)
+import qualified Tui.Types as TT
+
+type HealthAPI = "health" :> Get '[JSON] HealthResponse
 
 -- | API type for view endpoints — catch-all route that dispatches at runtime
 type ViewsAPI =
@@ -132,18 +139,18 @@ type EventsAPI =
 -- the static web bundle at @\/*@. No sync routes; deploy this when the
 -- only client is the web UI / Raycast extension.
 type WebAPI =
-  "api" :> (ViewsAPI :<|> SearchAPI :<|> ProjectsAPI :<|> CaptureAPI :<|> MutationAPI)
+  "api" :> (HealthAPI :<|> ViewsAPI :<|> SearchAPI :<|> ProjectsAPI :<|> CaptureAPI :<|> MutationAPI)
     :<|> Raw
 
 -- | Sync transport surface — push + pull of events. Deploy this when
 -- the host is just a sync hub for other clients (Android / TUI).
-type SyncAPI = "api" :> EventsAPI
+type SyncAPI = "api" :> (HealthAPI :<|> EventsAPI)
 
 -- | Combined surface for local dev convenience: WebAPI plus sync.
 -- Static file serving stays attached to the web side so a single
 -- @dwayne --serve@ still drives the UI.
 type CombinedAPI =
-  "api" :> (ViewsAPI :<|> SearchAPI :<|> ProjectsAPI :<|> CaptureAPI :<|> MutationAPI :<|> EventsAPI)
+  "api" :> (HealthAPI :<|> ViewsAPI :<|> SearchAPI :<|> ProjectsAPI :<|> CaptureAPI :<|> MutationAPI :<|> EventsAPI)
     :<|> Raw
 
 -- | Server state containing cached context and WebSocket registry
@@ -163,6 +170,27 @@ findViewHandler endpoint cmds =
     matchesEndpoint cmd = case cmdApi cmd of
       Just binding -> apiEndpoint binding == endpoint && apiMethod binding == GET
       Nothing -> False
+
+healthServer :: T.Text -> ServerState -> Server HealthAPI
+healthServer mode serverState = do
+  ctx <- liftIO $ readMVar (stateCache serverState)
+  let dbFile = TT._database (view config ctx)
+  taskCount <- liftIO $ countCurrentTasks dbFile
+  pure $
+    HealthResponse
+      { hrStatus = "ok",
+        hrVersion = T.pack (showVersion version),
+        hrMode = mode,
+        hrTasks = taskCount
+      }
+
+countCurrentTasks :: FilePath -> IO Int
+countCurrentTasks dbFile =
+  withDatabase dbFile $ \conn -> do
+    rows <- query_ conn "SELECT COUNT(*) FROM task_current_state" :: IO [Only Int]
+    pure $ case rows of
+      (Only n : _) -> n
+      [] -> 0
 
 -- | Build the Views API server — dispatches to the matching command at runtime
 viewsServer :: ServerState -> Server ViewsAPI
@@ -220,7 +248,8 @@ eventsServer serverState =
 -- | Web-only server: UI reads + capture + mutations + static UI assets.
 webServer :: ServerState -> Server WebAPI
 webServer serverState =
-  ( viewsServer serverState
+  ( healthServer "web" serverState
+      :<|> viewsServer serverState
       :<|> searchServer serverState
       :<|> projectsServer serverState
       :<|> captureServer serverState
@@ -230,12 +259,15 @@ webServer serverState =
 
 -- | Sync-only server: just the events push/pull endpoints.
 syncServer :: ServerState -> Server SyncAPI
-syncServer = eventsServer
+syncServer serverState =
+  healthServer "sync" serverState
+    :<|> eventsServer serverState
 
 -- | Combined server: every web route plus the events sync surface.
 combinedServer :: ServerState -> Server CombinedAPI
 combinedServer serverState =
-  ( viewsServer serverState
+  ( healthServer "combined" serverState
+      :<|> viewsServer serverState
       :<|> searchServer serverState
       :<|> projectsServer serverState
       :<|> captureServer serverState

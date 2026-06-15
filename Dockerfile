@@ -42,8 +42,10 @@ COPY --from=web-builder /build/web/dist/ /app/web/dist/
 
 RUN mkdir -p /app/data
 
+# Mount /app/data persistently with config.yml and the SQLite database.
 ENV DWAYNE_CONFIG=/app/data/config.yml
+VOLUME ["/app/data"]
 
 EXPOSE 8080
 
-CMD ["/app/dwayne", "--sync-server"]
+CMD ["/app/dwayne", "--serve"]

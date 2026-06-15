@@ -22,6 +22,7 @@ module Api.Types
     TaskWithPointer (..),
     ResponseMetadata (..),
     PaginatedResponse (..),
+    HealthResponse (..),
     TaskNode (..),
     ProjectTreeResponse (..),
 
@@ -91,6 +92,31 @@ instance (ToJSON a) => ToJSON (PaginatedResponse a) where
       [ "data" .= items,
         "metadata" .= meta
       ]
+
+data HealthResponse = HealthResponse
+  { hrStatus :: T.Text,
+    hrVersion :: T.Text,
+    hrMode :: T.Text,
+    hrTasks :: Int
+  }
+  deriving (Eq, Show, Generic)
+
+instance ToJSON HealthResponse where
+  toJSON (HealthResponse status version mode tasks) =
+    object
+      [ "status" .= status,
+        "version" .= version,
+        "mode" .= mode,
+        "tasks" .= tasks
+      ]
+
+instance FromJSON HealthResponse where
+  parseJSON = withObject "HealthResponse" $ \v ->
+    HealthResponse
+      <$> v .: "status"
+      <*> v .: "version"
+      <*> v .: "mode"
+      <*> v .: "tasks"
 
 -- | A node in the project task tree
 -- Represents a task with its direct children (subtasks)

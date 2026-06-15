@@ -73,6 +73,7 @@ library
         Commands.Registry
         Commands.SelectionMode
         Commands.Sort
+        Commands.Status
         Commands.Sync
         Commands.Tags
         Commands.TodoKeyword
@@ -134,6 +135,12 @@ library
         TextUtils
         Validation.ProjectValidation
         Validation.SystemValidation
+
+    other-modules:
+        Paths_dwayne_hs
+
+    autogen-modules:
+        Paths_dwayne_hs
 
     build-depends:
         base >=4.17.2.1 && < 4.19,
@@ -250,3 +257,5 @@ test-suite spec
         Tui.MutationEventsSpec
         Tui.RepoViewSpec
         Commands.CliHelpersSpec
+        Commands.RegistrySpec
+        Commands.StatusSpec
