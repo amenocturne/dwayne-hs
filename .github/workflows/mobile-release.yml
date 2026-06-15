@@ -7,7 +7,7 @@ on:
       - "v*"
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -61,3 +61,15 @@ jobs:
           name: dwayne-android-release
           path: mobile/${{ steps.apk.outputs.apk }}
           if-no-files-found: error
+
+      - name: Upload APK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          release_name="Dwayne ${TAG#v}"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "$release_name" --notes "Dwayne ${TAG#v} release."
+          fi
+          gh release upload "$TAG" "${{ steps.apk.outputs.apk }}" --clobber
