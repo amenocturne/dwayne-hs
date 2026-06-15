@@ -44,3 +44,16 @@ adb uninstall com.skril.dwayne
 
 Debug builds use `com.skril.dwayne.debug`, so future `adb` installs can coexist
 with the tap-installed release build.
+
+## GitHub Artifacts
+
+The `Mobile release` GitHub Actions workflow builds a signed release APK on
+manual dispatch or `v*` tag pushes, verifies it with `apksigner`, and uploads it
+as the `dwayne-android-release` artifact.
+
+The workflow needs these repository Actions secrets:
+
+- `DWAYNE_RELEASE_KEYSTORE_BASE64` - base64 of `mobile/keystores/dwayne-release.jks`
+- `DWAYNE_RELEASE_STORE_PASSWORD`
+- `DWAYNE_RELEASE_KEY_ALIAS`
+- `DWAYNE_RELEASE_KEY_PASSWORD`
