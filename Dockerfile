@@ -13,7 +13,7 @@ RUN --mount=type=cache,target=/root/.cabal,sharing=locked \
     cabal update \
     && cabal build --only-dependencies lib:dwayne-hs exe:dwayne
 
-COPY core/ core/
+COPY core/ ./
 
 WORKDIR /build/core
 RUN --mount=type=cache,target=/root/.cabal,sharing=locked \
