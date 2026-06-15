@@ -1,5 +1,6 @@
 package com.skril.dwayne.ui.navigation
 
+import android.util.Log
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
@@ -57,6 +58,7 @@ private val bottomNavItems = listOf(
 @Composable
 fun DwayneNavHost(
     initialCaptureText: String? = null,
+    openCaptureRequest: Int = 0,
     onCaptureConsumed: () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -86,12 +88,18 @@ fun DwayneNavHost(
 
     val navController = rememberNavController()
 
-    val recentCapturePointers = androidx.compose.runtime.remember {
-        androidx.compose.runtime.mutableStateOf<List<com.skril.dwayne.data.model.TaskPointer>>(emptyList())
-    }
-
     androidx.compose.runtime.LaunchedEffect(initialCaptureText) {
         if (!initialCaptureText.isNullOrEmpty()) {
+            navController.navigate(Screen.Capture.route) {
+                launchSingleTop = true
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            }
+        }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(openCaptureRequest) {
+        if (openCaptureRequest > 0) {
+            Log.d(TAG, "Capture screen opened source=notification")
             navController.navigate(Screen.Capture.route) {
                 launchSingleTop = true
                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -126,7 +134,7 @@ fun DwayneNavHost(
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Capture.route,
+            startDestination = DefaultStartScreen.route,
             modifier = Modifier.padding(innerPadding),
         ) {
             composable(Screen.Feed.route) {
@@ -162,11 +170,7 @@ fun DwayneNavHost(
                     onError = showError,
                     initialText = initialCaptureText.orEmpty(),
                     onInitialTextConsumed = onCaptureConsumed,
-                    recentPointers = recentCapturePointers.value,
-                    tasksByPointer = state,
-                    onCaptured = { ptr ->
-                        recentCapturePointers.value = (listOf(ptr) + recentCapturePointers.value).take(20)
-                    },
+                    recentRefreshKey = state,
                     onTaskClick = { ptr ->
                         navController.navigate(Screen.TaskDetail.route(ptr.file, ptr.taskIndex))
                     },
@@ -206,3 +210,5 @@ fun DwayneNavHost(
         }
     }
 }
+
+private const val TAG = "DwayneCapture"

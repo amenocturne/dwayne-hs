@@ -1,5 +1,6 @@
 package com.skril.dwayne.ui.screens.capture
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -9,11 +10,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
-import com.skril.dwayne.data.model.Task
 import com.skril.dwayne.data.model.TaskPointer
 import com.skril.dwayne.data.model.TaskWithPointer
-import com.skril.dwayne.data.query.resolveRecentPhoneCaptures
 import com.skril.dwayne.data.repository.TaskRepository
 import com.skril.dwayne.ui.components.TaskCard
 import com.skril.dwayne.ui.components.TaskCardInteraction
@@ -26,16 +28,36 @@ fun CaptureScreen(
     onError: (String) -> Unit,
     initialText: String = "",
     onInitialTextConsumed: () -> Unit = {},
-    recentPointers: List<TaskPointer> = emptyList(),
-    tasksByPointer: Map<TaskPointer, Task> = emptyMap(),
-    onCaptured: (TaskPointer) -> Unit = {},
+    recentRefreshKey: Any? = Unit,
     onTaskClick: (TaskPointer) -> Unit = {},
 ) {
     var inputText by remember { mutableStateOf("") }
+    var recentCaptures by remember { mutableStateOf<List<TaskWithPointer>>(emptyList()) }
+    var captureWriteRevision by remember { mutableIntStateOf(0) }
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(repository, recentRefreshKey, captureWriteRevision) {
+        try {
+            recentCaptures = repository.recentCaptures(limit = 3)
+        } catch (t: Throwable) {
+            Log.w(TAG, "Recent captures query failed", t)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        withFrameNanos { }
+        focusRequester.requestFocus()
+        keyboardController?.show()
+    }
+
     LaunchedEffect(initialText) {
         if (initialText.isNotEmpty()) {
             inputText = initialText
             onInitialTextConsumed()
+            withFrameNanos { }
+            focusRequester.requestFocus()
+            keyboardController?.show()
         }
     }
     val scope = rememberCoroutineScope()
@@ -54,7 +76,9 @@ fun CaptureScreen(
             OutlinedTextField(
                 value = inputText,
                 onValueChange = { inputText = it },
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focusRequester),
                 placeholder = { Text("What's on your mind?") },
                 singleLine = false,
                 maxLines = 6,
@@ -66,8 +90,13 @@ fun CaptureScreen(
                         scope.launch {
                             try {
                                 val captured = repository.capture(inputText.trim())
-                                onCaptured(captured.pointer)
+                                Log.d(
+                                    TAG,
+                                    "Capture success destinationFile=${captured.pointer.file} " +
+                                        "pointer=${captured.pointer.file}:${captured.pointer.taskIndex}",
+                                )
                                 inputText = ""
+                                captureWriteRevision += 1
                             } catch (t: Throwable) {
                                 onError("Capture failed: ${t.message ?: t::class.java.simpleName}")
                             }
@@ -80,9 +109,7 @@ fun CaptureScreen(
             }
         }
 
-        val recentTasks = resolveRecentPhoneCaptures(recentPointers, tasksByPointer)
-
-        if (recentTasks.isNotEmpty()) {
+        if (recentCaptures.isNotEmpty()) {
             Text(
                 text = "Recently captured",
                 style = MaterialTheme.typography.titleMedium,
@@ -94,7 +121,7 @@ fun CaptureScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(
-                    items = recentTasks,
+                    items = recentCaptures,
                     key = { "${it.pointer.file}:${it.pointer.taskIndex}" },
                 ) { taskWithPointer: TaskWithPointer ->
                     TaskCard(
@@ -106,3 +133,5 @@ fun CaptureScreen(
         }
     }
 }
+
+private const val TAG = "DwayneCapture"

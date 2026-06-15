@@ -54,6 +54,21 @@ web-install:
 mobile-build:
   cd mobile; ANDROID_HOME="${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}" ./gradlew assembleDebug
 
+mobile-install:
+  bash mobile/scripts/agent-harness build-install
+
+mobile-launch:
+  bash mobile/scripts/agent-harness launch
+
+mobile-share text:
+  bash mobile/scripts/agent-harness share "{{text}}"
+
+mobile-screenshot path="mobile/tmp/screenshot.png":
+  bash mobile/scripts/agent-harness screenshot "{{path}}"
+
+mobile-view-hierarchy:
+  bash mobile/scripts/agent-harness hierarchy
+
 mobile-release-key:
   #!/usr/bin/env bash
   set -euo pipefail

@@ -8,6 +8,7 @@ import com.skril.dwayne.data.query.filterTaskSearch
 interface TaskRepository {
     suspend fun getView(viewName: String, offset: Int = 0, limit: Int = Int.MAX_VALUE): PaginatedResponse
     suspend fun search(query: String, view: String? = null, offset: Int = 0, limit: Int = Int.MAX_VALUE): PaginatedResponse
+    suspend fun recentCaptures(limit: Int = 3): List<TaskWithPointer>
     suspend fun capture(title: String): TaskWithPointer
     suspend fun editTask(request: EditTaskRequest): TaskWithPointer
     suspend fun changeKeyword(pointer: TaskPointer, keyword: String): TaskWithPointer
@@ -35,6 +36,9 @@ class MockTaskRepository : TaskRepository {
         val results = filterTaskSearch(base, query)
         return MockData.paginatedResponse(results, offset, limit)
     }
+
+    override suspend fun recentCaptures(limit: Int): List<TaskWithPointer> =
+        tasks.takeLast(limit.coerceAtLeast(0)).asReversed()
 
     override suspend fun capture(title: String): TaskWithPointer {
         val newTask = TaskWithPointer(

@@ -26,6 +26,45 @@ class EventStore(private val db: DwayneDatabase) {
     fun selectAfter(lastPushedAt: String): List<Event> =
         db.eventsQueries.selectAfter(lastPushedAt).executeAsList().map(::rowToEvent)
 
+    fun selectRecentGenesisEventsForFile(filePath: String, limit: Int): List<Event> {
+        if (limit <= 0) return emptyList()
+        return db.eventsQueries
+            .selectRecentGenesisEventsForFile(filePath, limit.toLong()) {
+                    file_path,
+                    task_index,
+                    occurred_at,
+                    level,
+                    todo_keyword,
+                    priority,
+                    title,
+                    tags,
+                    scheduled,
+                    deadline,
+                    created,
+                    closed,
+                    properties,
+                    description,
+                ->
+                Event(
+                    filePath = file_path,
+                    taskIndex = task_index.toInt(),
+                    occurredAt = occurred_at,
+                    level = level.toInt(),
+                    todoKeyword = todo_keyword,
+                    priority = priority?.toInt(),
+                    title = json.decodeFromString(textNodeListSerializer, title),
+                    tags = tags?.let { json.decodeFromString(stringListSerializer, it) },
+                    scheduled = scheduled?.let { json.decodeFromString(orgTimeSerializer, it) },
+                    deadline = deadline?.let { json.decodeFromString(orgTimeSerializer, it) },
+                    created = created?.let { json.decodeFromString(orgTimeSerializer, it) },
+                    closed = closed?.let { json.decodeFromString(orgTimeSerializer, it) },
+                    properties = properties?.let { json.decodeFromString(propertiesSerializer, it) },
+                    description = description?.let { json.decodeFromString(textNodeListSerializer, it) },
+                )
+            }
+            .executeAsList()
+    }
+
     fun maxTaskIndexForFile(filePath: String): Int? =
         db.eventsQueries.maxTaskIndexForFile(filePath).executeAsOneOrNull()?.MAX?.toInt()
 

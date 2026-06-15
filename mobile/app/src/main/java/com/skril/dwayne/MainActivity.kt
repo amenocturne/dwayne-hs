@@ -1,30 +1,57 @@
 package com.skril.dwayne
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
+import com.skril.dwayne.notifications.AmbientCaptureNotification
+import com.skril.dwayne.share.ShareIntentText
 import com.skril.dwayne.ui.navigation.DwayneNavHost
 import com.skril.dwayne.ui.theme.DwayneTheme
 
 class MainActivity : ComponentActivity() {
 
     private var pendingShareUpdate: ((String?) -> Unit)? = null
+    private var pendingOpenCaptureUpdate: (() -> Unit)? = null
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            val posted = AmbientCaptureNotification.showIfPermitted(this)
+            Log.d(TAG_NOTIFICATION, "Ambient capture notification permission granted posted=$posted")
+        } else {
+            Log.d(TAG_NOTIFICATION, "Ambient capture notification permission denied")
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        ensureAmbientCaptureNotification()
+        val initialShareText = extractShareText(intent, source = "cold-start")
+        val initialOpenCapture = handleCaptureNotificationTap(intent, source = "cold-start")
         setContent {
             DwayneTheme {
-                var shareText by remember { mutableStateOf(extractShareText(intent)) }
+                var shareText by remember { mutableStateOf(initialShareText) }
+                var openCaptureRequest by remember { mutableIntStateOf(if (initialOpenCapture) 1 else 0) }
                 pendingShareUpdate = { shareText = it }
+                pendingOpenCaptureUpdate = { openCaptureRequest += 1 }
                 DwayneNavHost(
                     initialCaptureText = shareText,
+                    openCaptureRequest = openCaptureRequest,
                     onCaptureConsumed = { shareText = null },
                 )
             }
@@ -34,23 +61,56 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        extractShareText(intent)?.let { text -> pendingShareUpdate?.invoke(text) }
-    }
-
-    private fun extractShareText(intent: Intent?): String? {
-        if (intent?.action != Intent.ACTION_SEND) return null
-        if (intent.type != "text/plain") return null
-        val text = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim().orEmpty()
-        if (text.isEmpty()) return null
-        val subject = intent.getStringExtra(Intent.EXTRA_SUBJECT)?.trim()
-        return formatAsOrgLink(text, subject)
-    }
-
-    private fun formatAsOrgLink(text: String, subject: String?): String {
-        val isUrl = text.startsWith("http://") || text.startsWith("https://")
-        return when {
-            isUrl && !subject.isNullOrBlank() -> "[[$text][$subject]] "
-            else -> "$text "
+        val shareText = extractShareText(intent, source = "warm-start")
+        if (shareText != null) {
+            pendingShareUpdate?.invoke(shareText)
+            Log.d(TAG, "Share intent routed to capture source=warm-start")
         }
+        if (handleCaptureNotificationTap(intent, source = "warm-start")) {
+            pendingOpenCaptureUpdate?.invoke()
+        }
+    }
+
+    private fun ensureAmbientCaptureNotification() {
+        AmbientCaptureNotification.ensureChannel(this)
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            return
+        }
+        val posted = AmbientCaptureNotification.showIfPermitted(this)
+        Log.d(TAG_NOTIFICATION, "Ambient capture notification posted=$posted")
+    }
+
+    private fun handleCaptureNotificationTap(intent: Intent?, source: String): Boolean {
+        if (!AmbientCaptureNotification.isOpenCaptureIntent(intent)) return false
+        Log.d(TAG_NOTIFICATION, "Capture notification tap received source=$source")
+        return true
+    }
+
+    private fun extractShareText(intent: Intent?, source: String): String? {
+        if (intent?.action == Intent.ACTION_SEND) {
+            Log.d(
+                TAG,
+                "Share intent received source=$source type=${intent.type} " +
+                    "hasText=${intent.hasExtra(Intent.EXTRA_TEXT)} " +
+                    "hasSubject=${intent.hasExtra(Intent.EXTRA_SUBJECT)}",
+            )
+        }
+        val parsed = ShareIntentText.fromIntent(intent)
+        if (parsed != null) {
+            Log.d(TAG, "Share intent parsed source=$source textLength=${parsed.length}")
+        } else if (intent?.action == Intent.ACTION_SEND) {
+            Log.d(TAG, "Share intent ignored source=$source")
+        }
+        return parsed
+    }
+
+    companion object {
+        private const val TAG = "DwayneShare"
+        private const val TAG_NOTIFICATION = "DwayneCaptureNotification"
     }
 }

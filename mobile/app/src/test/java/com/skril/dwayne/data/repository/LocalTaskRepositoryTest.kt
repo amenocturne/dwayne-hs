@@ -128,6 +128,19 @@ class LocalTaskRepositoryTest {
     }
 
     @Test
+    fun `recentCaptures returns captured tasks from inbox file in descending genesis order`() = runTest {
+        val repo = LocalTaskRepository(store, inboxFileProvider = { "/Phone.org" })
+        val first = repo.capture("first")
+        LocalTaskRepository(store, inboxFileProvider = { "/Other.org" }).capture("other")
+        val second = repo.capture("second")
+
+        val recent = repo.recentCaptures(limit = 10)
+
+        assertEquals(listOf(second.pointer, first.pointer), recent.map { it.pointer })
+        assertEquals(listOf("second", "first"), recent.map { taskTitle(it.task.title) })
+    }
+
+    @Test
     fun `editing a task that does not exist still records the delta`() = runTest {
         // No genesis present. Projection won't materialize the task, so the
         // edit raises because `_state.value[pointer]` is null. We expect this.
@@ -410,3 +423,6 @@ class LocalTaskRepositoryTest {
         assertEquals("/Other.org", b.pointer.file)
     }
 }
+
+private fun taskTitle(title: List<TextNode>): String =
+    title.filterIsInstance<TextNode.Plain>().joinToString("") { it.text }

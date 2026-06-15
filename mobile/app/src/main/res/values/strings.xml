@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">Dwayne</string>
+    <string name="ambient_capture_channel_name">Ambient capture</string>
+    <string name="ambient_capture_channel_description">Persistent shortcut for opening Capture.</string>
+    <string name="ambient_capture_notification_title">Capture to Dwayne</string>
+    <string name="ambient_capture_notification_text">Tap to capture a thought.</string>
 </resources>

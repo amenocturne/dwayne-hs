@@ -1,7 +1,6 @@
 package com.skril.dwayne.data.query
 
 import com.skril.dwayne.data.model.Task
-import com.skril.dwayne.data.model.TaskPointer
 import com.skril.dwayne.data.model.TaskWithPointer
 import com.skril.dwayne.data.model.TextNode
 
@@ -67,14 +66,6 @@ fun matchesTaskSearch(task: Task, query: String): Boolean {
         || task.tags.any { it.contains(normalized, ignoreCase = true) }
         || task.todoKeyword.contains(normalized, ignoreCase = true)
 }
-
-fun resolveRecentPhoneCaptures(
-    pointers: List<TaskPointer>,
-    tasksByPointer: Map<TaskPointer, Task>,
-): List<TaskWithPointer> =
-    pointers.mapNotNull { pointer ->
-        tasksByPointer[pointer]?.let { task -> TaskWithPointer(task, pointer) }
-    }
 
 fun matchesProcessingFilter(task: Task, filter: String): Boolean {
     val terms = filter.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }

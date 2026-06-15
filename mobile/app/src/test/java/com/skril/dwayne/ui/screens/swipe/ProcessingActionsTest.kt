@@ -86,6 +86,9 @@ private class RecordingTaskRepository : TaskRepository {
     override suspend fun search(query: String, view: String?, offset: Int, limit: Int): PaginatedResponse =
         PaginatedResponse(emptyList(), PaginationMetadata(0))
 
+    override suspend fun recentCaptures(limit: Int): List<TaskWithPointer> =
+        emptyList()
+
     override suspend fun capture(title: String): TaskWithPointer =
         error("not used")
 

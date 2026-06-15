@@ -10,6 +10,7 @@ import com.skril.dwayne.data.repository.LocalTaskRepository
 import com.skril.dwayne.data.repository.SettingsStore
 import com.skril.dwayne.data.repository.TreeStore
 import com.skril.dwayne.data.sync.SyncWorker
+import com.skril.dwayne.notifications.AmbientCaptureNotification
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -45,6 +46,7 @@ class DwayneApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        AmbientCaptureNotification.ensureChannel(this)
         settingsStore = SettingsStore(this, BuildConfig.API_BASE_URL)
         treeStore = TreeStore(this)
         val db = Database.get(this)

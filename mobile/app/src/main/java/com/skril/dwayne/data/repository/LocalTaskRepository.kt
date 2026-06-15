@@ -67,6 +67,20 @@ class LocalTaskRepository(
         return paginate(filtered, offset, limit)
     }
 
+    override suspend fun recentCaptures(limit: Int): List<TaskWithPointer> = withContext(ioDispatcher) {
+        val file = inboxFileProvider()
+        if (file.isBlank() || limit <= 0) return@withContext emptyList()
+        val tasksByPointer = _state.value
+        // The event model currently has no device/source metadata. The inbox
+        // file is the closest persisted provenance for phone capture, so this
+        // may include synced genesis events in the same configured inbox file.
+        store.selectRecentGenesisEventsForFile(file, limit)
+            .mapNotNull { event ->
+                val pointer = TaskPointer(event.filePath, event.taskIndex)
+                tasksByPointer[pointer]?.let { task -> TaskWithPointer(task, pointer) }
+            }
+    }
+
     private fun currentList(): List<TaskWithPointer> =
         _state.value.entries
             .map { (ptr, task) -> TaskWithPointer(task, ptr) }

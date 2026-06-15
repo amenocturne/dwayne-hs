@@ -67,23 +67,6 @@ class TaskQueriesTest {
     }
 
     @Test
-    fun `recent phone captures preserve pointer order and drop missing tasks`() {
-        val first = TaskPointer("/inbox.org", 1)
-        val missing = TaskPointer("/inbox.org", 2)
-        val second = TaskPointer("/inbox.org", 3)
-
-        val result = resolveRecentPhoneCaptures(
-            pointers = listOf(first, missing, second),
-            tasksByPointer = mapOf(
-                second to task(keyword = "INBOX", title = "Second"),
-                first to task(keyword = "INBOX", title = "First"),
-            ),
-        )
-
-        assertEquals(listOf(first, second), result.map { it.pointer })
-    }
-
-    @Test
     fun `processing filter supports keyword tag and text terms`() {
         val task = task(
             keyword = "INBOX",

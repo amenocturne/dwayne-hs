@@ -33,6 +33,15 @@ SELECT * FROM events
 WHERE occurred_at > :lastPushedAt
 ORDER BY occurred_at ASC;
 
+selectRecentGenesisEventsForFile:
+SELECT * FROM events
+WHERE file_path = :filePath
+  AND level IS NOT NULL
+  AND todo_keyword IS NOT NULL
+  AND title IS NOT NULL
+ORDER BY occurred_at DESC
+LIMIT :limit;
+
 maxTaskIndexForFile:
 SELECT MAX(task_index) FROM events WHERE file_path = :filePath;
 

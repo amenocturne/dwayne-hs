@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+MOBILE_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+ANDROID_HOME_DEFAULT="/opt/homebrew/share/android-commandlinetools"
+ANDROID_HOME="${ANDROID_HOME:-$ANDROID_HOME_DEFAULT}"
+ADB="${ADB:-$ANDROID_HOME/platform-tools/adb}"
+PACKAGE="${DWAYNE_MOBILE_PACKAGE:-com.skril.dwayne.debug}"
+ACTIVITY="${DWAYNE_MOBILE_ACTIVITY:-com.skril.dwayne.MainActivity}"
+APK="$MOBILE_ROOT/app/build/outputs/apk/debug/app-debug.apk"
+
+usage() {
+  cat <<'USAGE'
+Usage: mobile/scripts/agent-harness <command> [args]
+
+Commands:
+  build                      Build debug APK
+  install                    Install existing debug APK on the connected emulator/device
+  build-install              Build and install debug APK
+  launch                     Launch the debug app
+  share <text>               Send ACTION_SEND text/plain to Capture
+  screenshot [path]          Save a PNG screenshot, default mobile/tmp/screenshot.png
+  hierarchy                  Print current UIAutomator view hierarchy XML
+  test-share-flow [text]     Build, install, launch, share text, then print hierarchy
+
+Android SDK tools must come from nix/dotfiles, not ad-hoc installs.
+Expected default ANDROID_HOME: /opt/homebrew/share/android-commandlinetools
+USAGE
+}
+
+require_adb() {
+  if [[ ! -x "$ADB" ]]; then
+    cat >&2 <<EOF
+adb not found at: $ADB
+
+Install Android SDK platform tools through /Users/skril/Vault/Projects/personal/dotfiles,
+then rebuild the environment. Do not install SDK tools ad hoc.
+EOF
+    exit 1
+  fi
+}
+
+build_debug() {
+  ANDROID_HOME="$ANDROID_HOME" "$MOBILE_ROOT/gradlew" --project-dir "$MOBILE_ROOT" assembleDebug
+}
+
+install_debug() {
+  require_adb
+  if [[ ! -f "$APK" ]]; then
+    echo "Debug APK missing: $APK" >&2
+    echo "Run: mobile/scripts/agent-harness build" >&2
+    exit 1
+  fi
+  "$ADB" install -r "$APK"
+}
+
+launch_app() {
+  require_adb
+  "$ADB" shell am start -n "$PACKAGE/$ACTIVITY"
+}
+
+share_text() {
+  require_adb
+  local text="${1:-}"
+  if [[ -z "$text" ]]; then
+    echo "share requires text" >&2
+    exit 1
+  fi
+  "$ADB" shell am start \
+    -n "$PACKAGE/$ACTIVITY" \
+    -a android.intent.action.SEND \
+    -t text/plain \
+    -e android.intent.extra.TEXT "$text"
+}
+
+screenshot() {
+  require_adb
+  local output="${1:-$MOBILE_ROOT/tmp/screenshot.png}"
+  mkdir -p "$(dirname -- "$output")"
+  "$ADB" exec-out screencap -p > "$output"
+  printf 'Screenshot: %s\n' "$output"
+}
+
+hierarchy() {
+  require_adb
+  "$ADB" shell uiautomator dump /dev/tty
+}
+
+case "${1:-}" in
+  build)
+    build_debug
+    ;;
+  install)
+    install_debug
+    ;;
+  build-install)
+    build_debug
+    install_debug
+    ;;
+  launch)
+    launch_app
+    ;;
+  share)
+    shift
+    share_text "$*"
+    ;;
+  screenshot)
+    shift
+    screenshot "${1:-}"
+    ;;
+  hierarchy)
+    hierarchy
+    ;;
+  test-share-flow)
+    shift || true
+    build_debug
+    install_debug
+    launch_app
+    sleep 1
+    share_text "${*:-test capture from adb}"
+    sleep 1
+    hierarchy
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac

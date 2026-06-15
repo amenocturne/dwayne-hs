@@ -156,6 +156,26 @@ class EventStoreTest {
         ), all.map { it.occurredAt })
     }
 
+    @Test
+    fun `selectRecentGenesisEventsForFile returns genesis events for file in occurredAt DESC order`() {
+        store.insert(genesis(file = "/Phone.org", idx = 0, occurredAt = "2026-04-30T12:00:00.000Z"))
+        store.insert(genesis(file = "/Other.org", idx = 1, occurredAt = "2026-04-30T12:00:03.000Z"))
+        store.insert(Event(
+            filePath = "/Phone.org",
+            taskIndex = 2,
+            occurredAt = "2026-04-30T12:00:04.000Z",
+            todoKeyword = "INBOX",
+        ))
+        store.insert(genesis(file = "/Phone.org", idx = 3, occurredAt = "2026-04-30T12:00:02.000Z"))
+        store.insert(genesis(file = "/Phone.org", idx = 4, occurredAt = "2026-04-30T12:00:01.000Z"))
+
+        val recent = store.selectRecentGenesisEventsForFile("/Phone.org", limit = 2)
+
+        assertEquals(listOf(3, 4), recent.map { it.taskIndex })
+        assertTrue(recent.all { it.filePath == "/Phone.org" })
+        assertTrue(recent.all { it.level != null && it.todoKeyword != null && it.title != null })
+    }
+
     // -- sync_state KV -------------------------------------------------------
 
     @Test
