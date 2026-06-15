@@ -29,11 +29,11 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            ghcr.io/skril3366/dwayne:latest
-            ghcr.io/skril3366/dwayne:${{ github.sha }}
+            ghcr.io/amenocturne/dwayne:latest
+            ghcr.io/amenocturne/dwayne:${{ github.sha }}
           cache-from: |
-            type=registry,ref=ghcr.io/skril3366/dwayne:buildcache
+            type=registry,ref=ghcr.io/amenocturne/dwayne:buildcache
             type=gha
           cache-to: |
-            type=registry,ref=ghcr.io/skril3366/dwayne:buildcache,mode=max
+            type=registry,ref=ghcr.io/amenocturne/dwayne:buildcache,mode=max
             type=gha,mode=max
