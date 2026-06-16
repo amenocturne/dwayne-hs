@@ -5,6 +5,7 @@ on:
   push:
     tags:
       - "v*"
+      - "android-v*"
 
 permissions:
   contents: write
@@ -68,8 +69,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          release_name="Dwayne ${TAG#v}"
+          version="${TAG#android-v}"
+          version="${version#v}"
+          release_name="Dwayne Android $version"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --title "$release_name" --notes "Dwayne ${TAG#v} release."
+            gh release create "$TAG" --title "$release_name" --notes "Dwayne Android $version release."
           fi
           gh release upload "$TAG" "${{ steps.apk.outputs.apk }}" --clobber
