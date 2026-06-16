@@ -16,6 +16,7 @@
 --   * owned_files    — JSON array of file paths this client is allowed to push
 module Sync.Client
   ( runSyncDaemon,
+    runSyncOnce,
     SyncOptions (..),
     defaultSyncOptions,
   )
@@ -25,6 +26,7 @@ import Api.EventHandlers (EventsResponse (..), PostEventsRequest (..), PostEvent
 import Control.Concurrent (threadDelay)
 import Control.Exception (SomeException, try)
 import Control.Monad (when)
+import DB.Connection (initDatabase, withDatabase)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as BL
@@ -32,7 +34,6 @@ import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Data.Time (UTCTime, addUTCTime, getCurrentTime, secondsToNominalDiffTime)
-import DB.Connection (initDatabase, withDatabase)
 import Database.SQLite.Simple
   ( Connection,
     Only (..),
@@ -100,6 +101,18 @@ runSyncDaemon dbPath creds intervalSec opts = do
           IO.hPutStrLn IO.stderr $ "sync: cycle failed: " ++ show e
           threadDelay (errorBackoffSec intervalSec * 1_000_000)
       loop manager
+
+runSyncOnce :: FilePath -> SyncCredentials -> SyncOptions -> IO ()
+runSyncOnce dbPath creds opts = do
+  initDatabase dbPath
+  manager <- newTlsManager
+  putStrLn $
+    "dwayne sync (events): force sync with "
+      ++ T.unpack (scServerUrl creds)
+      ++ " (pull window: "
+      ++ show (soPullWindowHours opts)
+      ++ "h)"
+  oneCycle manager dbPath creds opts
 
 errorBackoffSec :: Int -> Int
 errorBackoffSec interval = max interval 60

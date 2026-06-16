@@ -16,15 +16,17 @@ import Options.Applicative
     option,
     short,
     showDefault,
+    switch,
     value,
   )
-import Sync.Client (SyncOptions (..), defaultSyncOptions, runSyncDaemon)
+import Sync.Client (SyncOptions (..), defaultSyncOptions, runSyncDaemon, runSyncOnce)
 import Sync.Config (loadCredentials)
 import Tui.Types (AppConfig (..), getAllFiles)
 
 data SyncCliOpts = SyncCliOpts
   { sciInterval :: Int,
-    sciPullWindowHours :: Int
+    sciPullWindowHours :: Int,
+    sciForce :: Bool
   }
 
 syncCommand :: Command Task
@@ -54,12 +56,16 @@ syncCommand =
                     <> value 24
                     <> showDefault
                     <> help "How many hours back the pull asks the server to replay"
+                )
+              <*> switch
+                ( long "force"
+                    <> help "Run one sync cycle immediately, then exit"
                 ),
       cmdApi = Nothing
     }
   where
     runSync :: SyncCliOpts -> IO ()
-    runSync (SyncCliOpts interval window) = do
+    runSync (SyncCliOpts interval window force) = do
       conf <- loadConfig
       creds <- loadCredentials
       let opts =
@@ -67,4 +73,6 @@ syncCommand =
               { soPullWindowHours = window,
                 soDefaultOwnedFiles = getAllFiles conf
               }
-      runSyncDaemon (_database conf) creds interval opts
+      if force
+        then runSyncOnce (_database conf) creds opts
+        else runSyncDaemon (_database conf) creds interval opts
