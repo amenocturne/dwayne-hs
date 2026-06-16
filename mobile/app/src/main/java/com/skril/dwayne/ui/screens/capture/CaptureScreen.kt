@@ -35,6 +35,7 @@ fun CaptureScreen(
     var inputText by remember { mutableStateOf("") }
     var recentCaptures by remember { mutableStateOf<List<TaskWithPointer>>(emptyList()) }
     var captureWriteRevision by remember { mutableIntStateOf(0) }
+    var isCaptureInFlight by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -91,24 +92,34 @@ fun CaptureScreen(
             Spacer(modifier = Modifier.width(8.dp))
             IconButton(
                 onClick = {
-                    if (inputText.isNotBlank()) {
+                    if (inputText.isNotBlank() && !isCaptureInFlight) {
+                        val submittedText = inputText
+                        val captureTitle = submittedText.trim()
+                        inputText = ""
+                        isCaptureInFlight = true
+                        Log.d(TAG, "Capture requested textLength=${captureTitle.length}")
                         scope.launch {
                             try {
-                                val captured = repository.capture(inputText.trim())
+                                val captured = repository.capture(captureTitle)
                                 Log.d(
                                     TAG,
                                     "Capture success destinationFile=${captured.pointer.file} " +
                                         "pointer=${captured.pointer.file}:${captured.pointer.taskIndex}",
                                 )
-                                inputText = ""
                                 captureWriteRevision += 1
                             } catch (t: Throwable) {
+                                Log.w(TAG, "Capture failed textLength=${captureTitle.length}", t)
+                                if (inputText.isEmpty()) {
+                                    inputText = submittedText
+                                }
                                 onError("Capture failed: ${t.message ?: t::class.java.simpleName}")
+                            } finally {
+                                isCaptureInFlight = false
                             }
                         }
                     }
                 },
-                enabled = inputText.isNotBlank(),
+                enabled = inputText.isNotBlank() && !isCaptureInFlight,
             ) {
                 Icon(Icons.AutoMirrored.Default.Send, contentDescription = "Capture")
             }
