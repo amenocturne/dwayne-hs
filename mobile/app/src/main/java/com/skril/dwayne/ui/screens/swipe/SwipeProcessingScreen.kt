@@ -2,6 +2,7 @@ package com.skril.dwayne.ui.screens.swipe
 
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -16,6 +17,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -26,9 +31,11 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -43,7 +50,7 @@ import com.skril.dwayne.ui.components.TaskCardTitle
 import com.skril.dwayne.ui.components.TaskCardInteraction
 import com.skril.dwayne.ui.components.firstLinkUrl
 import com.skril.dwayne.ui.components.taskCardInteraction
-import com.skril.dwayne.ui.components.toPlainString
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -64,6 +71,7 @@ fun SwipeProcessingScreen(
 ) {
     var filterText by rememberSaveable { mutableStateOf("keyword:INBOX") }
     var consumed by remember { mutableStateOf<Set<TaskPointer>>(emptySet()) }
+    var latestProcessedRecord by remember { mutableStateOf<ProcessedTaskRecord?>(null) }
     var pathStack by remember { mutableStateOf<List<Pair<Branch, Dir>>>(emptyList()) }
 
     val currentNode: Branch = pathStack.lastOrNull()?.let { (parent, dir) ->
@@ -87,6 +95,8 @@ fun SwipeProcessingScreen(
     var offsetY by remember { mutableFloatStateOf(0f) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
+    val snackbarHostState = remember { SnackbarHostState() }
 
     fun handleSwipe(dir: Dir) {
         offsetX = 0f
@@ -94,28 +104,73 @@ fun SwipeProcessingScreen(
         when (val resolution = resolveProcessingSwipe(currentNode, backDir, dir)) {
             ProcessingSwipeResolution.Ignore -> return
             ProcessingSwipeResolution.NavigateBack -> {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 pathStack = pathStack.dropLast(1)
             }
             is ProcessingSwipeResolution.EnterBranch -> {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 pathStack = pathStack + (currentNode to dir)
             }
             is ProcessingSwipeResolution.ApplyTerminal -> {
                 val (ptr, task) = current ?: return
-                consumed = consumed + ptr
+                val record = ProcessedTaskRecord(ptr, task)
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                consumed = consumeProcessingRecord(consumed, record)
+                latestProcessedRecord = record
                 pathStack = emptyList()
                 scope.launch {
-                    try {
-                        applyProcessingModification(repository, ptr, task, resolution.terminal.modification)
-                    } catch (t: Throwable) {
-                        consumed = consumed - ptr
-                        onError("Apply failed: ${t.message ?: t::class.java.simpleName}")
+                    Log.d(TAG, "Processing action requested pointer=${ptr.file}:${ptr.taskIndex}")
+                    val applyResult = async {
+                        runCatching {
+                            applyProcessingModification(repository, ptr, task, resolution.terminal.modification)
+                        }
+                    }
+                    val snackbarResult = async {
+                        snackbarHostState.showSnackbar(
+                            message = "Processed",
+                            actionLabel = "Undo",
+                            withDismissAction = true,
+                        )
+                    }
+                    val result = applyResult.await()
+                    val failure = result.exceptionOrNull()
+                    if (failure != null) {
+                        snackbarHostState.currentSnackbarData?.dismiss()
+                        consumed = restoreProcessingRecord(consumed, record)
+                        if (latestProcessedRecord == record) {
+                            latestProcessedRecord = null
+                        }
+                        Log.w(TAG, "Processing action failed pointer=${ptr.file}:${ptr.taskIndex}", failure)
+                        onError("Apply failed: ${failure.message ?: failure::class.java.simpleName}")
+                        return@launch
+                    }
+                    Log.d(TAG, "Processing action applied pointer=${ptr.file}:${ptr.taskIndex}")
+                    if (snackbarResult.await() == SnackbarResult.ActionPerformed && latestProcessedRecord == record) {
+                        try {
+                            restoreProcessingSnapshot(repository, record)
+                            consumed = restoreProcessingRecord(consumed, record)
+                            latestProcessedRecord = null
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            Log.d(TAG, "Processing action undone pointer=${ptr.file}:${ptr.taskIndex}")
+                        } catch (t: Throwable) {
+                            Log.w(TAG, "Processing undo failed pointer=${ptr.file}:${ptr.taskIndex}", t)
+                            onError("Undo failed: ${t.message ?: t::class.java.simpleName}")
+                        }
                     }
                 }
             }
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Scaffold(
+        contentWindowInsets = WindowInsets(0.dp),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { scaffoldPadding ->
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(scaffoldPadding),
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -213,6 +268,20 @@ fun SwipeProcessingScreen(
                 sectorColor,
                 sectorProgress * 0.5f,
             )
+            var hapticDir by remember(current.first, currentNode, backDir) { mutableStateOf<Dir?>(null) }
+            val activeThresholdDir = directionOf(
+                offsetX,
+                offsetY,
+                requireThreshold = true,
+                cornerAngleDeg = cornerAngleDeg,
+            )
+
+            LaunchedEffect(activeThresholdDir) {
+                if (activeThresholdDir != null && activeThresholdDir != hapticDir) {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+                hapticDir = activeThresholdDir
+            }
 
             // Compute rotation directly: tracks the finger 1:1 during drag, and
             // snaps to 0 instantly when offsetX is reset — no settling animation
@@ -289,7 +358,10 @@ fun SwipeProcessingScreen(
             }
         }
     }
+    }
 }
+
+private const val TAG = "DwayneProcessing"
 
 // Diagonal cones (30°) sit on the actual corner-to-center line of the drag rectangle:
 // the corner direction is at angle ±cornerAngleDeg (and ±(180-cornerAngleDeg)) for a

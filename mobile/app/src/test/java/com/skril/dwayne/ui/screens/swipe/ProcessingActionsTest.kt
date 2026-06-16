@@ -73,6 +73,47 @@ class ProcessingActionsTest {
             repository.editRequest,
         )
     }
+
+    @Test
+    fun `consume processing record adds pointer to consumed set`() {
+        val existing = TaskPointer("/other.org", 1)
+        val record = ProcessedTaskRecord(TaskPointer("/inbox.org", 7), testTask(keyword = "INBOX"))
+
+        val consumed = consumeProcessingRecord(setOf(existing), record)
+
+        assertEquals(setOf(existing, record.pointer), consumed)
+    }
+
+    @Test
+    fun `restore processing record removes pointer from consumed set`() {
+        val existing = TaskPointer("/other.org", 1)
+        val record = ProcessedTaskRecord(TaskPointer("/inbox.org", 7), testTask(keyword = "INBOX"))
+
+        val consumed = restoreProcessingRecord(setOf(existing, record.pointer), record)
+
+        assertEquals(setOf(existing), consumed)
+    }
+
+    @Test
+    fun `restore processing snapshot writes previous keyword and tags`() = runTest {
+        val repository = RecordingTaskRepository()
+        val record = ProcessedTaskRecord(
+            pointer = TaskPointer("/inbox.org", 7),
+            previousTask = testTask(keyword = "INBOX", tags = listOf("music", "download")),
+        )
+
+        restoreProcessingSnapshot(repository, record)
+
+        assertEquals(
+            EditTaskRequest(
+                file = "/inbox.org",
+                taskIndex = 7,
+                keyword = "INBOX",
+                tags = listOf("music", "download"),
+            ),
+            repository.editRequest,
+        )
+    }
 }
 
 private class RecordingTaskRepository : TaskRepository {

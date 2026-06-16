@@ -13,6 +13,11 @@ sealed class ProcessingSwipeResolution {
     data class ApplyTerminal(val terminal: Terminal) : ProcessingSwipeResolution()
 }
 
+data class ProcessedTaskRecord(
+    val pointer: TaskPointer,
+    val previousTask: Task,
+)
+
 fun resolveProcessingSwipe(
     currentNode: Branch,
     backDir: Dir?,
@@ -46,6 +51,31 @@ suspend fun applyProcessingModification(
             )
         )
 }
+
+suspend fun restoreProcessingSnapshot(
+    repository: TaskRepository,
+    record: ProcessedTaskRecord,
+): TaskWithPointer =
+    repository.editTask(
+        EditTaskRequest(
+            file = record.pointer.file,
+            taskIndex = record.pointer.taskIndex,
+            keyword = record.previousTask.todoKeyword,
+            tags = record.previousTask.tags,
+        )
+    )
+
+fun consumeProcessingRecord(
+    consumed: Set<TaskPointer>,
+    record: ProcessedTaskRecord,
+): Set<TaskPointer> =
+    consumed + record.pointer
+
+fun restoreProcessingRecord(
+    consumed: Set<TaskPointer>,
+    record: ProcessedTaskRecord,
+): Set<TaskPointer> =
+    consumed - record.pointer
 
 fun List<String>.withAddedTags(tagsToAdd: List<String>): List<String> =
     (this + tagsToAdd).distinct()
