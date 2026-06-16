@@ -188,20 +188,12 @@ fun SwipeProcessingScreen(
             }
         }
 
-        if (current == null) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = if (filteredTasks.isEmpty()) "No tasks match" else "All processed",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-            }
-            return@Column
-        }
-
         val statusText = buildString {
-            append("${currentIndex + 1}/${filteredTasks.size}")
+            if (current == null) {
+                append(if (latestProcessedRecord != null) "All processed" else "No tasks match")
+            } else {
+                append("${currentIndex + 1}/${filteredTasks.size}")
+            }
             if (pathStack.isNotEmpty()) {
                 append("  •  ")
                 append(currentNode.label)
@@ -210,8 +202,8 @@ fun SwipeProcessingScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 4.dp),
+                .height(48.dp)
+                .padding(horizontal = 16.dp),
         ) {
             Text(
                 text = statusText,
@@ -227,6 +219,23 @@ fun SwipeProcessingScreen(
                     modifier = Modifier.align(Alignment.CenterEnd),
                 )
             }
+        }
+
+        if (current == null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (latestProcessedRecord != null) "All processed" else "No tasks match",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            return@Column
         }
 
         var dragAreaSize by remember { mutableStateOf(IntSize.Zero) }
