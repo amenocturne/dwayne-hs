@@ -17,11 +17,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -50,7 +47,6 @@ import com.skril.dwayne.ui.components.TaskCardTitle
 import com.skril.dwayne.ui.components.TaskCardInteraction
 import com.skril.dwayne.ui.components.firstLinkUrl
 import com.skril.dwayne.ui.components.taskCardInteraction
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -72,6 +68,8 @@ fun SwipeProcessingScreen(
     var filterText by rememberSaveable { mutableStateOf("keyword:INBOX") }
     var consumed by remember { mutableStateOf<Set<TaskPointer>>(emptySet()) }
     var latestProcessedRecord by remember { mutableStateOf<ProcessedTaskRecord?>(null) }
+    var latestProcessedApplied by remember { mutableStateOf(false) }
+    var undoInFlight by remember { mutableStateOf(false) }
     var pathStack by remember { mutableStateOf<List<Pair<Branch, Dir>>>(emptyList()) }
 
     val currentNode: Branch = pathStack.lastOrNull()?.let { (parent, dir) ->
@@ -96,7 +94,29 @@ fun SwipeProcessingScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
-    val snackbarHostState = remember { SnackbarHostState() }
+
+    fun undoLatestProcessed() {
+        val record = latestProcessedRecord ?: return
+        if (!latestProcessedApplied || undoInFlight) return
+        undoInFlight = true
+        scope.launch {
+            try {
+                restoreProcessingSnapshot(repository, record)
+                consumed = restoreProcessingRecord(consumed, record)
+                if (latestProcessedRecord == record) {
+                    latestProcessedRecord = null
+                    latestProcessedApplied = false
+                }
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                Log.d(TAG, "Processing action undone pointer=${record.pointer.file}:${record.pointer.taskIndex}")
+            } catch (t: Throwable) {
+                Log.w(TAG, "Processing undo failed pointer=${record.pointer.file}:${record.pointer.taskIndex}", t)
+                onError("Undo failed: ${t.message ?: t::class.java.simpleName}")
+            } finally {
+                undoInFlight = false
+            }
+        }
+    }
 
     fun handleSwipe(dir: Dir) {
         offsetX = 0f
@@ -113,63 +133,40 @@ fun SwipeProcessingScreen(
             }
             is ProcessingSwipeResolution.ApplyTerminal -> {
                 val (ptr, task) = current ?: return
-                val record = ProcessedTaskRecord(ptr, task)
+                val record = ProcessedTaskRecord(ptr, task, resolution.terminal.label)
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 consumed = consumeProcessingRecord(consumed, record)
                 latestProcessedRecord = record
+                latestProcessedApplied = false
                 pathStack = emptyList()
                 scope.launch {
                     Log.d(TAG, "Processing action requested pointer=${ptr.file}:${ptr.taskIndex}")
-                    val applyResult = async {
-                        runCatching {
-                            applyProcessingModification(repository, ptr, task, resolution.terminal.modification)
-                        }
+                    val result = runCatching {
+                        applyProcessingModification(repository, ptr, task, resolution.terminal.modification)
                     }
-                    val snackbarResult = async {
-                        snackbarHostState.showSnackbar(
-                            message = "Processed",
-                            actionLabel = "Undo",
-                            withDismissAction = true,
-                        )
-                    }
-                    val result = applyResult.await()
                     val failure = result.exceptionOrNull()
                     if (failure != null) {
-                        snackbarHostState.currentSnackbarData?.dismiss()
                         consumed = restoreProcessingRecord(consumed, record)
                         if (latestProcessedRecord == record) {
                             latestProcessedRecord = null
+                            latestProcessedApplied = false
                         }
                         Log.w(TAG, "Processing action failed pointer=${ptr.file}:${ptr.taskIndex}", failure)
                         onError("Apply failed: ${failure.message ?: failure::class.java.simpleName}")
                         return@launch
                     }
                     Log.d(TAG, "Processing action applied pointer=${ptr.file}:${ptr.taskIndex}")
-                    if (snackbarResult.await() == SnackbarResult.ActionPerformed && latestProcessedRecord == record) {
-                        try {
-                            restoreProcessingSnapshot(repository, record)
-                            consumed = restoreProcessingRecord(consumed, record)
-                            latestProcessedRecord = null
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            Log.d(TAG, "Processing action undone pointer=${ptr.file}:${ptr.taskIndex}")
-                        } catch (t: Throwable) {
-                            Log.w(TAG, "Processing undo failed pointer=${ptr.file}:${ptr.taskIndex}", t)
-                            onError("Undo failed: ${t.message ?: t::class.java.simpleName}")
-                        }
+                    if (latestProcessedRecord == record) {
+                        latestProcessedApplied = true
                     }
                 }
             }
         }
     }
 
-    Scaffold(
-        contentWindowInsets = WindowInsets(0.dp),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-    ) { scaffoldPadding ->
     Column(
         modifier = Modifier
-            .fillMaxSize()
-            .padding(scaffoldPadding),
+            .fillMaxSize(),
     ) {
         Row(
             modifier = Modifier
@@ -210,14 +207,27 @@ fun SwipeProcessingScreen(
                 append(currentNode.label)
             }
         }
-        Text(
-            text = statusText,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Box(
             modifier = Modifier
-                .align(Alignment.CenterHorizontally)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
                 .padding(bottom = 4.dp),
-        )
+        ) {
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.Center),
+            )
+            latestProcessedRecord?.let { record ->
+                ProcessingUndoChip(
+                    label = record.actionLabel,
+                    enabled = latestProcessedApplied && !undoInFlight,
+                    onUndo = ::undoLatestProcessed,
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                )
+            }
+        }
 
         var dragAreaSize by remember { mutableStateOf(IntSize.Zero) }
         val cornerAngleDeg: Double = remember(dragAreaSize) {
@@ -358,10 +368,40 @@ fun SwipeProcessingScreen(
             }
         }
     }
-    }
 }
 
 private const val TAG = "DwayneProcessing"
+
+@Composable
+private fun ProcessingUndoChip(
+    label: String,
+    enabled: Boolean,
+    onUndo: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(start = 10.dp, end = 2.dp, top = 2.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (label.isNotBlank()) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.width(2.dp))
+        }
+        TextButton(
+            onClick = onUndo,
+            enabled = enabled,
+        ) {
+            Text("Undo")
+        }
+    }
+}
 
 // Diagonal cones (30°) sit on the actual corner-to-center line of the drag rectangle:
 // the corner direction is at angle ±cornerAngleDeg (and ±(180-cornerAngleDeg)) for a

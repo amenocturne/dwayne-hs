@@ -16,6 +16,7 @@ sealed class ProcessingSwipeResolution {
 data class ProcessedTaskRecord(
     val pointer: TaskPointer,
     val previousTask: Task,
+    val actionLabel: String = "",
 )
 
 fun resolveProcessingSwipe(
