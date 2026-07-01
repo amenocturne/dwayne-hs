@@ -16,10 +16,14 @@ object ScheduledReminderScheduler {
     private const val EXTRA_TRIGGER_AT = "com.skril.dwayne.extra.TRIGGER_AT"
     private const val TAG = "DwayneScheduledReminder"
 
-    fun rescheduleAll(context: Context, tasks: Map<TaskPointer, Task>) {
+    fun rescheduleAll(
+        context: Context,
+        tasks: Map<TaskPointer, Task>,
+        dateOnlyReminderTime: String,
+    ) {
         ScheduledReminderNotifications.ensureChannel(context)
         cancelAll(context, tasks.keys)
-        ScheduledReminderPlan.upcoming(tasks).forEach { schedule(context, it) }
+        ScheduledReminderPlan.upcoming(tasks, dateOnlyReminderTime).forEach { schedule(context, it) }
     }
 
     fun reminderFromIntent(intent: Intent?): ScheduledReminder? {

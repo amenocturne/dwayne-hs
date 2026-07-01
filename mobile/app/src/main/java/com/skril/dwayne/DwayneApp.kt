@@ -17,6 +17,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -75,9 +76,17 @@ class DwayneApp : Application() {
         }
 
         scope.launch {
-            taskRepository.state.collect { tasks ->
-                ScheduledReminderScheduler.rescheduleAll(this@DwayneApp, tasks)
-            }
+            combine(
+                taskRepository.state,
+                settingsStore.scheduledDateOnlyReminderTime,
+            ) { tasks, dateOnlyReminderTime -> tasks to dateOnlyReminderTime }
+                .collect { (tasks, dateOnlyReminderTime) ->
+                    ScheduledReminderScheduler.rescheduleAll(
+                        context = this@DwayneApp,
+                        tasks = tasks,
+                        dateOnlyReminderTime = dateOnlyReminderTime,
+                    )
+                }
         }
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {

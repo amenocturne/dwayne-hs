@@ -30,6 +30,9 @@ fun SettingsScreen(store: SettingsStore, defaultApiBaseUrl: String) {
     val currentInboxFile by store.inboxFilePath.collectAsState(initial = SettingsStore.DEFAULT_INBOX_FILE)
     val currentSyncInterval by store.syncIntervalMinutes.collectAsState(initial = SettingsStore.DEFAULT_SYNC_INTERVAL_MIN)
     val currentPullWindow by store.pullWindowHours.collectAsState(initial = SettingsStore.DEFAULT_PULL_WINDOW_HOURS)
+    val currentDateOnlyReminderTime by store.scheduledDateOnlyReminderTime.collectAsState(
+        initial = SettingsStore.DEFAULT_SCHEDULED_DATE_ONLY_REMINDER_TIME,
+    )
 
     var urlDraft by remember(currentUrl) { mutableStateOf(currentUrl) }
     var usernameDraft by remember(currentUsername) { mutableStateOf(currentUsername) }
@@ -37,6 +40,9 @@ fun SettingsScreen(store: SettingsStore, defaultApiBaseUrl: String) {
     var inboxDraft by remember(currentInboxFile) { mutableStateOf(currentInboxFile) }
     var syncIntervalDraft by remember(currentSyncInterval) { mutableStateOf(currentSyncInterval.toString()) }
     var pullWindowDraft by remember(currentPullWindow) { mutableStateOf(currentPullWindow.toString()) }
+    var dateOnlyReminderTimeDraft by remember(currentDateOnlyReminderTime) {
+        mutableStateOf(currentDateOnlyReminderTime)
+    }
     var passwordVisible by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
@@ -178,7 +184,47 @@ fun SettingsScreen(store: SettingsStore, defaultApiBaseUrl: String) {
                 ) { Text("Force sync now") }
             }
 
+            HorizontalDivider()
+
+            Text("Reminders", style = MaterialTheme.typography.titleMedium)
+
+            OutlinedTextField(
+                value = dateOnlyReminderTimeDraft,
+                onValueChange = { dateOnlyReminderTimeDraft = sanitizeHourMinuteDraft(it) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Date-only scheduled time") },
+                supportingText = { Text("Used for scheduled tasks that have a date but no explicit time.") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                isError = dateOnlyReminderTimeDraft.isNotBlank() &&
+                    !SettingsStore.isValidHourMinute(dateOnlyReminderTimeDraft),
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            store.setScheduledDateOnlyReminderTime(dateOnlyReminderTimeDraft)
+                            savedNotice = "Reminder settings saved"
+                        }
+                    },
+                    enabled = SettingsStore.isValidHourMinute(dateOnlyReminderTimeDraft) &&
+                        dateOnlyReminderTimeDraft != currentDateOnlyReminderTime,
+                ) { Text("Save reminders") }
+
+                OutlinedButton(
+                    onClick = {
+                        dateOnlyReminderTimeDraft = SettingsStore.DEFAULT_SCHEDULED_DATE_ONLY_REMINDER_TIME
+                    },
+                ) { Text("Default") }
+            }
+
             savedNotice?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         }
     }
+}
+
+private fun sanitizeHourMinuteDraft(value: String): String {
+    val digits = value.filter { it.isDigit() }.take(4)
+    return if (digits.length <= 2) digits else "${digits.take(2)}:${digits.drop(2)}"
 }

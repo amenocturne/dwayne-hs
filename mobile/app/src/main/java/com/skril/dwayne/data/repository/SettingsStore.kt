@@ -48,6 +48,12 @@ class SettingsStore(context: Context, private val defaultApiBaseUrl: String) {
         (prefs[PULL_WINDOW_KEY] ?: DEFAULT_PULL_WINDOW_HOURS).coerceAtLeast(0)
     }
 
+    val scheduledDateOnlyReminderTime: Flow<String> = dataStore.data.map { prefs ->
+        prefs[SCHEDULED_DATE_ONLY_REMINDER_TIME_KEY]
+            ?.takeIf { isValidHourMinute(it) }
+            ?: DEFAULT_SCHEDULED_DATE_ONLY_REMINDER_TIME
+    }
+
     suspend fun setApiBaseUrl(url: String) {
         dataStore.edit { prefs ->
             val trimmed = url.trim()
@@ -96,6 +102,17 @@ class SettingsStore(context: Context, private val defaultApiBaseUrl: String) {
         }
     }
 
+    suspend fun setScheduledDateOnlyReminderTime(value: String) {
+        dataStore.edit { prefs ->
+            val trimmed = value.trim()
+            if (trimmed.isEmpty()) {
+                prefs.remove(SCHEDULED_DATE_ONLY_REMINDER_TIME_KEY)
+            } else if (isValidHourMinute(trimmed)) {
+                prefs[SCHEDULED_DATE_ONLY_REMINDER_TIME_KEY] = trimmed
+            }
+        }
+    }
+
     companion object {
         const val DEFAULT_USERNAME = ""
         const val DEFAULT_INBOX_FILE = "Inbox.org"
@@ -104,6 +121,7 @@ class SettingsStore(context: Context, private val defaultApiBaseUrl: String) {
         // foreground-trigger / "Force sync now" path is unaffected.
         const val DEFAULT_SYNC_INTERVAL_MIN = 5
         const val DEFAULT_PULL_WINDOW_HOURS = 24
+        const val DEFAULT_SCHEDULED_DATE_ONLY_REMINDER_TIME = "09:00"
 
         private val API_BASE_URL_KEY = stringPreferencesKey("api_base_url")
         private val API_USERNAME_KEY = stringPreferencesKey("api_username")
@@ -111,5 +129,18 @@ class SettingsStore(context: Context, private val defaultApiBaseUrl: String) {
         private val INBOX_FILE_KEY = stringPreferencesKey("inbox_file_path")
         private val SYNC_INTERVAL_KEY = intPreferencesKey("sync_interval_minutes")
         private val PULL_WINDOW_KEY = intPreferencesKey("pull_window_hours")
+        private val SCHEDULED_DATE_ONLY_REMINDER_TIME_KEY =
+            stringPreferencesKey("scheduled_date_only_reminder_time")
+
+        fun isValidHourMinute(value: String): Boolean {
+            val parts = value.split(":")
+            if (parts.size != 2) return false
+            val hour = parts[0].toIntOrNull() ?: return false
+            val minute = parts[1].toIntOrNull() ?: return false
+            return parts[0].length == 2 &&
+                parts[1].length == 2 &&
+                hour in 0..23 &&
+                minute in 0..59
+        }
     }
 }

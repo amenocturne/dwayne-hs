@@ -23,12 +23,13 @@ object ScheduledReminderPlan {
 
     fun upcoming(
         tasks: Map<TaskPointer, Task>,
+        dateOnlyReminderTime: String,
         nowMillis: Long = System.currentTimeMillis(),
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): List<ScheduledReminder> =
         tasks.mapNotNull { (pointer, task) ->
             val scheduled = task.scheduled ?: return@mapNotNull null
-            val time = scheduled.time ?: return@mapNotNull null
+            val time = scheduled.time ?: dateOnlyReminderTime
             val triggerAtMillis = parseTriggerMillis(scheduled.date, time, zoneId) ?: return@mapNotNull null
             if (triggerAtMillis <= nowMillis) return@mapNotNull null
             ScheduledReminder(
