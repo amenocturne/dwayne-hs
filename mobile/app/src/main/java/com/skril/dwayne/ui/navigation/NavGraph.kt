@@ -60,6 +60,8 @@ fun DwayneNavHost(
     initialCaptureText: String? = null,
     initialCaptureTextRevision: Int = 0,
     openCaptureRequest: Int = 0,
+    openTaskRequest: Pair<String, Int>? = null,
+    openTaskRevision: Int = 0,
     onCaptureConsumed: () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -112,6 +114,14 @@ fun DwayneNavHost(
                 launchSingleTop = true
                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
             }
+        }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(openTaskRevision) {
+        val pointer = openTaskRequest ?: return@LaunchedEffect
+        Log.d(TAG, "Task detail opened source=scheduled-reminder file=${pointer.first} taskIndex=${pointer.second}")
+        navController.navigate(Screen.TaskDetail.route(pointer.first, pointer.second)) {
+            launchSingleTop = true
         }
     }
 

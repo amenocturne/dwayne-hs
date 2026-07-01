@@ -11,6 +11,8 @@ import com.skril.dwayne.data.repository.SettingsStore
 import com.skril.dwayne.data.repository.TreeStore
 import com.skril.dwayne.data.sync.SyncWorker
 import com.skril.dwayne.notifications.AmbientCaptureNotification
+import com.skril.dwayne.notifications.ScheduledReminderNotifications
+import com.skril.dwayne.notifications.ScheduledReminderScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -47,6 +49,7 @@ class DwayneApp : Application() {
     override fun onCreate() {
         super.onCreate()
         AmbientCaptureNotification.ensureChannel(this)
+        ScheduledReminderNotifications.ensureChannel(this)
         settingsStore = SettingsStore(this, BuildConfig.API_BASE_URL)
         treeStore = TreeStore(this)
         val db = Database.get(this)
@@ -69,6 +72,12 @@ class DwayneApp : Application() {
             val interval = settingsStore.syncIntervalMinutes.first().toLong()
             SyncWorker.schedulePeriodic(this@DwayneApp, interval)
             SyncWorker.enqueueOneShot(this@DwayneApp)
+        }
+
+        scope.launch {
+            taskRepository.state.collect { tasks ->
+                ScheduledReminderScheduler.rescheduleAll(this@DwayneApp, tasks)
+            }
         }
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {

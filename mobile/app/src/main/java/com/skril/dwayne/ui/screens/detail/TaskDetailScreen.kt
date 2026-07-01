@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,11 +32,15 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 private val keywordChoices = listOf(
     "INBOX", "DEFER", "TODAY", "SOON", "TODO", "PROJECT", "RELEVANT",
     "SOMEDAY", "WAITING", "NOTES", "LIST", "DONE", "TRASH",
 )
+
+private val orgDateFormatter: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -306,27 +311,65 @@ private fun DateField(
     onChange: (OrgTime?) -> Unit,
 ) {
     var showPicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
     val display = value?.let { fmtTime(it.date, it.time) } ?: ""
 
-    OutlinedTextField(
-        value = display,
-        onValueChange = {},
-        readOnly = true,
-        label = { Text(label) },
-        modifier = Modifier.fillMaxWidth(),
-        trailingIcon = {
-            Row {
-                if (value != null) {
-                    IconButton(onClick = { onChange(null) }) {
-                        Icon(Icons.Default.Clear, contentDescription = "Clear $label")
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = display,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            modifier = Modifier.fillMaxWidth(),
+            trailingIcon = {
+                Row {
+                    if (value != null) {
+                        IconButton(onClick = { onChange(null) }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Clear $label")
+                        }
+                    }
+                    IconButton(onClick = { showPicker = true }) {
+                        Icon(Icons.Default.DateRange, contentDescription = "Pick $label date")
                     }
                 }
-                IconButton(onClick = { showPicker = true }) {
-                    Icon(Icons.Default.DateRange, contentDescription = "Pick $label")
+            },
+        )
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            DateShortcutButton("Today") { onChange(value.withDate(LocalDate.now())) }
+            DateShortcutButton("Tomorrow") { onChange(value.withDate(LocalDate.now().plusDays(1))) }
+            DateShortcutButton("Next week") { onChange(value.withDate(LocalDate.now().plusWeeks(1))) }
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            OutlinedButton(
+                onClick = {
+                    if (value == null) {
+                        onChange(OrgTime(date = formatLocalDate(LocalDate.now()), time = "09:00"))
+                    }
+                    showTimePicker = true
+                },
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Icon(Icons.Default.Schedule, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(value?.time ?: "Set time")
+            }
+            if (value?.time != null) {
+                TextButton(onClick = { onChange(value.copy(time = null)) }) {
+                    Text("Clear time")
                 }
             }
-        },
-    )
+        }
+    }
 
     if (showPicker) {
         val initialMillis = value?.date?.let { parseDateMillis(it) }
@@ -349,10 +392,58 @@ private fun DateField(
             DatePicker(state = state)
         }
     }
+
+    if (showTimePicker) {
+        val initialTime = parseHourMinute(value?.time)
+        val state = rememberTimePickerState(
+            initialHour = initialTime.first,
+            initialMinute = initialTime.second,
+            is24Hour = true,
+        )
+        AlertDialog(
+            onDismissRequest = { showTimePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    val date = value?.date ?: formatLocalDate(LocalDate.now())
+                    onChange(OrgTime(date = date, time = formatHourMinute(state.hour, state.minute)))
+                    showTimePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimePicker = false }) { Text("Cancel") }
+            },
+            title = { Text("$label time") },
+            text = { TimePicker(state = state) },
+        )
+    }
+}
+
+@Composable
+private fun DateShortcutButton(label: String, onClick: () -> Unit) {
+    AssistChip(
+        onClick = onClick,
+        label = { Text(label) },
+    )
 }
 
 private fun fmtTime(date: String, time: String?): String =
     if (time != null) "$date $time" else date
+
+private fun OrgTime?.withDate(date: LocalDate): OrgTime =
+    OrgTime(date = formatLocalDate(date), time = this?.time)
+
+private fun formatLocalDate(date: LocalDate): String =
+    orgDateFormatter.format(date)
+
+private fun parseHourMinute(time: String?): Pair<Int, Int> {
+    val parts = time?.split(":") ?: return 9 to 0
+    val hour = parts.getOrNull(0)?.toIntOrNull()?.coerceIn(0, 23) ?: 9
+    val minute = parts.getOrNull(1)?.toIntOrNull()?.coerceIn(0, 59) ?: 0
+    return hour to minute
+}
+
+private fun formatHourMinute(hour: Int, minute: Int): String =
+    "%02d:%02d".format(Locale.US, hour, minute)
 
 private fun parseDateMillis(date: String): Long? {
     val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {

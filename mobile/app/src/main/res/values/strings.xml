@@ -4,4 +4,7 @@
     <string name="ambient_capture_channel_description">Persistent shortcut for opening Capture.</string>
     <string name="ambient_capture_notification_title">Capture to Dwayne</string>
     <string name="ambient_capture_notification_text">Tap to capture a thought.</string>
+    <string name="scheduled_reminder_channel_name">Scheduled reminders</string>
+    <string name="scheduled_reminder_channel_description">Notifications for tasks with scheduled times.</string>
+    <string name="scheduled_reminder_notification_text">Scheduled now. Tap to open the task.</string>
 </resources>

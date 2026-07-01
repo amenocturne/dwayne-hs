@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import com.skril.dwayne.notifications.AmbientCaptureNotification
+import com.skril.dwayne.notifications.ScheduledReminderNotifications
 import com.skril.dwayne.share.ShareIntentText
 import com.skril.dwayne.ui.navigation.DwayneNavHost
 import com.skril.dwayne.ui.theme.DwayneTheme
@@ -27,6 +28,7 @@ class MainActivity : ComponentActivity() {
 
     private val shareTextEvents = MutableSharedFlow<String>(extraBufferCapacity = 1)
     private var pendingOpenCaptureUpdate: (() -> Unit)? = null
+    private var pendingOpenTaskUpdate: ((Pair<String, Int>) -> Unit)? = null
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -45,11 +47,14 @@ class MainActivity : ComponentActivity() {
         ensureAmbientCaptureNotification()
         val initialShareText = extractShareText(intent, source = "cold-start")
         val initialOpenCapture = handleCaptureNotificationTap(intent, source = "cold-start")
+        val initialOpenTask = handleScheduledReminderTap(intent, source = "cold-start")
         setContent {
             DwayneTheme {
                 var shareText by remember { mutableStateOf(initialShareText) }
                 var shareTextRevision by remember { mutableIntStateOf(if (initialShareText != null) 1 else 0) }
                 var openCaptureRequest by remember { mutableIntStateOf(if (initialOpenCapture) 1 else 0) }
+                var openTaskRequest by remember { mutableStateOf(initialOpenTask) }
+                var openTaskRevision by remember { mutableIntStateOf(if (initialOpenTask != null) 1 else 0) }
                 LaunchedEffect(Unit) {
                     shareTextEvents.collect { text ->
                         shareText = text
@@ -57,10 +62,16 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 pendingOpenCaptureUpdate = { openCaptureRequest += 1 }
+                pendingOpenTaskUpdate = { pointer ->
+                    openTaskRequest = pointer
+                    openTaskRevision += 1
+                }
                 DwayneNavHost(
                     initialCaptureText = shareText,
                     initialCaptureTextRevision = shareTextRevision,
                     openCaptureRequest = openCaptureRequest,
+                    openTaskRequest = openTaskRequest,
+                    openTaskRevision = openTaskRevision,
                     onCaptureConsumed = { shareText = null },
                 )
             }
@@ -77,6 +88,9 @@ class MainActivity : ComponentActivity() {
         }
         if (handleCaptureNotificationTap(intent, source = "warm-start")) {
             pendingOpenCaptureUpdate?.invoke()
+        }
+        handleScheduledReminderTap(intent, source = "warm-start")?.let { pointer ->
+            pendingOpenTaskUpdate?.invoke(pointer)
         }
     }
 
@@ -98,6 +112,15 @@ class MainActivity : ComponentActivity() {
         if (!AmbientCaptureNotification.isOpenCaptureIntent(intent)) return false
         Log.d(TAG_NOTIFICATION, "Capture notification tap received source=$source")
         return true
+    }
+
+    private fun handleScheduledReminderTap(intent: Intent?, source: String): Pair<String, Int>? {
+        val pointer = ScheduledReminderNotifications.taskPointerFromIntent(intent) ?: return null
+        Log.d(
+            TAG_NOTIFICATION,
+            "Scheduled reminder tap received source=$source file=${pointer.first} taskIndex=${pointer.second}",
+        )
+        return pointer
     }
 
     private fun extractShareText(intent: Intent?, source: String): String? {
